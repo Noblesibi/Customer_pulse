@@ -1,0 +1,132 @@
+@import "tailwindcss";
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+@theme {
+  --color-primary: #2563EB;
+  --color-success: #22C55E;
+  --color-warning: #F59E0B;
+  --color-danger: #EF4444;
+
+  /* Redefine dark colors to light mode equivalents */
+  --color-dark-950: #F8FAFC; /* Light gray body bg */
+  --color-dark-900: #FFFFFF; /* Pure white card/section bg */
+  --color-dark-800: #E2E8F0; /* Slate border & dividers */
+  --color-dark-700: #F1F5F9; /* Muted input background */
+  --color-dark-600: #475569; /* Muted text */
+
+  /* Invert Slate scale for high-contrast light mode text & styling */
+  --color-slate-50: #0f172a;
+  --color-slate-100: #1e293b;
+  --color-slate-200: #334155;
+  --color-slate-300: #475569;
+  --color-slate-350: #475569;
+  --color-slate-400: #64748B;
+  --color-slate-450: #64748B;
+  --color-slate-500: #94A3B8;
+  --color-slate-600: #CBD5E1;
+  --color-slate-700: #E2E8F0;
+  --color-slate-800: #F1F5F9;
+  --color-slate-900: #F8FAFC;
+  --color-slate-950: #FFFFFF;
+
+  --font-sans: 'Inter', sans-serif;
+}
+
+body {
+  background-color: var(--color-dark-950);
+  color: #0f172a;
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+
+/* Glassmorphism utility - Light Mode optimized */
+.glass {
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.02);
+}
+
+.glass-hover {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.glass-hover:hover {
+  background: rgba(255, 255, 255, 0.85);
+  border-color: rgba(37, 99, 235, 0.2);
+  box-shadow: 0 10px 30px -10px rgba(37, 99, 235, 0.08);
+}
+
+/* Premium Custom Scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(15, 23, 42, 0.1);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(37, 99, 235, 0.4);
+}
+
+/* Form Controls styling overrides for Light mode readability */
+input, select, textarea {
+  color: #0f172a !important;
+}
+
+input::placeholder, textarea::placeholder {
+  color: #94a3b8 !important;
+}
+
+/* Force dark text for elements with text-white, unless they are inside colored buttons/badges */
+.text-white {
+  color: #0f172a !important;
+}
+
+/* Retain white text for solid-colored buttons, tags, badges, and active navigation tab links */
+button.text-white,
+button .text-white,
+a[role="button"].text-white,
+a[role="button"] .text-white,
+.bg-primary .text-white,
+.bg-primary.text-white,
+.bg-emerald-500 .text-white,
+.bg-emerald-500.text-white,
+.bg-rose-500 .text-white,
+.bg-rose-550 .text-white,
+.bg-danger .text-white,
+.bg-rose-500.text-white,
+.bg-rose-550.text-white,
+.bg-danger.text-white,
+.bg-success .text-white,
+.bg-success.text-white,
+.active .text-white,
+a.active,
+a.active .text-white,
+.text-white.active {
+  color: #ffffff !important;
+}
+
+/* High Fidelity Pulse Animation */
+@keyframes soft-pulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: .85;
+    transform: scale(1.02);
+  }
+}
+
+.animate-soft-pulse {
+  animation: soft-pulse 3s infinite ease-in-out;
+}

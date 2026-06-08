@@ -1,0 +1,487 @@
+import React, { useState, useEffect } from 'react';
+import { 
+  Plus, Search, Edit2, Trash2, Shield, User, X, Mail, Phone, ChevronRight, Grid3X3
+} from 'lucide-react';
+import { useStore } from '../store/index.js';
+
+export default function Contacts() {
+  const { 
+    user,
+    contacts, 
+    accounts,
+    contactsLoading, 
+    fetchContacts, 
+    fetchAccounts,
+    addContact,
+    updateContact,
+    deleteContact
+  } = useStore();
+
+  const [search, setSearch] = useState('');
+  const [selectedAccountId, setSelectedAccountId] = useState('');
+
+  // Modals state
+  const [isAddContactOpen, setIsAddContactOpen] = useState(false);
+  const [isEditContactOpen, setIsEditContactOpen] = useState(false);
+
+  // Form fields
+  const [contactId, setContactId] = useState('');
+  const [accountId, setAccountId] = useState('');
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
+  const [designation, setDesignation] = useState('');
+  const [hierarchyTag, setHierarchyTag] = useState('Staff');
+  const [influenceTag, setInfluenceTag] = useState('Observer');
+
+  const hierarchyTags = ['CXO', 'VP', 'Director', 'Manager', 'Staff'];
+  const influenceTags = ['Decision Maker', 'Influencer', 'Champion', 'Gatekeeper', 'Observer'];
+
+  // Load all contacts and accounts
+  useEffect(() => {
+    fetchContacts(selectedAccountId);
+    fetchAccounts(1, '', {}); // load accounts list for form mapping
+  }, [selectedAccountId]);
+
+  const handleCreateContact = async (e) => {
+    e.preventDefault();
+    if (!accountId) {
+      alert('Please select an account for the contact.');
+      return;
+    }
+    const success = await addContact({
+      accountId,
+      name,
+      email,
+      phone,
+      designation,
+      hierarchyTag,
+      influenceTag
+    });
+    if (success) {
+      setIsAddContactOpen(false);
+      resetForm();
+    }
+  };
+
+  const handleEditContact = async (e) => {
+    e.preventDefault();
+    const success = await updateContact(contactId, {
+      accountId,
+      name,
+      email,
+      phone,
+      designation,
+      hierarchyTag,
+      influenceTag
+    });
+    if (success) {
+      setIsEditContactOpen(false);
+      resetForm();
+      fetchContacts(selectedAccountId);
+    }
+  };
+
+  const openEditModal = (c) => {
+    setContactId(c.contactId || c.id);
+    setAccountId(c.accountId);
+    setName(c.name);
+    setEmail(c.email);
+    setPhone(c.phone || '');
+    setDesignation(c.designation);
+    setHierarchyTag(c.hierarchyTag);
+    setInfluenceTag(c.influenceTag);
+    setIsEditContactOpen(true);
+  };
+
+  const handleDeleteContact = async (c) => {
+    const id = c.contactId || c.id;
+    if (confirm(`Are you sure you want to delete contact ${c.name}?`)) {
+      await deleteContact(id, selectedAccountId);
+    }
+  };
+
+  const resetForm = () => {
+    setContactId('');
+    setAccountId('');
+    setName('');
+    setEmail('');
+    setPhone('');
+    setDesignation('');
+    setHierarchyTag('Staff');
+    setInfluenceTag('Observer');
+  };
+
+  const filteredContacts = contacts.filter(c => 
+    c.name.toLowerCase().includes(search.toLowerCase()) ||
+    c.email.toLowerCase().includes(search.toLowerCase()) ||
+    c.designation.toLowerCase().includes(search.toLowerCase())
+  );
+
+  // Group contacts for the relationship matrix mapping
+  const getMatrixContacts = (hierarchy, influence) => {
+    return filteredContacts.filter(c => c.hierarchyTag === hierarchy && c.influenceTag === influence);
+  };
+
+  return (
+    <div className="space-y-8 select-none">
+      
+      {/* 1. Matrix Visualizer */}
+      <div className="glass p-6 rounded-2xl border border-slate-800/80">
+        <div className="flex items-center justify-between border-b border-slate-800/60 pb-4 mb-6">
+          <div className="flex items-center gap-2">
+            <Grid3X3 className="w-5 h-5 text-primary" />
+            <h2 className="text-base font-bold text-white tracking-wide">Stakeholder Influence vs Hierarchy Matrix</h2>
+          </div>
+          
+          {/* Account Filter */}
+          <select 
+            value={selectedAccountId}
+            onChange={(e) => setSelectedAccountId(e.target.value)}
+            className="bg-dark-900/60 border border-slate-800 text-xs rounded-xl p-2.5 text-slate-300 focus:outline-none cursor-pointer"
+          >
+            <option value="">All Accounts</option>
+            {accounts.map(acc => (
+              <option key={acc.accountId || acc.id} value={acc.accountId || acc.id}>
+                {acc.companyName}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* Matrix Grid */}
+        <div className="overflow-x-auto">
+          <div className="min-w-[700px] grid grid-cols-6 gap-2">
+            
+            {/* Empty top corner */}
+            <div className="p-2 flex items-center justify-center text-[10px] text-slate-500 font-bold uppercase tracking-wider">
+              Hierarchy \ Influence
+            </div>
+
+            {/* Influence headers */}
+            {influenceTags.map(inf => (
+              <div key={inf} className="bg-primary/5 border border-primary/15 rounded-xl p-2.5 text-center text-[10px] font-extrabold uppercase text-slate-300 tracking-wide">
+                {inf}
+              </div>
+            ))}
+
+            {/* Matrix rows based on hierarchy */}
+            {hierarchyTags.map(hier => (
+              <React.Fragment key={hier}>
+                {/* Y-axis label */}
+                <div className="bg-slate-900/40 border border-slate-800/60 rounded-xl p-2 flex items-center justify-center text-center text-[10px] font-bold text-slate-400">
+                  {hier}
+                </div>
+
+                {/* Grid cells mapping */}
+                {influenceTags.map(inf => {
+                  const cellContacts = getMatrixContacts(hier, inf);
+                  return (
+                    <div 
+                      key={`${hier}-${inf}`} 
+                      className={`min-h-16 rounded-xl border p-2 flex flex-col gap-1.5 transition-colors duration-200 ${
+                        cellContacts.length > 0 
+                          ? 'bg-primary/5 border-primary/30' 
+                          : 'bg-transparent border-slate-800/50 hover:bg-slate-800/10'
+                      }`}
+                    >
+                      {cellContacts.map(c => {
+                        const accRef = accounts.find(a => a.accountId === c.accountId || a.id === c.accountId);
+                        return (
+                          <div 
+                            key={c.contactId || c.id} 
+                            onClick={() => openEditModal(c)}
+                            className="bg-dark-900 border border-slate-800 p-1.5 rounded-lg text-[10px] hover:border-primary cursor-pointer"
+                            title={`${c.name} - ${c.designation} (${accRef?.companyName || 'External'})`}
+                          >
+                            <div className="font-bold text-white truncate">{c.name}</div>
+                            <div className="text-slate-400 text-[9px] truncate">{accRef?.companyName || 'CRM Account'}</div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })}
+              </React.Fragment>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* 2. Contacts List Data Panel */}
+      <div className="glass p-6 rounded-2xl border border-slate-800/80 flex flex-col">
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-lg font-bold text-white tracking-wide">Stakeholder Directory</h2>
+          <div className="flex gap-3">
+            {/* Search */}
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+              <input 
+                type="text" 
+                placeholder="Search stakeholders..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="bg-dark-900/60 border border-slate-800 focus:border-primary/50 text-xs rounded-xl py-2.5 pl-9 pr-4 text-white focus:outline-none transition-colors"
+              />
+            </div>
+            
+            {/* Add Stakeholder */}
+            {['Admin', 'Sales Manager', 'Employee'].includes(user?.role) && (
+              <button 
+                onClick={() => setIsAddContactOpen(true)}
+                className="bg-primary hover:bg-blue-600 px-4 py-2.5 rounded-xl text-xs font-semibold flex items-center gap-2 text-white active:scale-98 transition-all"
+              >
+                <Plus className="w-4 h-4" />
+                Add Stakeholder
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Directory Cards list */}
+        {contactsLoading ? (
+          <div className="h-24 flex items-center justify-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+          </div>
+        ) : filteredContacts.length === 0 ? (
+          <div className="p-8 text-center text-xs text-slate-500">
+            No contacts recorded. Register contacts to populate directory.
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            {filteredContacts.map(c => {
+              const account = accounts.find(a => a.accountId === c.accountId || a.id === c.accountId);
+              return (
+                <div key={c.contactId || c.id} className="bg-dark-900/40 border border-slate-800 hover:border-slate-700/80 rounded-2xl p-5 flex flex-col justify-between space-y-4 transition-all duration-200">
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700">
+                        {c.hierarchyTag}
+                      </span>
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/25">
+                        {c.influenceTag}
+                      </span>
+                    </div>
+
+                    <h3 className="text-sm font-bold text-white pt-1">{c.name}</h3>
+                    <p className="text-[11px] text-primary font-medium">{c.designation}</p>
+                    <span className="text-[10px] text-slate-400 block font-semibold">{account?.companyName || 'Corporate Client'}</span>
+                  </div>
+
+                  <div className="space-y-2 border-t border-slate-800/60 pt-3 text-slate-400 text-xs">
+                    <div className="flex items-center gap-2 truncate">
+                      <Mail className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                      <span>{c.email}</span>
+                    </div>
+                    {c.phone && (
+                      <div className="flex items-center gap-2">
+                        <Phone className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                        <span>{c.phone}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {['Admin', 'Sales Manager'].includes(user?.role) && (
+                    <div className="flex items-center justify-end gap-2 border-t border-slate-800/40 pt-3">
+                      <button 
+                        onClick={() => openEditModal(c)}
+                        className="bg-slate-800 hover:bg-slate-700 p-2 rounded-lg text-slate-300 hover:text-white transition-colors"
+                      >
+                        <Edit2 className="w-3.5 h-3.5" />
+                      </button>
+                      <button 
+                        onClick={() => handleDeleteContact(c)}
+                        className="bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 p-2 rounded-lg text-rose-400 hover:text-rose-200 transition-colors"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* ========================================================
+          MODALS INTERFACE CODES (Add Stakeholder, Edit Stakeholder) 
+          ======================================================== */}
+
+      {/* Add Contact Modal */}
+      {isAddContactOpen && (
+        <div className="fixed inset-0 bg-dark-950/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="glass max-w-sm w-full rounded-2xl p-6 border border-slate-800">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-bold text-white text-base">Add Account Stakeholder</h3>
+              <button onClick={() => setIsAddContactOpen(false)} className="text-slate-400 hover:text-white"><X className="w-5 h-5" /></button>
+            </div>
+            <form onSubmit={handleCreateContact} className="space-y-3">
+              <div className="space-y-1">
+                <label className="text-[9px] text-slate-400 uppercase font-semibold">Account Company</label>
+                <select 
+                  value={accountId}
+                  onChange={(e) => setAccountId(e.target.value)}
+                  required
+                  className="w-full bg-dark-900/60 border border-slate-800 text-xs text-white rounded-lg p-2 focus:outline-none cursor-pointer"
+                >
+                  <option value="">Select Client Account</option>
+                  {accounts.map(acc => (
+                    <option key={acc.accountId || acc.id} value={acc.accountId || acc.id}>
+                      {acc.companyName}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-1">
+                <label className="text-[9px] text-slate-400 uppercase font-semibold">Contact Name</label>
+                <input 
+                  type="text" 
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  required 
+                  className="w-full bg-dark-900/60 border border-slate-800 text-xs text-white rounded-lg p-2 focus:outline-none focus:border-primary/50"
+                  placeholder="e.g. Alice Smith"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[9px] text-slate-400 uppercase font-semibold">Corporate Email</label>
+                <input 
+                  type="email" 
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required 
+                  className="w-full bg-dark-900/60 border border-slate-800 text-xs text-white rounded-lg p-2 focus:outline-none focus:border-primary/50"
+                  placeholder="alice@domain.com"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[9px] text-slate-400 uppercase font-semibold">Role Designation</label>
+                <input 
+                  type="text" 
+                  value={designation}
+                  onChange={(e) => setDesignation(e.target.value)}
+                  className="w-full bg-dark-900/60 border border-slate-800 text-xs text-white rounded-lg p-2 focus:outline-none focus:border-primary/50"
+                  placeholder="e.g. VP Operations"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-[9px] text-slate-400 uppercase font-semibold">Hierarchy Tag</label>
+                  <select 
+                    value={hierarchyTag}
+                    onChange={(e) => setHierarchyTag(e.target.value)}
+                    className="w-full bg-dark-900/60 border border-slate-800 text-xs text-white rounded-lg p-2 focus:outline-none cursor-pointer"
+                  >
+                    {hierarchyTags.map(tag => <option key={tag} value={tag}>{tag}</option>)}
+                  </select>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[9px] text-slate-400 uppercase font-semibold">Influence Tag</label>
+                  <select 
+                    value={influenceTag}
+                    onChange={(e) => setInfluenceTag(e.target.value)}
+                    className="w-full bg-dark-900/60 border border-slate-800 text-xs text-white rounded-lg p-2 focus:outline-none cursor-pointer"
+                  >
+                    {influenceTags.map(tag => <option key={tag} value={tag}>{tag}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div className="space-y-1">
+                <label className="text-[9px] text-slate-400 uppercase font-semibold">Phone Number</label>
+                <input 
+                  type="text" 
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  className="w-full bg-dark-900/60 border border-slate-800 text-xs text-white rounded-lg p-2 focus:outline-none"
+                  placeholder="+1 (555) 123-4567"
+                />
+              </div>
+              <button type="submit" className="w-full bg-primary hover:bg-blue-600 text-xs text-white font-semibold rounded-lg py-2.5 mt-2 transition-all">
+                Save Stakeholder
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Contact Modal */}
+      {isEditContactOpen && (
+        <div className="fixed inset-0 bg-dark-950/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="glass max-w-sm w-full rounded-2xl p-6 border border-slate-800">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-bold text-white text-base">Edit Stakeholder Profile</h3>
+              <button onClick={() => setIsEditContactOpen(false)} className="text-slate-400 hover:text-white"><X className="w-5 h-5" /></button>
+            </div>
+            <form onSubmit={handleEditContact} className="space-y-3">
+              <div className="space-y-1">
+                <label className="text-[9px] text-slate-400 uppercase font-semibold">Contact Name</label>
+                <input 
+                  type="text" 
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  required 
+                  className="w-full bg-dark-900/60 border border-slate-800 text-xs text-white rounded-lg p-2 focus:outline-none focus:border-primary/50"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[9px] text-slate-400 uppercase font-semibold">Corporate Email</label>
+                <input 
+                  type="email" 
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required 
+                  className="w-full bg-dark-900/60 border border-slate-800 text-xs text-white rounded-lg p-2 focus:outline-none"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[9px] text-slate-400 uppercase font-semibold">Role Designation</label>
+                <input 
+                  type="text" 
+                  value={designation}
+                  onChange={(e) => setDesignation(e.target.value)}
+                  className="w-full bg-dark-900/60 border border-slate-800 text-xs text-white rounded-lg p-2 focus:outline-none"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-[9px] text-slate-400 uppercase font-semibold">Hierarchy Tag</label>
+                  <select 
+                    value={hierarchyTag}
+                    onChange={(e) => setHierarchyTag(e.target.value)}
+                    className="w-full bg-dark-900/60 border border-slate-800 text-xs text-white rounded-lg p-2 focus:outline-none cursor-pointer"
+                  >
+                    {hierarchyTags.map(tag => <option key={tag} value={tag}>{tag}</option>)}
+                  </select>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[9px] text-slate-400 uppercase font-semibold">Influence Tag</label>
+                  <select 
+                    value={influenceTag}
+                    onChange={(e) => setInfluenceTag(e.target.value)}
+                    className="w-full bg-dark-900/60 border border-slate-800 text-xs text-white rounded-lg p-2 focus:outline-none cursor-pointer"
+                  >
+                    {influenceTags.map(tag => <option key={tag} value={tag}>{tag}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div className="space-y-1">
+                <label className="text-[9px] text-slate-400 uppercase font-semibold">Phone Number</label>
+                <input 
+                  type="text" 
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  className="w-full bg-dark-900/60 border border-slate-800 text-xs text-white rounded-lg p-2"
+                />
+              </div>
+              <button type="submit" className="w-full bg-primary hover:bg-blue-600 text-xs text-white font-semibold rounded-lg py-2.5 mt-2 transition-all">
+                Save Updates
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+    </div>
+  );
+}
