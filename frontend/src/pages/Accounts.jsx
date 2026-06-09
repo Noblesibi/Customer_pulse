@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Plus, Search, Edit2, Trash2, Globe, Building2, ShieldAlert, UserPlus, Send, X, 
-  MessageSquare, Mail, Calendar, Clock, Users, AtSign, CheckSquare, Square, Mic, Video
+  MessageSquare, Mail, Calendar, Clock, Users, AtSign, CheckSquare, Square, Mic, Video,
+  CheckCheck
 } from 'lucide-react';
 import { useStore } from '../store/index.js';
 
@@ -35,7 +36,10 @@ export default function Accounts() {
     summaryLoading,
 
     staffList,
-    fetchStaff
+    fetchStaff,
+
+    repliesByInteraction,
+    fetchReplies
   } = useStore();
 
   const [search, setSearch] = useState('');
@@ -212,6 +216,7 @@ export default function Accounts() {
   };
 
   const resetInteractionForm = () => {
+
     setInteractionText('');
     setInteractionSubject('');
     setInteractionSource('Outlook');
@@ -510,35 +515,103 @@ export default function Accounts() {
                 {interactions.length === 0 ? (
                   <span className="text-xs text-slate-500 block py-2">No activity logged yet.</span>
                 ) : (
-                  interactions.map(item => (
-                    <div key={item.interactionId} className="bg-dark-900/60 p-4 rounded-xl border border-slate-800/80 space-y-2 relative">
-                      <div className="flex items-center justify-between text-[10px]">
-                        <span className="bg-slate-800 text-slate-300 font-bold border border-slate-700 px-2 py-0.5 rounded-full">
-                          {item.source}
-                        </span>
-                        <span className="text-slate-500 font-medium">
-                          {new Date(item.timestamp).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}
-                        </span>
-                      </div>
-                      <p className="text-xs text-slate-200 leading-relaxed whitespace-pre-wrap">{item.messageText}</p>
-                      
-                      <div className="flex items-center gap-2 pt-1.5 border-t border-slate-800/40 text-[9px] font-bold">
-                        <span className={`px-1.5 py-0.5 rounded border ${
-                          item.sentiment === 'Positive' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' :
-                          item.sentiment === 'Negative' ? 'bg-rose-500/10 border-rose-500/20 text-rose-400' :
-                          'bg-slate-800 border-slate-700 text-slate-300'
-                        }`}>
-                          {item.sentiment} Sentiment
-                        </span>
-                        {item.riskDetected && (
-                          <span className="bg-rose-500/10 border border-rose-500/20 text-rose-400 px-1.5 py-0.5 rounded flex items-center gap-0.5 animate-pulse">
-                            <ShieldAlert className="w-3 h-3 text-rose-500" />
-                            Risk: {item.riskCategory}
+                  interactions.map(item => {
+                    const replies = repliesByInteraction[item.interactionId] || [];
+                    return (
+                      <div key={item.interactionId} className="bg-dark-900/60 p-3 rounded-xl border border-slate-800/80 space-y-2 relative">
+                        <div className="flex items-center justify-between text-[10px]">
+                          <span className="bg-slate-800 text-slate-300 font-bold border border-slate-700 px-2 py-0.5 rounded-full">
+                            {item.source}
                           </span>
+                          <span className="text-slate-500 font-medium">
+                            {new Date(item.timestamp).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}
+                          </span>
+                        </div>
+                        <p className="text-xs text-slate-200 leading-relaxed whitespace-pre-wrap">{item.messageText}</p>
+
+                        {/* @Mention Tags + Read Receipt */}
+                        {item.actionMentions && item.actionMentions.length > 0 && (
+                          <div className="space-y-1.5 pt-1 border-t border-slate-800/20 w-full">
+                            <div className="flex flex-col gap-1.5">
+                              {item.actionMentions.map(m => {
+                                const notif = item.notifications?.find(n => n.toUserId === m.uid && n.type === 'Task Assigned');
+                                // Fallback message reconstruction for backward compatibility
+                                const displayMessage = notif ? notif.message : `${item.loggedByName || 'Admin'} assigned you a task for ${selectedAccount?.companyName || 'Account'}: "${item.messageText.slice(0, 100)}${item.messageText.length > 100 ? '...' : ''}"`;
+                                return (
+                                  <div key={m.uid} className="bg-slate-900/30 p-2 rounded-xl border border-slate-800/60 space-y-1 w-full text-[10px] leading-relaxed">
+                                    <div className="flex items-center justify-between">
+                                      <span className="flex items-center gap-1 bg-primary/10 border border-primary/25 text-primary font-bold rounded-full px-2 py-0.5">
+                                        <AtSign className="w-2.5 h-2.5" />{m.name}
+                                      </span>
+                                      <span className={`font-bold flex items-center gap-1 ${
+                                        notif?.read ? 'text-emerald-400' : 'text-slate-500'
+                                      }`}>
+                                        {notif?.read ? (
+                                          <>
+                                            <CheckCheck className="w-3.5 h-3.5 text-emerald-400" />
+                                            Seen {notif.readAt ? `(${new Date(notif.readAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})` : ''}
+                                          </>
+                                        ) : (
+                                          <>
+                                            <Clock className="w-3.5 h-3.5 text-slate-500" />
+                                            Pending
+                                          </>
+                                        )}
+                                      </span>
+                                    </div>
+                                    <p className="text-slate-400 pl-1 font-medium">
+                                      <span className="text-slate-500 font-bold">Task: </span>
+                                      "{displayMessage}"
+                                    </p>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
+
+                        <div className="flex items-center gap-2 pt-1.5 border-t border-slate-800/40 text-[9px] font-bold">
+                          <span className={`px-1.5 py-0.5 rounded border ${
+                            item.sentiment === 'Positive' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' :
+                            item.sentiment === 'Negative' ? 'bg-rose-500/10 border-rose-500/20 text-rose-400' :
+                            'bg-slate-800 border-slate-700 text-slate-300'
+                          }`}>
+                            {item.sentiment} Sentiment
+                          </span>
+                          {item.riskDetected && (
+                            <span className="bg-rose-500/10 border border-rose-500/20 text-rose-400 px-1.5 py-0.5 rounded flex items-center gap-0.5">
+                              <ShieldAlert className="w-3 h-3 text-rose-500" />
+                              Risk: {item.riskCategory}
+                            </span>
+                          )}
+                          <button
+                            onClick={() => fetchReplies(item.interactionId)}
+                            className="ml-auto text-slate-500 hover:text-primary font-semibold text-[9px] underline cursor-pointer"
+                          >
+                            {replies.length > 0 ? `${replies.length} repl${replies.length === 1 ? 'y' : 'ies'}` : 'Load replies'}
+                          </button>
+                        </div>
+
+                        {/* Threaded replies */}
+                        {replies.length > 0 && (
+                          <div className="border-t border-slate-800/60 pt-2 space-y-1.5 ml-2">
+                            {replies.map(r => (
+                              <div key={r.replyId} className="flex items-start gap-2 text-[11px]">
+                                <span className="text-slate-600 mt-0.5">└─</span>
+                                <div className="flex-1">
+                                  <span className="text-primary font-bold">{r.authorName}</span>
+                                  <span className="text-slate-400 ml-1">{r.text}</span>
+                                  <span className="text-slate-600 ml-2 text-[9px]">
+                                    {new Date(r.timestamp).toLocaleString([], { timeStyle: 'short' })}
+                                  </span>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
                         )}
                       </div>
-                    </div>
-                  ))
+                    );
+                  })
                 )}
               </div>
             </div>

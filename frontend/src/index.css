@@ -1,8 +1,8 @@
 @import "tailwindcss";
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&display=swap');
 
 @theme {
-  --color-primary: #2563EB;
+  --color-primary: #1a3a8f;
   --color-success: #22C55E;
   --color-warning: #F59E0B;
   --color-danger: #EF4444;
@@ -15,13 +15,13 @@
   --color-dark-600: #475569; /* Muted text */
 
   /* Invert Slate scale for high-contrast light mode text & styling */
-  --color-slate-50: #0f172a;
-  --color-slate-100: #1e293b;
-  --color-slate-200: #334155;
-  --color-slate-300: #475569;
-  --color-slate-350: #475569;
-  --color-slate-400: #64748B;
-  --color-slate-450: #64748B;
+  --color-slate-50: #000000;
+  --color-slate-100: #000000;
+  --color-slate-200: #000000;
+  --color-slate-300: #000000;
+  --color-slate-350: #000000;
+  --color-slate-400: #000000;
+  --color-slate-450: #000000;
   --color-slate-500: #94A3B8;
   --color-slate-600: #CBD5E1;
   --color-slate-700: #E2E8F0;
@@ -29,13 +29,28 @@
   --color-slate-900: #F8FAFC;
   --color-slate-950: #FFFFFF;
 
-  --font-sans: 'Inter', sans-serif;
+  --font-sans: 'Montserrat', sans-serif;
+}
+
+/* ===== GLOBAL: Disable all animations & transitions ===== */
+*, *::before, *::after {
+  animation: none !important;
+  animation-duration: 0s !important;
+  animation-delay: 0s !important;
+  transition: none !important;
+  transition-duration: 0s !important;
+}
+
+html {
+  font-size: 18px;
+  scroll-behavior: smooth;
 }
 
 body {
   background-color: var(--color-dark-950);
-  color: #0f172a;
+  color: #000000;
   font-family: var(--font-sans);
+  font-size: 1rem;
   -webkit-font-smoothing: antialiased;
   overflow-x: hidden;
 }
@@ -49,7 +64,7 @@ body {
 }
 
 .glass-hover {
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  /* transition removed */
 }
 
 .glass-hover:hover {
@@ -79,7 +94,7 @@ body {
 
 /* Form Controls styling overrides for Light mode readability */
 input, select, textarea {
-  color: #0f172a !important;
+  color: #000000 !important;
 }
 
 input::placeholder, textarea::placeholder {
@@ -88,7 +103,7 @@ input::placeholder, textarea::placeholder {
 
 /* Force dark text for elements with text-white, unless they are inside colored buttons/badges */
 .text-white {
-  color: #0f172a !important;
+  color: #000000 !important;
 }
 
 /* Retain white text for solid-colored buttons, tags, badges, and active navigation tab links */
@@ -115,18 +130,4 @@ a.active .text-white,
   color: #ffffff !important;
 }
 
-/* High Fidelity Pulse Animation */
-@keyframes soft-pulse {
-  0%, 100% {
-    opacity: 1;
-    transform: scale(1);
-  }
-  50% {
-    opacity: .85;
-    transform: scale(1.02);
-  }
-}
-
-.animate-soft-pulse {
-  animation: soft-pulse 3s infinite ease-in-out;
-}
+/* Animations removed per user request */
