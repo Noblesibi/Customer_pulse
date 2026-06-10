@@ -30,12 +30,16 @@ export default function Sidebar() {
     <aside className="w-64 glass border-r border-slate-800/80 min-h-screen flex flex-col justify-between p-5 select-none z-10 shrink-0">
       <div className="space-y-8">
         {/* Brand Logo */}
-        <div className="flex items-center gap-2.5 px-2">
-          <div className="bg-primary/20 p-2 rounded-xl border border-primary/40 text-primary animate-soft-pulse">
-            <LayoutDashboard className="w-6 h-6" />
+        <div className="flex flex-col items-start gap-2 px-2">
+          <div className="bg-[#0f172a] rounded-xl px-3 py-1.5">
+            <img
+              src="/nest-digital-logo.png"
+              alt="Nest Digital"
+              className="h-8 w-auto object-contain"
+            />
           </div>
-          <div>
-            <span className="font-extrabold text-lg text-white tracking-wide block">CustomerPulse</span>
+          <div className="border-t border-slate-200/60 pt-2 w-full">
+            <span className="font-extrabold text-lg text-slate-800 tracking-wide block">CustomerPulse</span>
             <span className="text-[10px] text-primary font-semibold tracking-wider uppercase">Rel Intelligence</span>
           </div>
         </div>

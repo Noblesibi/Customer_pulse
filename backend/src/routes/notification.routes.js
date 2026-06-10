@@ -8,16 +8,25 @@ router.use(authenticateToken);
 
 /**
  * GET /api/notifications
+ * Returns notifications relevant to the current user:
+ * - System-wide notifications (no toUserId) for all users
+ * - Personal task notifications (toUserId === current user's uid)
  */
 router.get('/', async (req, res) => {
   try {
+    const uid = req.user.uid;
     const snapshot = await db.collection('notifications').get();
-    const notifications = snapshot.docs.map(doc => doc.data());
+    let notifications = snapshot.docs.map(doc => doc.data());
+
+    // Filter: show system-wide (no toUserId) OR personal (toUserId matches)
+    notifications = notifications.filter(n =>
+      !n.toUserId || n.toUserId === uid
+    );
 
     // Sort descending by timestamp
     notifications.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
 
-    // Limit to latest 50 notifications
+    // Limit to latest 50
     return res.json(notifications.slice(0, 50));
   } catch (error) {
     console.error('Error fetching notifications:', error);
@@ -27,6 +36,7 @@ router.get('/', async (req, res) => {
 
 /**
  * PUT /api/notifications/:id/read
+ * Marks a single notification as read and records readAt timestamp.
  */
 router.put('/:id/read', async (req, res) => {
   const { id } = req.params;
@@ -38,8 +48,11 @@ router.put('/:id/read', async (req, res) => {
       return res.status(404).json({ error: 'Notification not found' });
     }
 
-    await docRef.update({ read: true });
-    
+    await docRef.update({
+      read: true,
+      readAt: new Date().toISOString()
+    });
+
     const updated = await docRef.get();
     return res.json(updated.data());
   } catch (error) {
@@ -50,16 +63,19 @@ router.put('/:id/read', async (req, res) => {
 
 /**
  * PUT /api/notifications/read-all
+ * Marks all of the current user's notifications as read.
  */
 router.put('/read-all', async (req, res) => {
   try {
+    const uid = req.user.uid;
     const snapshot = await db.collection('notifications').get();
-    const batchPromises = snapshot.docs.map(doc => {
-      if (!doc.data().read) {
-        return doc.ref.update({ read: true });
-      }
-      return null;
-    }).filter(Boolean);
+
+    const batchPromises = snapshot.docs
+      .filter(doc => {
+        const n = doc.data();
+        return !n.read && (!n.toUserId || n.toUserId === uid);
+      })
+      .map(doc => doc.ref.update({ read: true, readAt: new Date().toISOString() }));
 
     await Promise.all(batchPromises);
     return res.json({ message: 'All notifications marked as read' });
