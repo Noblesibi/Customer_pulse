@@ -1,7 +1,10 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { 
-  Users, CheckCircle2, AlertTriangle, AlertOctagon, Activity, HelpCircle, ArrowUpRight, ArrowDownRight, Sparkles 
+  Users, CheckCircle2, AlertTriangle, AlertOctagon, Activity, HelpCircle,
+  ArrowUpRight, ArrowDownRight, Sparkles, ClipboardList, Send, Clock, CheckCheck,
+  MessageSquare, Building2
 } from 'lucide-react';
+
 import { 
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, BarChart, Bar, Legend
@@ -9,13 +12,22 @@ import {
 import { useStore } from '../store/index.js';
 
 export default function Dashboard() {
-  const { dashboardStats, dashboardLoading, fetchDashboardStats } = useStore();
+  const {
+    dashboardStats, dashboardLoading, fetchDashboardStats,
+    user,
+    myTasks, myTasksLoading, fetchMyTasks,
+    replyToInteraction, fetchReplies, repliesByInteraction
+  } = useStore();
+
+  const [replyTexts, setReplyTexts] = useState({}); // { [interactionId]: string }
+  const [sendingReply, setSendingReply] = useState({});
 
   useEffect(() => {
     fetchDashboardStats();
-    // Poll stats every 5 seconds to show live updates
+    fetchMyTasks();
     const interval = setInterval(() => {
       fetchDashboardStats();
+      fetchMyTasks();
     }, 5000);
     return () => clearInterval(interval);
   }, []);
@@ -75,96 +87,145 @@ export default function Dashboard() {
   ];
 
   return (
-    <div className="space-y-8 animate-soft-pulse duration-1000">
+    <div className="space-y-5">
+      {/* 0. Header Greeting */}
+      <div className="glass p-5 rounded-2xl border border-slate-800/80 flex items-center justify-between">
+        <div className="space-y-1">
+          {user?.userType === 'BU Head' ? (
+            <>
+              <div className="flex items-center gap-2">
+                <span className="bg-primary/20 border border-primary/40 text-primary text-[10px] uppercase font-black tracking-wider px-2 py-0.5 rounded-full">
+                  Business Unit Head
+                </span>
+                {user.bu && (
+                  <span className="bg-emerald-500/10 border border-emerald-500/25 text-emerald-400 text-[10px] uppercase font-black tracking-wider px-2 py-0.5 rounded-full">
+                    BU: {user.bu}
+                  </span>
+                )}
+              </div>
+              <h1 className="text-xl font-bold text-white mt-1">Hello, {user.name}</h1>
+              <p className="text-xs text-slate-400">
+                Monitoring relationship signals, risks, and engagement health for the <span className="text-white font-bold">{user.bu}</span> division.
+              </p>
+            </>
+          ) : ['Project Manager', 'Delivery Manager', 'Sales Manager', 'Account Manager', 'Delivery Head'].includes(user?.userType) ? (
+            <>
+              <div className="flex items-center gap-2">
+                <span className="bg-primary/20 border border-primary/40 text-primary text-[10px] uppercase font-black tracking-wider px-2 py-0.5 rounded-full text-white">
+                  {user.userType} Portal
+                </span>
+                {user.bu && (
+                  <span className="bg-emerald-500/10 border border-emerald-500/25 text-emerald-400 text-[10px] uppercase font-black tracking-wider px-2 py-0.5 rounded-full">
+                    BU: {user.bu}
+                  </span>
+                )}
+              </div>
+              <h1 className="text-xl font-bold text-white mt-1">Welcome back, {user.name}</h1>
+              <p className="text-xs text-slate-400">
+                Monitoring client engagement, risks, and health scores for your managed projects and team rosters.
+              </p>
+            </>
+          ) : (
+            <>
+              <div className="flex items-center gap-2">
+                <span className="bg-primary/20 border border-primary/40 text-primary text-[10px] uppercase font-black tracking-wider px-2 py-0.5 rounded-full">
+                  {user?.role || 'User'} Portal
+                </span>
+              </div>
+              <h1 className="text-xl font-bold text-white mt-1">Welcome back, {user?.name || 'User'}</h1>
+              <p className="text-xs text-slate-400">Here's a breakdown of client engagement health and risk alerts across the platform.</p>
+            </>
+          )}
+        </div>
+      </div>
+
       {/* 1. KPI Cards Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-5">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
         {/* Total Accounts */}
-        <div className="glass p-5 rounded-2xl border border-slate-800/80 flex flex-col justify-between hover:border-slate-700 transition-colors">
+        <div className="glass p-3 rounded-xl border border-slate-800/80 flex flex-col justify-between">
           <div className="flex items-center justify-between text-slate-400">
-            <span className="text-xs font-semibold uppercase tracking-wider">Total Accounts</span>
-            <Users className="w-5 h-5 text-primary" />
+            <span className="text-[10px] font-semibold uppercase tracking-wider">Total Accounts</span>
+            <Users className="w-4 h-4 text-primary" />
           </div>
-          <div className="mt-4">
-            <h3 className="text-2xl font-bold text-white">{cards.totalAccounts}</h3>
-            <span className="text-[10px] text-slate-500 block mt-1">CRM Database Active</span>
+          <div className="mt-2">
+            <h3 className="text-lg font-bold text-white">{cards.totalAccounts}</h3>
+            <span className="text-[9px] text-slate-500 block mt-0.5">CRM Database Active</span>
           </div>
         </div>
 
         {/* Healthy Accounts */}
-        <div className="glass p-5 rounded-2xl border border-slate-800/80 flex flex-col justify-between hover:border-slate-700 transition-colors">
+        <div className="glass p-3 rounded-xl border border-slate-800/80 flex flex-col justify-between">
           <div className="flex items-center justify-between text-slate-400">
-            <span className="text-xs font-semibold uppercase tracking-wider">Healthy</span>
-            <CheckCircle2 className="w-5 h-5 text-emerald-400" />
+            <span className="text-[10px] font-semibold uppercase tracking-wider">Healthy</span>
+            <CheckCircle2 className="w-4 h-4 text-emerald-400" />
           </div>
-          <div className="mt-4">
-            <h3 className="text-2xl font-bold text-emerald-400">{cards.healthyAccounts}</h3>
-            <span className="text-[10px] text-emerald-500/80 font-medium flex items-center gap-0.5 mt-1">
-              <ArrowUpRight className="w-3.5 h-3.5" />
+          <div className="mt-2">
+            <h3 className="text-lg font-bold text-emerald-400">{cards.healthyAccounts}</h3>
+            <span className="text-[9px] text-emerald-500/80 font-medium flex items-center gap-0.5 mt-0.5">
+              <ArrowUpRight className="w-3 h-3" />
               Score &ge; 75%
             </span>
           </div>
         </div>
 
         {/* At-Risk Accounts */}
-        <div className="glass p-5 rounded-2xl border border-slate-800/80 flex flex-col justify-between hover:border-slate-700 transition-colors">
+        <div className="glass p-3 rounded-xl border border-slate-800/80 flex flex-col justify-between">
           <div className="flex items-center justify-between text-slate-400">
-            <span className="text-xs font-semibold uppercase tracking-wider">At-Risk</span>
-            <AlertTriangle className="w-5 h-5 text-amber-400" />
+            <span className="text-[10px] font-semibold uppercase tracking-wider">At-Risk</span>
+            <AlertTriangle className="w-4 h-4 text-amber-400" />
           </div>
-          <div className="mt-4">
-            <h3 className="text-2xl font-bold text-amber-400">{cards.atRiskAccounts}</h3>
-            <span className="text-[10px] text-amber-500/85 font-medium flex items-center gap-0.5 mt-1">
-              Score 50-74%
-            </span>
+          <div className="mt-2">
+            <h3 className="text-lg font-bold text-amber-400">{cards.atRiskAccounts}</h3>
+            <span className="text-[9px] text-amber-500/85 font-medium mt-0.5 block">Score 50-74%</span>
           </div>
         </div>
 
         {/* Critical Accounts */}
-        <div className="glass p-5 rounded-2xl border border-slate-800/80 flex flex-col justify-between hover:border-slate-700 transition-colors">
+        <div className="glass p-3 rounded-xl border border-slate-800/80 flex flex-col justify-between">
           <div className="flex items-center justify-between text-slate-400">
-            <span className="text-xs font-semibold uppercase tracking-wider">Critical</span>
-            <AlertOctagon className="w-5 h-5 text-rose-500 animate-pulse" />
+            <span className="text-[10px] font-semibold uppercase tracking-wider">Critical</span>
+            <AlertOctagon className="w-4 h-4 text-rose-500" />
           </div>
-          <div className="mt-4">
-            <h3 className="text-2xl font-bold text-rose-500">{cards.criticalAccounts}</h3>
-            <span className="text-[10px] text-rose-400/80 font-medium flex items-center gap-0.5 mt-1">
-              <ArrowDownRight className="w-3.5 h-3.5" />
+          <div className="mt-2">
+            <h3 className="text-lg font-bold text-rose-500">{cards.criticalAccounts}</h3>
+            <span className="text-[9px] text-rose-400/80 font-medium flex items-center gap-0.5 mt-0.5">
+              <ArrowDownRight className="w-3 h-3" />
               Score &lt; 50%
             </span>
           </div>
         </div>
 
         {/* Active Contacts */}
-        <div className="glass p-5 rounded-2xl border border-slate-800/80 flex flex-col justify-between hover:border-slate-700 transition-colors">
+        <div className="glass p-3 rounded-xl border border-slate-800/80 flex flex-col justify-between">
           <div className="flex items-center justify-between text-slate-400">
-            <span className="text-xs font-semibold uppercase tracking-wider">Stakeholders</span>
-            <Users className="w-5 h-5 text-blue-400" />
+            <span className="text-[10px] font-semibold uppercase tracking-wider">Stakeholders</span>
+            <Users className="w-4 h-4 text-blue-400" />
           </div>
-          <div className="mt-4">
-            <h3 className="text-2xl font-bold text-white">{cards.activeContacts}</h3>
-            <span className="text-[10px] text-slate-500 block mt-1">Relationship Depth</span>
+          <div className="mt-2">
+            <h3 className="text-lg font-bold text-white">{cards.activeContacts}</h3>
+            <span className="text-[9px] text-slate-500 block mt-0.5">Relationship Depth</span>
           </div>
         </div>
 
         {/* Monthly Interactions */}
-        <div className="glass p-5 rounded-2xl border border-slate-800/80 flex flex-col justify-between hover:border-slate-700 transition-colors">
+        <div className="glass p-3 rounded-xl border border-slate-800/80 flex flex-col justify-between">
           <div className="flex items-center justify-between text-slate-400">
-            <span className="text-xs font-semibold uppercase tracking-wider">30D Activity</span>
-            <Activity className="w-5 h-5 text-purple-400" />
+            <span className="text-[10px] font-semibold uppercase tracking-wider">30D Activity</span>
+            <Activity className="w-4 h-4 text-purple-400" />
           </div>
-          <div className="mt-4">
-            <h3 className="text-2xl font-bold text-white">{cards.monthlyInteractions}</h3>
-            <span className="text-[10px] text-slate-500 block mt-1">Interactions Logged</span>
+          <div className="mt-2">
+            <h3 className="text-lg font-bold text-white">{cards.monthlyInteractions}</h3>
+            <span className="text-[9px] text-slate-500 block mt-0.5">Interactions Logged</span>
           </div>
         </div>
       </div>
 
       {/* 2. Charts Section */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         {/* Chart A: Industry Health Trend */}
-        <div className="glass p-6 rounded-2xl border border-slate-800/80">
-          <h3 className="text-sm font-bold uppercase tracking-wider text-slate-400 mb-6">Industry Health Profile</h3>
-          <div className="h-72">
+        <div className="glass p-4 rounded-xl border border-slate-800/80">
+          <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3">Industry Health Profile</h3>
+          <div className="h-44">
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={trendData}>
                 <defs>
@@ -174,18 +235,18 @@ export default function Dashboard() {
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" opacity={0.3} />
-                <XAxis dataKey="industry" stroke="#64748b" fontSize={11} />
-                <YAxis stroke="#64748b" fontSize={11} domain={[0, 100]} />
+                <XAxis dataKey="industry" stroke="#64748b" fontSize={10} />
+                <YAxis stroke="#64748b" fontSize={10} domain={[0, 100]} />
                 <Tooltip contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', color: '#fff', borderRadius: '12px' }} />
-                <Area type="monotone" dataKey="avgHealth" name="Avg Health Score" stroke="#2563EB" strokeWidth={2.5} fillOpacity={1} fill="url(#healthGrad)" />
+                <Area type="monotone" dataKey="avgHealth" name="Avg Health Score" stroke="#2563EB" strokeWidth={2} fillOpacity={1} fill="url(#healthGrad)" />
               </AreaChart>
             </ResponsiveContainer>
           </div>
         </div>
 
         {/* Chart B: Sentiment Distribution */}
-        <div className="glass p-6 rounded-2xl border border-slate-800/80 grid grid-cols-1 md:grid-cols-5 items-center gap-4">
-          <div className="md:col-span-3 h-72">
+        <div className="glass p-4 rounded-xl border border-slate-800/80 grid grid-cols-1 md:grid-cols-5 items-center gap-3">
+          <div className="md:col-span-3 h-44">
             {sentimentData.length === 0 ? (
               <div className="h-full flex items-center justify-center text-xs text-slate-500">
                 No sentiment data logged yet
@@ -197,8 +258,8 @@ export default function Dashboard() {
                     data={sentimentData}
                     cx="50%"
                     cy="50%"
-                    innerRadius={65}
-                    outerRadius={90}
+                    innerRadius={40}
+                    outerRadius={60}
                     paddingAngle={4}
                     dataKey="value"
                   >
@@ -211,13 +272,13 @@ export default function Dashboard() {
               </ResponsiveContainer>
             )}
           </div>
-          <div className="md:col-span-2 space-y-4 pr-4">
-            <h3 className="text-sm font-bold uppercase tracking-wider text-slate-400">Communication Sentiment</h3>
-            <div className="space-y-2.5">
+          <div className="md:col-span-2 space-y-2 pr-2">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">Communication Sentiment</h3>
+            <div className="space-y-1.5">
               {sentimentData.map(entry => (
                 <div key={entry.name} className="flex items-center justify-between text-xs font-semibold">
                   <div className="flex items-center gap-2">
-                    <span className="w-3 h-3 rounded-full" style={{ backgroundColor: entry.color }} />
+                    <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: entry.color }} />
                     <span className="text-slate-300">{entry.name}</span>
                   </div>
                   <span className="text-white">{entry.value} logged</span>
@@ -231,11 +292,11 @@ export default function Dashboard() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         {/* Chart C: Risk Categories Distribution */}
-        <div className="glass p-6 rounded-2xl border border-slate-800/80">
-          <h3 className="text-sm font-bold uppercase tracking-wider text-slate-400 mb-6">Active Risk Types</h3>
-          <div className="h-72">
+        <div className="glass p-4 rounded-xl border border-slate-800/80">
+          <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3">Active Risk Types</h3>
+          <div className="h-44">
             {riskData.length === 0 ? (
               <div className="h-full flex items-center justify-center text-xs text-slate-500">
                 No unresolved risks logged. System is clean!
@@ -244,10 +305,10 @@ export default function Dashboard() {
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={riskData}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" opacity={0.3} />
-                  <XAxis dataKey="category" stroke="#64748b" fontSize={10} tickLine={false} />
-                  <YAxis stroke="#64748b" fontSize={11} allowDecimals={false} />
+                  <XAxis dataKey="category" stroke="#64748b" fontSize={9} tickLine={false} />
+                  <YAxis stroke="#64748b" fontSize={10} allowDecimals={false} />
                   <Tooltip contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', color: '#fff', borderRadius: '12px' }} />
-                  <Bar dataKey="Count" fill="#EF4444" radius={[6, 6, 0, 0]}>
+                  <Bar dataKey="Count" fill="#EF4444" radius={[4, 4, 0, 0]}>
                     {riskData.map((entry, index) => (
                       <Cell key={`cell-${index}`} fill={entry.Count > 2 ? '#EF4444' : '#F59E0B'} />
                     ))}
@@ -259,9 +320,9 @@ export default function Dashboard() {
         </div>
 
         {/* Chart D: Engagement Source Distribution */}
-        <div className="glass p-6 rounded-2xl border border-slate-800/80">
-          <h3 className="text-sm font-bold uppercase tracking-wider text-slate-400 mb-6">Engagement Channels</h3>
-          <div className="h-72">
+        <div className="glass p-4 rounded-xl border border-slate-800/80">
+          <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3">Engagement Channels</h3>
+          <div className="h-44">
             {engagementData.length === 0 ? (
               <div className="h-full flex items-center justify-center text-xs text-slate-500">
                 No interactions logged yet
@@ -270,10 +331,10 @@ export default function Dashboard() {
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={engagementData} layout="vertical">
                   <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" opacity={0.3} />
-                  <XAxis type="number" stroke="#64748b" fontSize={11} />
-                  <YAxis dataKey="source" type="category" stroke="#64748b" fontSize={11} />
+                  <XAxis type="number" stroke="#64748b" fontSize={10} />
+                  <YAxis dataKey="source" type="category" stroke="#64748b" fontSize={10} />
                   <Tooltip contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', color: '#fff', borderRadius: '12px' }} />
-                  <Bar dataKey="Count" fill="#2563EB" radius={[0, 6, 6, 0]} barSize={20} />
+                  <Bar dataKey="Count" fill="#2563EB" radius={[0, 4, 4, 0]} barSize={14} />
                 </BarChart>
               </ResponsiveContainer>
             )}
@@ -284,21 +345,19 @@ export default function Dashboard() {
       {/* 3. Bottom Widgets Panel */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         {/* Left Side: Top Risks Tracker */}
-        <div className="glass p-6 rounded-2xl border border-slate-800/80 flex flex-col justify-between">
+        <div className="glass p-4 rounded-xl border border-slate-800/80 flex flex-col justify-between">
           <div>
-            <h3 className="text-sm font-bold uppercase tracking-wider text-slate-400 mb-6">Top Account Risks</h3>
-            <div className="space-y-4">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3">Top Account Risks</h3>
+            <div className="space-y-3">
               {widgets.topRisks.length === 0 ? (
-                <div className="p-8 text-center text-xs text-slate-500">
-                  No critical open risks found
-                </div>
+                <div className="p-6 text-center text-xs text-slate-500">No critical open risks found</div>
               ) : (
                 widgets.topRisks.map(risk => (
-                  <div key={risk.riskId} className="bg-dark-900/60 p-4 rounded-xl border border-slate-800 flex items-start justify-between gap-4">
-                    <div className="space-y-1.5">
+                  <div key={risk.riskId} className="bg-dark-900/60 p-3 rounded-xl border border-slate-800 flex items-start justify-between gap-3">
+                    <div className="space-y-1">
                       <div className="flex items-center gap-2">
-                        <span className="text-sm font-bold text-white">{risk.companyName}</span>
-                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                        <span className="text-xs font-bold text-white">{risk.companyName}</span>
+                        <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full border ${
                           risk.severity === 'High' 
                             ? 'bg-rose-500/10 border-rose-500/25 text-rose-300' 
                             : 'bg-amber-500/10 border-amber-500/25 text-amber-300'
@@ -306,7 +365,7 @@ export default function Dashboard() {
                           {risk.severity} Risk
                         </span>
                       </div>
-                      <p className="text-xs text-slate-300 line-clamp-2">{risk.description}</p>
+                      <p className="text-[11px] text-slate-300 line-clamp-2">{risk.description}</p>
                     </div>
                   </div>
                 ))
@@ -316,22 +375,22 @@ export default function Dashboard() {
         </div>
 
         {/* Right Side: AI Recommendations Engine */}
-        <div className="glass p-6 rounded-2xl border border-slate-800/80">
-          <div className="flex items-center gap-2 mb-6">
-            <Sparkles className="w-5 h-5 text-primary" />
-            <h3 className="text-sm font-bold uppercase tracking-wider text-slate-400">AI Relationship Guidance</h3>
+        <div className="glass p-4 rounded-xl border border-slate-800/80">
+          <div className="flex items-center gap-2 mb-3">
+            <Sparkles className="w-4 h-4 text-primary" />
+            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">AI Relationship Guidance</h3>
           </div>
-          <div className="space-y-4">
+          <div className="space-y-3">
             {widgets.aiRecommendations.map(rec => (
-              <div key={rec.id} className="bg-primary/5 p-4 rounded-xl border border-primary/15 flex gap-3.5 items-start">
-                <div className="bg-primary/10 border border-primary/25 p-2 rounded-lg text-primary shrink-0">
-                  <Sparkles className="w-4 h-4" />
+              <div key={rec.id} className="bg-primary/5 p-3 rounded-xl border border-primary/15 flex gap-3 items-start">
+                <div className="bg-primary/10 border border-primary/25 p-1.5 rounded-lg text-primary shrink-0">
+                  <Sparkles className="w-3.5 h-3.5" />
                 </div>
-                <div className="space-y-1">
+                <div className="space-y-0.5">
                   <h4 className="text-xs font-bold text-white">{rec.title}</h4>
-                  <p className="text-xs text-slate-300 leading-relaxed">{rec.description}</p>
+                  <p className="text-[11px] text-slate-300 leading-relaxed">{rec.description}</p>
                   {rec.priority && (
-                    <span className={`inline-block text-[9px] font-bold mt-1.5 uppercase px-1.5 py-0.5 rounded ${
+                    <span className={`inline-block text-[9px] font-bold mt-1 uppercase px-1.5 py-0.5 rounded ${
                       rec.priority === 'High' ? 'bg-red-500/20 text-red-300' : 'bg-blue-500/20 text-blue-300'
                     }`}>
                       {rec.priority} Priority
@@ -343,6 +402,210 @@ export default function Dashboard() {
           </div>
         </div>
       </div>
+
+      {/* ── MY TASKS WIDGET ── visible to non-admin users when they have assignments */}
+      {user?.role !== 'Admin' && (
+        <div className="glass p-4 rounded-xl border border-slate-800/80">
+          <div className="flex items-center gap-2 mb-3">
+            <ClipboardList className="w-4 h-4 text-primary" />
+            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">My Assigned Tasks</h3>
+            <span className="ml-auto bg-primary/10 border border-primary/20 text-primary text-[9px] font-bold px-2 py-0.5 rounded-full">
+              {myTasks.length} task{myTasks.length !== 1 ? 's' : ''}
+            </span>
+          </div>
+
+          {myTasksLoading ? (
+            <div className="flex items-center justify-center py-6">
+              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary" />
+            </div>
+          ) : myTasks.length === 0 ? (
+            <div className="text-center py-6 text-xs text-slate-500">No tasks assigned to you yet.</div>
+          ) : (
+            <div className="space-y-3">
+              {myTasks.map(task => {
+                const replies = repliesByInteraction[task.interactionId] || task.replies || [];
+                const myReply = replies.find(r => r.authorUid === user?.uid);
+                return (
+                  <div key={task.interactionId} className="bg-dark-900/60 border border-slate-800 rounded-xl p-4 space-y-3">
+                    {/* Task header */}
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="space-y-1 flex-1">
+                        <div className="flex items-center gap-2">
+                          <Building2 className="w-3.5 h-3.5 text-primary" />
+                          <span className="text-xs font-bold text-white">{task.companyName}</span>
+                          <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full border ${
+                            task.replyStatus === 'Replied'
+                              ? 'bg-emerald-500/10 border-emerald-500/25 text-emerald-400'
+                              : 'bg-amber-500/10 border-amber-500/25 text-amber-400'
+                          }`}>
+                            {task.replyStatus === 'Replied' ? '✓ Replied' : '⏳ Pending'}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-slate-300 leading-relaxed line-clamp-3">{task.messageText}</p>
+                        <div className="flex items-center gap-1.5 text-[10px] text-slate-500">
+                          <Clock className="w-3 h-3" />
+                          {task.loggedByName && <span>By {task.loggedByName} ·</span>}
+                          <span>{new Date(task.timestamp).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Existing replies */}
+                    {replies.length > 0 && (
+                      <div className="space-y-1.5 border-t border-slate-800 pt-2">
+                        {replies.map(r => (
+                          <div key={r.replyId} className="flex gap-2 text-[11px]">
+                            <span className="text-primary font-bold shrink-0">{r.authorName}:</span>
+                            <span className="text-slate-300">{r.text}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Reply box — hide if already replied */}
+                    {!myReply && (
+                      <div className="flex gap-2 pt-1">
+                        <input
+                          type="text"
+                          value={replyTexts[task.interactionId] || ''}
+                          onChange={e => setReplyTexts(prev => ({ ...prev, [task.interactionId]: e.target.value }))}
+                          onKeyDown={async e => {
+                            if (e.key === 'Enter' && replyTexts[task.interactionId]?.trim()) {
+                              setSendingReply(prev => ({ ...prev, [task.interactionId]: true }));
+                              await replyToInteraction(task.interactionId, replyTexts[task.interactionId]);
+                              setReplyTexts(prev => ({ ...prev, [task.interactionId]: '' }));
+                              setSendingReply(prev => ({ ...prev, [task.interactionId]: false }));
+                            }
+                          }}
+                          placeholder="Type your reply and press Enter..."
+                          className="flex-1 bg-dark-900 border border-slate-700 text-xs text-white rounded-xl px-3 py-2 focus:outline-none focus:border-primary/50"
+                        />
+                        <button
+                          disabled={!replyTexts[task.interactionId]?.trim() || sendingReply[task.interactionId]}
+                          onClick={async () => {
+                            if (!replyTexts[task.interactionId]?.trim()) return;
+                            setSendingReply(prev => ({ ...prev, [task.interactionId]: true }));
+                            await replyToInteraction(task.interactionId, replyTexts[task.interactionId]);
+                            setReplyTexts(prev => ({ ...prev, [task.interactionId]: '' }));
+                            setSendingReply(prev => ({ ...prev, [task.interactionId]: false }));
+                          }}
+                          className="bg-primary text-white p-2 rounded-xl cursor-pointer disabled:opacity-40"
+                        >
+                          <Send className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── BU HEAD TEAM OVERVIEW ── */}
+      {user?.userType === 'BU Head' && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mt-5">
+          {/* Projects & PMs under BU */}
+          <div className="glass p-4 rounded-xl border border-slate-800/80 space-y-3">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">Division Projects & Teams</h3>
+            <div className="space-y-2.5">
+              <div className="flex flex-col gap-1">
+                <span className="text-[10px] text-slate-500 font-bold uppercase">Division Projects</span>
+                <div className="flex flex-wrap gap-1.5 mt-0.5">
+                  {user.projects && user.projects.length > 0 ? (
+                    user.projects.map(p => (
+                      <span key={p} className="bg-slate-800 text-slate-200 text-xs px-2.5 py-1 rounded-lg border border-slate-700">
+                        📁 {p}
+                      </span>
+                    ))
+                  ) : (
+                    <span className="text-xs text-slate-500">No projects mapped to this BU.</span>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-1 border-t border-slate-800/60 pt-2.5">
+                <span className="text-[10px] text-slate-500 font-bold uppercase">Project Managers</span>
+                <div className="flex flex-wrap gap-1.5 mt-0.5">
+                  {user.projectManagers && user.projectManagers.length > 0 ? (
+                    user.projectManagers.map(pm => (
+                      <span key={pm} className="bg-primary/5 text-primary text-xs px-2.5 py-1 rounded-lg border border-primary/20 font-semibold">
+                        👤 {pm}
+                      </span>
+                    ))
+                  ) : (
+                    <span className="text-xs text-slate-500">No project managers assigned.</span>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* BU Division Staff & Engineers */}
+          <div className="glass p-4 rounded-xl border border-slate-800/80 space-y-3">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">BU Operations Directory</h3>
+            <div className="flex flex-col gap-1">
+              <span className="text-[10px] text-slate-500 font-bold uppercase">Division Employees</span>
+              <div className="grid grid-cols-2 gap-2 mt-1">
+                {user.employees && user.employees.length > 0 ? (
+                  user.employees.map(emp => (
+                    <div key={emp} className="bg-dark-900/60 border border-slate-800 p-2 rounded-lg text-xs font-semibold text-slate-300">
+                      💼 {emp}
+                    </div>
+                  ))
+                ) : (
+                  <span className="text-xs text-slate-500 col-span-2">No employee records in this BU.</span>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── MANAGER TEAM OVERVIEW ── */}
+      {['Project Manager', 'Delivery Manager', 'Sales Manager', 'Account Manager'].includes(user?.userType) && (
+        <div className="glass p-5 rounded-2xl border border-slate-800/80 space-y-4">
+          <h3 className="text-sm font-bold uppercase tracking-wider text-slate-450">My Managed Projects & Teams</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {user.projects && user.projects.length > 0 ? (
+              user.projects.map((proj, idx) => {
+                const projName = typeof proj === 'string' ? proj : proj.name;
+                const projEmps = typeof proj === 'string' ? [] : (proj.employees || []);
+                return (
+                  <div key={idx} className="bg-dark-900/60 border border-slate-800 p-4 rounded-xl space-y-3">
+                    <div className="flex items-center gap-2">
+                      <span className="p-1.5 bg-primary/10 border border-primary/20 text-primary rounded-lg text-xs">
+                        📁
+                      </span>
+                      <h4 className="text-xs font-bold text-white truncate">{projName || `Project #${idx + 1}`}</h4>
+                    </div>
+                    
+                    <div className="space-y-1.5 pt-2 border-t border-slate-850">
+                      <span className="text-[9px] text-slate-500 font-bold uppercase tracking-wider">Team Roster</span>
+                      <div className="flex flex-col gap-1">
+                        {projEmps.length > 0 && projEmps.some(Boolean) ? (
+                          projEmps.filter(Boolean).map((emp, eIdx) => (
+                            <div key={eIdx} className="bg-slate-800/40 border border-slate-800 p-1.5 rounded-lg text-[11px] text-slate-300 font-semibold flex items-center gap-1.5">
+                              <span className="w-1.5 h-1.5 rounded-full bg-primary" />
+                              {emp}
+                            </div>
+                          ))
+                        ) : (
+                          <span className="text-[10px] text-slate-500 italic">No employees assigned to this project yet.</span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
+            ) : (
+              <div className="p-6 text-center text-xs text-slate-500 col-span-full">No projects managed yet.</div>
+            )}
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

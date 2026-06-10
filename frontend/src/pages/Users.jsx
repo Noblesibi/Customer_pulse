@@ -10,6 +10,7 @@ export default function Users() {
   const { usersList, usersLoading, fetchUsersList, addUser, user, deleteUser } = useStore();
 
   const [isAddUserOpen, setIsAddUserOpen] = useState(false);
+  const [viewMode, setViewMode] = useState('list'); // 'list' or 'org'
   
   // Base fields
   const [name, setName] = useState('');
@@ -19,8 +20,10 @@ export default function Users() {
   const [department, setDepartment] = useState('');
   const [position, setPosition] = useState('');
   const [reportingTo, setReportingTo] = useState('');
+  const [showReportingSuggestions, setShowReportingSuggestions] = useState(false);
 
   // BU Head fields
+  const [buHeadBu, setBuHeadBu] = useState('');
   const [buProjectsMode, setBuProjectsMode] = useState('manual'); // 'manual' or 'excel'
   const [buProjectsExcelFile, setBuProjectsExcelFile] = useState(null);
   const [buProjects, setBuProjects] = useState([
@@ -45,6 +48,95 @@ export default function Users() {
 
   // Deletion modal state
   const [userToDelete, setUserToDelete] = useState(null);
+
+  const handleAssignRole = (type, details = {}) => {
+    setUserType(type);
+    if (details.position) setPosition(details.position);
+    if (details.department) setDepartment(details.department);
+    if (details.bu) {
+      setBuHeadBu(details.bu);
+      setPmBu(details.bu);
+      setEmpBu(details.bu);
+    }
+    setIsAddUserOpen(true);
+  };
+
+  const renderOrgNode = (title, matchType, details = {}, matchFn = null, colorClasses = {}) => {
+    const matched = usersList.filter(u => {
+      const uType = (u.userType || u.role);
+      if (uType !== matchType) return false;
+      if (matchFn) return matchFn(u);
+      return true;
+    });
+
+    const bgClass = colorClasses.bg || 'glass';
+    const borderClass = colorClasses.border || 'border-slate-700/60';
+    const textClass = colorClasses.text || 'text-white';
+    const accentBg = colorClasses.accentBg || 'bg-primary/10 border-primary/20 text-primary';
+
+    if (matched.length > 0) {
+      return (
+        <div className="flex flex-col gap-2">
+          {matched.map(u => (
+            <div key={u.uid || u.id} className={`${bgClass} border ${borderClass} p-3 rounded-xl shadow-lg flex flex-col items-center justify-between w-44 text-center hover:border-primary/50 transition-all shrink-0`}>
+              <div className={`${accentBg} w-8 h-8 rounded-lg flex items-center justify-center font-bold text-xs mx-auto`}>
+                {u.name ? u.name.substring(0, 2).toUpperCase() : 'US'}
+              </div>
+              <div className="mt-1.5 flex flex-col items-center">
+                <span className={`font-extrabold ${textClass} text-xs block truncate max-w-[160px]`}>{u.name}</span>
+                <span className="text-[9px] text-slate-500 mt-0.5 font-bold uppercase tracking-wider">{u.position || u.userType || u.role}</span>
+                <span className="text-[8px] text-slate-400 mt-0.5 truncate max-w-[160px]">{u.email}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      );
+    }
+
+    return (
+      <div 
+        onClick={() => handleAssignRole(matchType, details)}
+        className="border border-dashed border-slate-700/50 hover:border-primary/50 hover:bg-primary/5 p-3 rounded-xl flex flex-col items-center justify-center w-44 h-[94px] text-center bg-dark-950/10 text-slate-500 cursor-pointer transition-all shrink-0 select-none group"
+      >
+        <span className="text-[10px] font-bold text-slate-450 uppercase tracking-wider block">{title}</span>
+        <span className="text-[9px] text-slate-500 mt-1 flex items-center gap-0.5 group-hover:text-primary transition-colors font-semibold">
+          <PlusCircle className="w-3.5 h-3.5 text-slate-500 group-hover:text-primary transition-colors" /> Assign
+        </span>
+      </div>
+    );
+  };
+
+  const renderManagersList = (title, matchType, details = {}) => {
+    const matched = usersList.filter(u => (u.userType || u.role) === matchType);
+
+    return (
+      <div className="flex flex-col gap-2 bg-dark-900/40 p-4 rounded-2xl border border-slate-800/80 w-64 shadow-md shrink-0">
+        <h4 className="text-xs font-bold text-center text-slate-400 uppercase tracking-wider mb-2 pb-1.5 border-b border-slate-800/50">{title}</h4>
+        <div className="flex flex-col gap-2 max-h-48 overflow-y-auto pr-1">
+          {matched.length > 0 ? (
+            matched.map(u => (
+              <div key={u.uid || u.id} className="glass border border-slate-700/60 p-2.5 rounded-xl flex items-center gap-2.5">
+                <div className="bg-primary/10 border border-primary/20 text-primary w-7 h-7 rounded-lg flex items-center justify-center font-bold text-xs shrink-0">
+                  {u.name ? u.name.substring(0, 2).toUpperCase() : 'US'}
+                </div>
+                <div className="min-w-0">
+                  <span className="font-extrabold text-white text-xs block truncate">{u.name}</span>
+                  <span className="text-[8px] text-slate-500 block truncate">{u.email}</span>
+                </div>
+              </div>
+            ))
+          ) : (
+            <button 
+              onClick={() => handleAssignRole(matchType, details)}
+              className="border border-dashed border-slate-700/50 hover:border-primary/50 hover:bg-primary/5 p-2 rounded-xl flex items-center justify-center gap-1.5 text-xs text-slate-500 cursor-pointer transition-all w-full select-none font-semibold"
+            >
+              <PlusCircle className="w-4 h-4 text-slate-500" /> Assign Manager
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  };
 
   useEffect(() => {
     fetchUsersList();
@@ -263,7 +355,8 @@ export default function Users() {
       reportingTo: (userType === 'CEO' || userType === 'Admin') ? '' : reportingTo
     };
 
-    if (userType === 'BU Head') {
+    if (['BU Head', 'Delivery Head'].includes(userType)) {
+      payload.bu = buHeadBu;
       if (buProjectsMode === 'excel') {
         payload.projects = buProjectsExcelFile ? [{
           name: `Uploaded Projects: ${buProjectsExcelFile.name}`,
@@ -293,7 +386,7 @@ export default function Users() {
           };
         });
       }
-    } else if (userType === 'Project Manager') {
+    } else if (['Project Manager', 'Delivery Manager', 'Sales Manager', 'Account Manager'].includes(userType)) {
       payload.bu = pmBu;
       if (pmProjectsMode === 'excel') {
         payload.projects = pmProjectsExcelFile ? [{
@@ -338,6 +431,7 @@ export default function Users() {
       ]);
       setBuProjectsMode('manual');
       setBuProjectsExcelFile(null);
+      setBuHeadBu('');
 
       setPmBu('');
       setPmProjects([
@@ -462,7 +556,12 @@ export default function Users() {
                     >
                       <option value="Employee">Employee</option>
                       <option value="Project Manager">Project Manager</option>
-                      <option value="BU Head">BU Head</option>
+                      <option value="Sales Manager">Sales Manager</option>
+                      <option value="Account Manager">Account Manager</option>
+                      <option value="Delivery Manager">Delivery Manager</option>
+                      <option value="Delivery Head">Delivery Head</option>
+                      <option value="BU Head">BU Head / P&L Head</option>
+                      <option value="Functional Head">Functional Head (Finance/HR/ITG/Quality)</option>
                       <option value="CEO">CEO</option>
                       <option value="Admin">Admin</option>
                     </select>
@@ -471,13 +570,59 @@ export default function Users() {
 
                 {/* Reporting To (Global Field) */}
                 {userType !== 'CEO' && userType !== 'Admin' && (
-                  <div className="space-y-1.5 md:col-span-2">
+                  <div className="space-y-1.5 md:col-span-2 relative">
                     <label className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">Reporting To (Manager / Lead)</label>
                     <input 
-                      type="text" required value={reportingTo} onChange={(e) => setReportingTo(e.target.value)}
+                      type="text" required value={reportingTo} 
+                      onChange={(e) => {
+                        setReportingTo(e.target.value);
+                        setShowReportingSuggestions(true);
+                      }}
+                      onFocus={() => setShowReportingSuggestions(true)}
+                      onBlur={() => setTimeout(() => setShowReportingSuggestions(false), 200)}
                       placeholder="e.g. Jonathan Stark (CEO), Arthur Pendragon (Admin)"
                       className="w-full bg-dark-900/60 border border-slate-800 text-xs text-white rounded-lg py-3 px-4 focus:outline-none focus:border-primary/50"
                     />
+                    {showReportingSuggestions && (
+                      <div className="absolute left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-xl max-h-48 overflow-y-auto z-50 divide-y divide-slate-100">
+                        {usersList.filter(u => {
+                          const searchString = `${u.name} ${u.position || ''} ${u.userType || ''} ${u.role || ''}`.toLowerCase();
+                          return searchString.includes(reportingTo.toLowerCase());
+                        }).length > 0 ? (
+                          usersList.filter(u => {
+                            const searchString = `${u.name} ${u.position || ''} ${u.userType || ''} ${u.role || ''}`.toLowerCase();
+                            return searchString.includes(reportingTo.toLowerCase());
+                          }).map(u => (
+                            <button
+                              key={u.uid || u.id}
+                              type="button"
+                              onClick={() => {
+                                setReportingTo(u.name);
+                                setShowReportingSuggestions(false);
+                              }}
+                              className="w-full text-left px-4 py-2.5 hover:bg-slate-800 flex items-center justify-between text-xs transition-colors cursor-pointer"
+                            >
+                              <div className="flex items-center gap-2">
+                                <div className="bg-primary/10 border border-primary/20 text-primary w-6 h-6 rounded flex items-center justify-center font-bold text-[10px] shrink-0">
+                                  {u.name ? u.name.substring(0, 2).toUpperCase() : 'US'}
+                                </div>
+                                <div className="flex flex-col">
+                                  <span className="font-bold text-slate-50">{u.name}</span>
+                                  <span className="text-[9px] text-slate-350 font-medium">{u.email}</span>
+                                </div>
+                              </div>
+                              <span className="text-[8px] bg-slate-700 border border-slate-600 px-2 py-0.5 rounded-full text-slate-200 font-bold uppercase tracking-wider">
+                                {u.position || u.userType || u.role}
+                              </span>
+                            </button>
+                          ))
+                        ) : (
+                          <div className="p-3 text-center text-[10px] text-slate-400 font-medium">
+                            No matching users found in the hierarchy
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -488,12 +633,24 @@ export default function Users() {
                 -------------------------------------------------------- */}
             <div className="border-t border-slate-800/80 pt-6 space-y-6">
               
-              {/* PANEL 1: BU HEAD */}
-              {userType === 'BU Head' && (
+              {/* PANEL 1: BU HEAD / DELIVERY HEAD */}
+              {['BU Head', 'Delivery Head'].includes(userType) && (
                 <div className="space-y-6">
                   <div className="flex items-center gap-2 border-b border-slate-700 pb-2">
                     <span className="w-2.5 h-2.5 rounded-full bg-amber-500" />
-                    <h4 className="text-xs font-bold text-slate-300 uppercase tracking-wider">Business Unit (BU Head) Details</h4>
+                    <h4 className="text-xs font-bold text-slate-350 uppercase tracking-wider">{userType} details</h4>
+                  </div>
+
+                  {/* BU Name */}
+                  <div className="space-y-1.5 max-w-md">
+                    <label className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">
+                      {userType === 'Delivery Head' ? 'Delivery Division Name' : 'Business Unit (BU) Name'}
+                    </label>
+                    <input 
+                      type="text" required value={buHeadBu} onChange={(e) => setBuHeadBu(e.target.value)}
+                      placeholder={userType === 'Delivery Head' ? "e.g. Insurance, Industrial, Healthcare" : "e.g. Digital, Logistics, Finance"}
+                      className="w-full bg-dark-900/60 border border-slate-800 text-xs text-white rounded-lg py-3 px-4 focus:outline-none focus:border-primary/50"
+                    />
                   </div>
 
                   {/* Projects Configuration Toggle */}
@@ -654,20 +811,20 @@ export default function Users() {
                 </div>
               )}
 
-              {/* PANEL 2: PROJECT MANAGER */}
-              {userType === 'Project Manager' && (
+              {/* PANEL 2: PROJECT / DELIVERY / SALES / ACCOUNT MANAGER */}
+              {['Project Manager', 'Delivery Manager', 'Sales Manager', 'Account Manager'].includes(userType) && (
                 <div className="space-y-6">
                   <div className="flex items-center gap-2 border-b border-slate-700 pb-2">
                     <span className="w-2.5 h-2.5 rounded-full bg-purple-500" />
-                    <h4 className="text-xs font-bold text-slate-300 uppercase tracking-wider">Project Manager Details</h4>
+                    <h4 className="text-xs font-bold text-slate-350 uppercase tracking-wider">{userType} details</h4>
                   </div>
 
                   {/* Under which BU */}
                   <div className="space-y-1.5 max-w-md">
-                    <label className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">Under Which BU (Business Unit)</label>
+                    <label className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">Under Which Division / BU</label>
                     <input 
                       type="text" required value={pmBu} onChange={(e) => setPmBu(e.target.value)}
-                      placeholder="e.g. Enterprise Software BU, EMEA Operations BU"
+                      placeholder="e.g. Insurance, Healthcare, BFS BU, Enterprise BU"
                       className="w-full bg-dark-900/60 border border-slate-700 text-xs text-white rounded-lg py-3 px-4 focus:outline-none focus:border-primary/50"
                     />
                   </div>
@@ -893,11 +1050,11 @@ export default function Users() {
         </div>
       ) : (
         /* --------------------------------------------------------
-            VIEW 2: DIRECTORY LIST TABLE
+            VIEW 2: DIRECTORY LIST TABLE OR ORG CHART
             -------------------------------------------------------- */
         <>
           {/* Page Header */}
-          <div className="glass p-6 rounded-2xl border border-slate-800/80 flex items-center justify-between">
+          <div className="glass p-6 rounded-2xl border border-slate-800/80 flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div className="flex items-center gap-3">
               <div className="bg-primary/20 p-2.5 rounded-xl border border-primary/40 text-primary">
                 <UsersIcon className="w-5 h-5" />
@@ -908,17 +1065,224 @@ export default function Users() {
               </div>
             </div>
             
-            <button 
-              onClick={() => setIsAddUserOpen(true)}
-              className="bg-primary hover:bg-blue-600 px-4 py-2.5 rounded-xl text-xs font-semibold flex items-center gap-2 text-white active:scale-98 transition-all cursor-pointer"
-            >
-              <Plus className="w-4 h-4" />
-              Add User
-            </button>
+            <div className="flex items-center gap-3 self-end md:self-auto">
+              {/* View Toggle */}
+              <div className="bg-slate-100 p-0.5 rounded-xl border border-slate-200 flex">
+                <button
+                  type="button"
+                  onClick={() => setViewMode('list')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${viewMode === 'list' ? 'bg-primary text-white shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
+                >
+                  Directory List
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setViewMode('org')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${viewMode === 'org' ? 'bg-primary text-white shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
+                >
+                  Org Chart
+                </button>
+              </div>
+
+              <button 
+                onClick={() => setIsAddUserOpen(true)}
+                className="bg-primary hover:bg-blue-600 px-4 py-2.5 rounded-xl text-xs font-semibold flex items-center gap-2 text-white active:scale-98 transition-all cursor-pointer"
+              >
+                <Plus className="w-4 h-4" />
+                Add User
+              </button>
+            </div>
           </div>
 
-          {/* Directory Table */}
-          <div className="glass p-6 rounded-2xl border border-slate-800/80">
+          {/* Directory Table or Org Chart */}
+          {viewMode === 'org' ? (
+            <div className="glass p-6 rounded-2xl border border-slate-800/80">
+              <h3 className="text-sm font-extrabold text-white mb-6 uppercase tracking-wider pb-2 border-b border-slate-800 flex items-center gap-2">
+                <GitBranch className="w-4 h-4 text-primary" /> Company Hierarchy Org Chart
+              </h3>
+              
+              <div className="overflow-x-auto pb-6 pt-4 w-full">
+                <div className="min-w-[1100px] flex flex-col items-center gap-8">
+                  
+                  {/* CEO Node */}
+                  <div className="flex flex-col items-center">
+                    {renderOrgNode('CEO', 'CEO', {}, null, { bg: 'bg-indigo-50/70', border: 'border-indigo-200', text: 'text-indigo-900', accentBg: 'bg-indigo-100 border-indigo-300 text-indigo-800' })}
+                    <div className="w-0.5 bg-slate-300 h-8"></div>
+                  </div>
+
+                  {/* Functional Heads */}
+                  <div className="w-full flex flex-col items-center">
+                    {/* Horizontal line across functional heads */}
+                    <div className="relative w-full max-w-5xl flex justify-between items-start">
+                      {/* The horizontal bar */}
+                      <div className="absolute top-0 left-20 right-20 h-0.5 bg-slate-300"></div>
+                      
+                      {/* Finance Head */}
+                      <div className="flex flex-col items-center pt-4 relative">
+                        <div className="absolute top-0 w-0.5 bg-slate-300 h-4"></div>
+                        {renderOrgNode('Finance Head', 'Functional Head', { position: 'Finance Head', department: 'Finance' }, u => u.position?.toLowerCase().includes('finance'), { bg: 'bg-slate-50/70', border: 'border-slate-200', text: 'text-slate-900', accentBg: 'bg-slate-100 border-slate-300 text-slate-700' })}
+                      </div>
+
+                      {/* Global HR Head */}
+                      <div className="flex flex-col items-center pt-4 relative">
+                        <div className="absolute top-0 w-0.5 bg-slate-300 h-4"></div>
+                        {renderOrgNode('Global HR Head', 'Functional Head', { position: 'Global HR Head', department: 'HR' }, u => u.position?.toLowerCase().includes('hr'), { bg: 'bg-slate-50/70', border: 'border-slate-200', text: 'text-slate-900', accentBg: 'bg-slate-100 border-slate-300 text-slate-700' })}
+                      </div>
+
+                      {/* ITG Head */}
+                      <div className="flex flex-col items-center pt-4 relative">
+                        <div className="absolute top-0 w-0.5 bg-slate-300 h-4"></div>
+                        {renderOrgNode('ITG Head', 'Functional Head', { position: 'ITG Head', department: 'ITG' }, u => u.position?.toLowerCase().includes('itg'), { bg: 'bg-slate-50/70', border: 'border-slate-200', text: 'text-slate-900', accentBg: 'bg-slate-100 border-slate-300 text-slate-700' })}
+                      </div>
+
+                      {/* NDA */}
+                      <div className="flex flex-col items-center pt-4 relative">
+                        <div className="absolute top-0 w-0.5 bg-slate-300 h-4"></div>
+                        {renderOrgNode('NDA', 'Functional Head', { position: 'NDA', department: 'Legal' }, u => u.position?.toLowerCase().includes('nda') || u.position?.toLowerCase().includes('legal'), { bg: 'bg-slate-50/70', border: 'border-slate-200', text: 'text-slate-900', accentBg: 'bg-slate-100 border-slate-300 text-slate-700' })}
+                      </div>
+
+                      {/* TC Head */}
+                      <div className="flex flex-col items-center pt-4 relative">
+                        <div className="absolute top-0 w-0.5 bg-slate-300 h-4"></div>
+                        {renderOrgNode('TC Head', 'Functional Head', { position: 'TC Head', department: 'TC' }, u => u.position?.toLowerCase().includes('tc'), { bg: 'bg-slate-50/70', border: 'border-slate-200', text: 'text-slate-900', accentBg: 'bg-slate-100 border-slate-300 text-slate-700' })}
+                      </div>
+
+                      {/* Quality Head */}
+                      <div className="flex flex-col items-center pt-4 relative">
+                        <div className="absolute top-0 w-0.5 bg-slate-300 h-4"></div>
+                        {renderOrgNode('Quality Head', 'Functional Head', { position: 'Quality Head', department: 'Quality' }, u => u.position?.toLowerCase().includes('quality'), { bg: 'bg-slate-50/70', border: 'border-slate-200', text: 'text-slate-900', accentBg: 'bg-slate-100 border-slate-300 text-slate-700' })}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="w-0.5 bg-slate-300 h-8"></div>
+
+                  {/* BU Structure Header Node */}
+                  <div className="flex flex-col items-center">
+                    <div className="bg-slate-100/90 border border-slate-300 text-slate-800 text-xs font-extrabold px-6 py-2.5 rounded-xl shadow-md uppercase tracking-wider">
+                      BU Structure
+                    </div>
+                    <div className="w-0.5 bg-slate-300 h-8"></div>
+                  </div>
+
+                  {/* BU Structure Branches: P&L vs Delivery */}
+                  <div className="w-full max-w-6xl flex gap-8 justify-center items-start">
+                    
+                    {/* Left: P&L (Hunting & Mining) */}
+                    <div className="flex-1 flex flex-col items-center border border-slate-200/60 rounded-2xl bg-purple-50/20 p-6 relative">
+                      <div className="absolute -top-3 bg-purple-650 text-white text-[10px] font-extrabold px-3 py-1 rounded-full uppercase tracking-wider">
+                        P&L (Hunting & Mining)
+                      </div>
+                      
+                      <div className="flex flex-col items-center gap-6 mt-4">
+                        {/* P&L BU Head */}
+                        {renderOrgNode('P&L Head', 'BU Head', { position: 'P&L Head', bu: 'P&L (Hunting & Mining)' }, u => u.bu?.toLowerCase().includes('p&l') || u.position?.toLowerCase().includes('p&l'), { bg: 'bg-purple-50/70', border: 'border-purple-200', text: 'text-purple-900', accentBg: 'bg-purple-100 border-purple-300 text-purple-800' })}
+                        
+                        <div className="w-0.5 bg-purple-300 h-6"></div>
+                        
+                        {/* BFS BU Consultant */}
+                        <div className="flex flex-col items-center">
+                          <span className="text-[10px] text-purple-400 font-bold uppercase tracking-wider mb-2">Consultant Roster</span>
+                          {renderOrgNode('BFS BU Consultant', 'Employee', { position: 'BFS BU Consultant', bu: 'P&L (Hunting & Mining)' }, u => u.position?.toLowerCase().includes('bfs') || u.position?.toLowerCase().includes('consultant'), { bg: 'bg-purple-50/70', border: 'border-purple-200', text: 'text-purple-900', accentBg: 'bg-purple-100 border-purple-300 text-purple-800' })}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Right: Delivery (Farming) */}
+                    <div className="flex-[2] flex flex-col items-center border border-slate-200/60 rounded-2xl bg-emerald-50/20 p-6 relative">
+                      <div className="absolute -top-3 bg-emerald-650 text-white text-[10px] font-extrabold px-3 py-1 rounded-full uppercase tracking-wider">
+                        Delivery (Farming)
+                      </div>
+
+                      <div className="flex flex-col items-center w-full mt-4">
+                        {/* Delivery Head */}
+                        {renderOrgNode('Delivery Head', 'Delivery Head', { position: 'Delivery Head', bu: 'Delivery (Farming)' }, u => (u.userType || u.role) === 'Delivery Head' && (!u.position || (!u.position.toLowerCase().includes('insurance') && !u.position.toLowerCase().includes('industrial') && !u.position.toLowerCase().includes('healthcare') && !u.position.toLowerCase().includes('mobility'))), { bg: 'bg-emerald-50/70', border: 'border-emerald-200', text: 'text-emerald-900', accentBg: 'bg-emerald-100 border-emerald-300 text-emerald-800' })}
+                        
+                        <div className="w-0.5 bg-emerald-300 h-6"></div>
+                        
+                        {/* Sub-Delivery Heads */}
+                        <div className="w-full flex justify-between gap-4 relative pt-6">
+                          {/* Horizontal connect line */}
+                          <div className="absolute top-0 left-12 right-12 h-0.5 bg-emerald-300"></div>
+
+                          {/* Insurance Delivery Head */}
+                          <div className="flex flex-col items-center relative">
+                            <div className="absolute top-0 w-0.5 bg-emerald-300 h-4"></div>
+                            <span className="text-[9px] text-emerald-600 font-bold mb-1.5 z-10">Insurance</span>
+                            {renderOrgNode('Insurance Delivery Head', 'Delivery Head', { position: 'Insurance Delivery Head', bu: 'Insurance' }, u => u.position?.toLowerCase().includes('insurance'), { bg: 'bg-emerald-50/70', border: 'border-emerald-200', text: 'text-emerald-900', accentBg: 'bg-emerald-100 border-emerald-300 text-emerald-800' })}
+                          </div>
+
+                          {/* Industrial Delivery Head */}
+                          <div className="flex flex-col items-center relative">
+                            <div className="absolute top-0 w-0.5 bg-emerald-300 h-4"></div>
+                            <span className="text-[9px] text-emerald-600 font-bold mb-1.5 z-10">Industrial</span>
+                            {renderOrgNode('Industrial Delivery Head', 'Delivery Head', { position: 'Industrial Delivery Head', bu: 'Industrial' }, u => u.position?.toLowerCase().includes('industrial'), { bg: 'bg-emerald-50/70', border: 'border-emerald-200', text: 'text-emerald-900', accentBg: 'bg-emerald-100 border-emerald-300 text-emerald-800' })}
+                          </div>
+
+                          {/* Healthcare & Mobility Delivery Head */}
+                          <div className="flex flex-col items-center relative">
+                            <div className="absolute top-0 w-0.5 bg-emerald-300 h-4"></div>
+                            <span className="text-[9px] text-emerald-600 font-bold mb-1.5 z-10">Healthcare & Mobility</span>
+                            {renderOrgNode('Healthcare & Mobility Delivery Head', 'Delivery Head', { position: 'Healthcare & Mobility Delivery Head', bu: 'Healthcare & Mobility' }, u => u.position?.toLowerCase().includes('healthcare & mobility') || u.position?.toLowerCase().includes('healthcare and mobility') || (u.position?.toLowerCase().includes('healthcare') && u.position?.toLowerCase().includes('mobility')), { bg: 'bg-emerald-50/70', border: 'border-emerald-200', text: 'text-emerald-900', accentBg: 'bg-emerald-100 border-emerald-300 text-emerald-800' })}
+                            
+                            <div className="w-0.5 bg-emerald-300 h-4"></div>
+                            
+                            {/* Healthcare & Mobility Nested Sub-levels */}
+                            <div className="border border-emerald-200/40 rounded-xl bg-emerald-50/10 p-3 flex flex-col items-center gap-3 mt-1">
+                              {/* Mobility Delivery Mgr */}
+                              <div className="flex flex-col items-center">
+                                <span className="text-[8px] text-emerald-500/80 uppercase font-bold tracking-wider mb-1">Mobility Mgr</span>
+                                {renderOrgNode('Mobility Delivery Mgr', 'Delivery Manager', { position: 'Mobility Delivery Mgr', bu: 'Healthcare & Mobility' }, u => u.position?.toLowerCase().includes('mobility') && u.position?.toLowerCase().includes('mgr'), { bg: 'bg-emerald-50/70', border: 'border-emerald-200', text: 'text-emerald-900', accentBg: 'bg-emerald-100 border-emerald-300 text-emerald-800' })}
+                              </div>
+
+                              {/* Healthcare Delivery Head */}
+                              <div className="flex flex-col items-center">
+                                <span className="text-[8px] text-emerald-500/80 uppercase font-bold tracking-wider mb-1">Healthcare Head</span>
+                                {renderOrgNode('Healthcare Delivery Head', 'Delivery Head', { position: 'Healthcare Delivery Head', bu: 'Healthcare & Mobility' }, u => u.position?.toLowerCase().includes('healthcare delivery head') || (u.position?.toLowerCase().includes('healthcare') && (u.userType || u.role) === 'Delivery Head' && !u.position?.toLowerCase().includes('mobility')), { bg: 'bg-emerald-50/70', border: 'border-emerald-200', text: 'text-emerald-900', accentBg: 'bg-emerald-100 border-emerald-300 text-emerald-800' })}
+                              </div>
+
+                              {/* Associate Delivery - HC */}
+                              <div className="flex flex-col items-center">
+                                <span className="text-[8px] text-emerald-500/80 uppercase font-bold tracking-wider mb-1">Associate HC</span>
+                                {renderOrgNode('Associate Delivery - HC', 'Employee', { position: 'Associate Delivery - HC', bu: 'Healthcare & Mobility' }, u => u.position?.toLowerCase().includes('associate') && u.position?.toLowerCase().includes('hc'), { bg: 'bg-emerald-50/70', border: 'border-emerald-200', text: 'text-emerald-900', accentBg: 'bg-emerald-100 border-emerald-300 text-emerald-800' })}
+                              </div>
+                            </div>
+
+                          </div>
+
+                        </div>
+                      </div>
+                    </div>
+
+                  </div>
+
+                  {/* Bottom Shared Managers Layer */}
+                  <div className="flex flex-col items-center w-full mt-6">
+                    {/* Connector lines from P&L and Delivery divisions to Bottom Managers */}
+                    <div className="w-1/2 flex justify-between relative h-6">
+                      <div className="absolute top-0 left-0 right-0 border-t-2 border-dashed border-slate-300 h-0.5"></div>
+                      <div className="absolute top-0 left-0 w-0.5 border-l-2 border-dashed border-slate-300 h-6"></div>
+                      <div className="absolute top-0 right-0 w-0.5 border-l-2 border-dashed border-slate-300 h-6"></div>
+                    </div>
+
+                    <div className="bg-amber-50/20 border border-amber-200/50 rounded-2xl p-6 w-full max-w-5xl relative">
+                      <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-amber-650 text-white text-[10px] font-extrabold px-3 py-1 rounded-full uppercase tracking-wider z-10">
+                        Sales, Account & Project Managers
+                      </div>
+                      
+                      <div className="flex justify-center gap-6 flex-wrap mt-4">
+                        {renderManagersList('Sales Managers', 'Sales Manager', { position: 'Sales Manager', department: 'Sales' })}
+                        {renderManagersList('Account Managers', 'Account Manager', { position: 'Account Manager', department: 'Accounts' })}
+                        {renderManagersList('Project Managers', 'Project Manager', { position: 'Project Manager', department: 'Operations' })}
+                      </div>
+                    </div>
+                  </div>
+
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="glass p-6 rounded-2xl border border-slate-800/80">
             {usersLoading ? (
               <div className="h-32 flex items-center justify-center">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
@@ -1148,6 +1512,7 @@ export default function Users() {
               </div>
             )}
           </div>
+          )}
         </>
       )}
 

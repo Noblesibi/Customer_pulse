@@ -542,7 +542,13 @@ export const useStore = create((set, get) => ({
       });
       const data = await res.json();
       if (res.ok) {
-        set(state => ({ usersList: [...state.usersList, data] }));
+        set(state => {
+          const exists = state.usersList.some(u => u.uid === data.uid || u.email.toLowerCase() === data.email.toLowerCase());
+          const updatedList = exists
+            ? state.usersList.map(u => (u.uid === data.uid || u.email.toLowerCase() === data.email.toLowerCase() ? data : u))
+            : [...state.usersList, data];
+          return { usersList: updatedList };
+        });
         return true;
       }
       return false;
@@ -569,5 +575,94 @@ export const useStore = create((set, get) => ({
       console.error(err);
       return false;
     }
+  },
+
+  // ── MY TASKS (interactions where current user is @mentioned) ──
+  myTasks: [],
+  myTasksLoading: false,
+
+  fetchMyTasks: async () => {
+    const token = get().token;
+    if (!token) return;
+    set({ myTasksLoading: true });
+    try {
+      const res = await fetch(`${API_BASE}/interactions/my-tasks`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (res.ok) {
+        set({ myTasks: data, myTasksLoading: false });
+      } else {
+        set({ myTasksLoading: false });
+      }
+    } catch (err) {
+      console.error(err);
+      set({ myTasksLoading: false });
+    }
+  },
+
+  // ── REPLIES ──
+  repliesByInteraction: {}, // { [interactionId]: [replies] }
+
+  fetchReplies: async (interactionId) => {
+    const token = get().token;
+    if (!token || !interactionId) return;
+    try {
+      const res = await fetch(`${API_BASE}/interactions/${interactionId}/replies`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (res.ok) {
+        set(state => ({
+          repliesByInteraction: {
+            ...state.repliesByInteraction,
+            [interactionId]: data
+          }
+        }));
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  },
+
+  replyToInteraction: async (interactionId, text) => {
+    const token = get().token;
+    if (!token) return null;
+    try {
+      const res = await fetch(`${API_BASE}/interactions/${interactionId}/reply`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ text })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        // Append reply locally
+        set(state => ({
+          repliesByInteraction: {
+            ...state.repliesByInteraction,
+            [interactionId]: [
+              ...(state.repliesByInteraction[interactionId] || []),
+              data
+            ]
+          },
+          // Update myTasks replyStatus for this interaction
+          myTasks: state.myTasks.map(t =>
+            t.interactionId === interactionId
+              ? { ...t, replyStatus: 'Replied', replies: [...(t.replies || []), data] }
+              : t
+          )
+        }));
+        get().fetchNotifications();
+        return data;
+      }
+      return null;
+    } catch (err) {
+      console.error(err);
+      return null;
+    }
   }
 }));
+

@@ -1,14 +1,17 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import Navbar from '../components/Navbar.jsx';
 import Toast from '../components/Toast.jsx';
 import { useStore } from '../store/index.js';
+import { ArrowUp } from 'lucide-react';
 
 export default function AppLayout() {
   const { user, notifications } = useStore();
   const location = useLocation();
   const [activeToast, setActiveToast] = useState(null);
   const [lastNotificationId, setLastNotificationId] = useState(null);
+  const [showBackTop, setShowBackTop] = useState(false);
+  const mainRef = useRef(null);
 
   // Authenticate guard
   if (!user) {
@@ -30,6 +33,19 @@ export default function AppLayout() {
     }
   }, [notifications, lastNotificationId]);
 
+  // Show back-to-top button after scrolling down 400px
+  useEffect(() => {
+    const el = mainRef.current;
+    if (!el) return;
+    const onScroll = () => setShowBackTop(el.scrollTop > 400);
+    el.addEventListener('scroll', onScroll);
+    return () => el.removeEventListener('scroll', onScroll);
+  }, []);
+
+  const scrollToTop = () => {
+    if (mainRef.current) mainRef.current.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
   // Determine readable title based on path
   const getPageTitle = () => {
     switch (location.pathname) {
@@ -49,9 +65,20 @@ export default function AppLayout() {
       <Navbar />
 
       {/* Main Content Viewport */}
-      <main className="flex-1 overflow-y-auto p-8 bg-dark-950">
+      <main ref={mainRef} className="flex-1 overflow-y-auto p-8 bg-dark-950">
         <Outlet />
       </main>
+
+      {/* Floating Back to Top button */}
+      {showBackTop && (
+        <button
+          onClick={scrollToTop}
+          className="fixed bottom-8 right-8 z-50 bg-primary text-white p-3 rounded-full shadow-lg cursor-pointer flex items-center justify-center"
+          title="Back to top"
+        >
+          <ArrowUp className="w-5 h-5" />
+        </button>
+      )}
 
       {/* Global Realtime Toast Alerts */}
       {activeToast && (

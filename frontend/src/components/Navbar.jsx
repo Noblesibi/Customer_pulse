@@ -52,12 +52,12 @@ export default function Navbar() {
   const getLinks = () => {
     const role = user?.role;
     const links = [
-      { path: '/dashboard', label: 'Executive Dashboard', roles: ['Admin', 'Executive', 'Sales Manager', 'Employee'] },
-      { path: '/accounts', label: 'Accounts CRM', roles: ['Admin', 'Executive', 'Sales Manager', 'Employee'] },
-      { path: '/contacts', label: 'Contact Mapping', roles: ['Admin', 'Sales Manager', 'Employee'] },
-      { path: '/risks', label: 'Risk Center', roles: ['Admin', 'Executive', 'Sales Manager'] },
-      { path: '/webhooks-demo', label: 'MS Graph Webhooks', roles: ['Admin', 'Sales Manager'] },
-      { path: '/users', label: 'User Directory', roles: ['Admin'] }
+      { path: '/dashboard',      label: 'Dashboard',  roles: ['Admin', 'Executive', 'Sales Manager', 'Employee'] },
+      { path: '/accounts',        label: 'Accounts',   roles: ['Admin', 'Executive', 'Sales Manager', 'Employee'] },
+      { path: '/contacts',        label: 'Contacts',   roles: ['Admin', 'Sales Manager', 'Employee'] },
+      { path: '/risks',           label: 'Risks',      roles: ['Admin', 'Executive', 'Sales Manager'] },
+      { path: '/webhooks-demo',   label: 'Webhooks',   roles: ['Admin', 'Sales Manager'] },
+      { path: '/users',           label: 'Users',      roles: ['Admin'] }
     ];
 
     return links.filter(link => link.roles.includes(role));
@@ -66,28 +66,32 @@ export default function Navbar() {
   return (
     <header className="h-20 glass border-b border-slate-800/80 px-8 flex items-center justify-between z-30 sticky top-0 shrink-0 select-none">
       
-      {/* Brand Logo */}
-      <div className="flex items-center gap-2.5 cursor-pointer" onClick={() => navigate('/dashboard')}>
-        <div className="bg-primary/20 p-2 rounded-xl border border-primary/40 text-primary animate-soft-pulse">
-          <Activity className="w-5 h-5" />
+      {/* Brand Logo - click to go back to landing page */}
+      <div className="flex items-center gap-3 cursor-pointer" onClick={() => navigate('/')}>
+        <div className="bg-[#0f172a] rounded-xl px-3 py-1.5">
+          <img
+            src="/nest-digital-logo.png"
+            alt="Nest Digital"
+            className="h-8 w-auto object-contain"
+          />
         </div>
-        <div>
-          <span className="font-extrabold text-sm text-white tracking-wide block">CustomerPulse</span>
+        <div className="hidden sm:block border-l border-slate-300/40 pl-3">
+          <span className="font-extrabold text-sm text-black tracking-wide block">CustomerPulse</span>
           <span className="text-[9px] text-primary font-semibold tracking-wider uppercase leading-none">Rel Intelligence</span>
         </div>
       </div>
 
       {/* Horizontal Links Navigation */}
-      <nav className="hidden lg:flex items-center gap-1">
+      <nav className="hidden lg:flex items-center gap-0.5">
         {getLinks().map(link => (
           <NavLink
             key={link.path}
             to={link.path}
             className={({ isActive }) => 
-              `px-4 py-2 rounded-xl text-xs font-semibold border transition-all duration-200 ${
+              `px-3 py-1.5 rounded-lg text-xs font-semibold border ${
                 isActive 
                   ? 'bg-primary/10 border-primary/25 text-primary' 
-                  : 'bg-transparent border-transparent text-slate-400 hover:text-white hover:bg-slate-800/20'
+                  : 'bg-transparent border-transparent text-primary/70 hover:text-primary hover:bg-primary/5'
               }`
             }
           >

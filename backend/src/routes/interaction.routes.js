@@ -42,20 +42,143 @@ router.get('/', async (req, res) => {
     // Limit output
     const limitedInteractions = interactions.slice(0, parseInt(limit));
 
-    // Enrich with contact name and account name if needed
+    // Enrich with contact name, account name and notifications
     const enriched = await Promise.all(limitedInteractions.map(async (i) => {
       const contactDoc = await db.collection('contacts').doc(i.contactId).get();
       const accountDoc = await db.collection('accounts').doc(i.accountId).get();
+      
+      let notifications = [];
+      try {
+        const notifSnap = await db.collection('notifications').where('interactionId', '==', i.interactionId).get();
+        notifications = notifSnap.docs.map(doc => doc.data());
+      } catch (err) {
+        console.error('Error fetching notifications for interaction:', err);
+      }
+
       return {
         ...i,
         contactName: contactDoc.exists ? contactDoc.data().name : 'System/Unknown',
-        companyName: accountDoc.exists ? accountDoc.data().companyName : 'External Account'
+        companyName: accountDoc.exists ? accountDoc.data().companyName : 'External Account',
+        notifications
       };
     }));
 
     return res.json(enriched);
   } catch (error) {
     console.error('Error fetching interactions timeline:', error);
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * GET /api/interactions/my-tasks
+ * Returns all interactions where the current user is mentioned in actionMentions.
+ */
+router.get('/my-tasks', async (req, res) => {
+  try {
+    const uid = req.user.uid;
+    const snapshot = await db.collection('interactions').get();
+    const all = snapshot.docs.map(doc => doc.data());
+
+    // Filter interactions where the user is in actionMentions
+    const myTasks = all.filter(i =>
+      Array.isArray(i.actionMentions) && i.actionMentions.some(m => m.uid === uid)
+    );
+
+    // Sort newest first
+    myTasks.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+
+    // Enrich with company name and assigner info
+    const enriched = await Promise.all(myTasks.map(async (i) => {
+      const accountDoc = await db.collection('accounts').doc(i.accountId).get();
+      // Fetch replies for this interaction to check status
+      const repliesSnap = await db.collection('interactions').doc(i.interactionId).collection('replies').get();
+      const replies = repliesSnap.docs.map(d => d.data());
+      const myReply = replies.find(r => r.authorUid === uid);
+      return {
+        ...i,
+        companyName: accountDoc.exists ? accountDoc.data().companyName : 'Unknown',
+        replyStatus: myReply ? 'Replied' : 'Pending',
+        replies
+      };
+    }));
+
+    return res.json(enriched);
+  } catch (error) {
+    console.error('Error fetching my tasks:', error);
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * GET /api/interactions/:id/replies
+ * Returns all replies for a given interaction.
+ */
+router.get('/:id/replies', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const snap = await db.collection('interactions').doc(id).collection('replies').get();
+
+    const replies = snap.docs.map(d => d.data());
+    replies.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+    return res.json(replies);
+  } catch (error) {
+    console.error('Error fetching replies:', error);
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * POST /api/interactions/:id/reply
+ * Melbin (or any mentioned user) posts a reply to an interaction.
+ * Fires a notification back to admin/all-admin users.
+ */
+router.post('/:id/reply', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { text } = req.body;
+    if (!text || !text.trim()) return res.status(400).json({ error: 'Reply text is required.' });
+
+    const interactionDoc = await db.collection('interactions').doc(id).get();
+    if (!interactionDoc.exists) return res.status(404).json({ error: 'Interaction not found.' });
+
+    const interaction = interactionDoc.data();
+
+    const replyId = 'reply-' + Math.random().toString(36).substring(2, 11);
+    const reply = {
+      replyId,
+      interactionId: id,
+      authorUid: req.user.uid,
+      authorName: req.user.name || req.user.email,
+      text: text.trim(),
+      timestamp: new Date().toISOString()
+    };
+
+    // Save reply to sub-collection
+    await db.collection('interactions').doc(id).collection('replies').doc(replyId).set(reply);
+
+    // Notify all admins that a reply has been posted
+    const adminSnap = await db.collection('users').where('role', '==', 'Admin').get();
+    const notifPromises = adminSnap.docs.map(adminDoc => {
+      const adminData = adminDoc.data();
+      const notifId = 'notif-' + Math.random().toString(36).substring(2, 11);
+      return db.collection('notifications').doc(notifId).set({
+        notificationId: notifId,
+        toUserId: adminData.uid,
+        type: 'Task Reply',
+        accountId: interaction.accountId,
+        interactionId: id,
+        message: `${reply.authorName} replied to the task for ${interaction.subject || 'an interaction'}: "${text.slice(0, 80)}"`,
+        read: false,
+        readAt: null,
+        timestamp: new Date().toISOString()
+      });
+    });
+    await Promise.all(notifPromises);
+
+    return res.status(201).json(reply);
+  } catch (error) {
+    console.error('Error saving reply:', error);
     return res.status(500).json({ error: error.message });
   }
 });
@@ -79,6 +202,9 @@ router.post('/', async (req, res) => {
     const contactDoc = await db.collection('contacts').doc(contactId).get();
     if (!contactDoc.exists) return res.status(404).json({ error: 'Contact not found' });
 
+    const companyName = accountDoc.data().companyName;
+    const loggedByName = req.user.name || req.user.email;
+
     // Run AI Engine Analysis
     const analysis = await analyzeCommunication(messageText);
 
@@ -93,6 +219,8 @@ router.post('/', async (req, res) => {
       date: date || new Date().toISOString().split('T')[0],
       time: time || new Date().toTimeString().slice(0, 5),
       actionMentions: actionMentions || [],
+      loggedByUid: req.user.uid,
+      loggedByName,
       sentiment: analysis.sentiment,
       riskDetected: analysis.riskLevel === 'High' || analysis.riskLevel === 'Medium',
       riskCategory: analysis.riskCategory || '',
@@ -114,36 +242,64 @@ router.post('/', async (req, res) => {
         createdAt: new Date().toISOString()
       });
 
-      // Add warning real-time notification
-      const notificationId = 'notif-' + Math.random().toString(36).substring(2, 11);
-      await db.collection('notifications').doc(notificationId).set({
-        notificationId,
+      // Add risk notification (system-wide, no toUserId = visible to all admins)
+      const riskNotifId = 'notif-' + Math.random().toString(36).substring(2, 11);
+      await db.collection('notifications').doc(riskNotifId).set({
+        notificationId: riskNotifId,
         accountId,
         type: 'New Risk',
         message: `New risk alert detected: [${analysis.riskCategory}] - ${analysis.summary}`,
         severity: analysis.riskLevel,
         read: false,
+        readAt: null,
         timestamp: new Date().toISOString()
       });
     }
 
-    // Add generic activity feed notification
-    const notificationId = 'notif-' + Math.random().toString(36).substring(2, 11);
-    await db.collection('notifications').doc(notificationId).set({
-      notificationId,
+    // Add generic activity feed notification (system-wide)
+    const activityNotifId = 'notif-' + Math.random().toString(36).substring(2, 11);
+    await db.collection('notifications').doc(activityNotifId).set({
+      notificationId: activityNotifId,
       accountId,
       type: 'New Interaction',
-      message: `New interaction (${source}) logged for ${accountDoc.data().companyName}`,
+      message: `New interaction (${source}) logged for ${companyName}`,
       severity: 'Low',
       read: false,
+      readAt: null,
       timestamp: new Date().toISOString()
     });
+
+    // ── MENTION TASK NOTIFICATIONS ──
+    // Create a personal task notification for each @mentioned staff member
+    let mentionNotifications = [];
+    if (actionMentions && actionMentions.length > 0) {
+      const mentionNotifPromises = actionMentions.map(async (mention) => {
+        const taskNotifId = 'notif-' + Math.random().toString(36).substring(2, 11);
+        const notifDoc = {
+          notificationId: taskNotifId,
+          toUserId: mention.uid,           // Personal — only Melbin sees this
+          type: 'Task Assigned',
+          accountId,
+          interactionId,
+          message: `${loggedByName} assigned you a task for ${companyName}: "${messageText.slice(0, 100)}${messageText.length > 100 ? '...' : ''}"`,
+          read: false,
+          readAt: null,
+          timestamp: new Date().toISOString()
+        };
+        await db.collection('notifications').doc(taskNotifId).set(notifDoc);
+        return notifDoc;
+      });
+      mentionNotifications = await Promise.all(mentionNotifPromises);
+    }
 
     // Recalculate health
     const updatedHealth = await calculateAccountHealth(accountId);
 
     return res.status(201).json({
-      interaction: newInteraction,
+      interaction: {
+        ...newInteraction,
+        notifications: mentionNotifications
+      },
       analysis,
       health: updatedHealth
     });

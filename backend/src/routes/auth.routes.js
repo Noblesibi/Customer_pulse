@@ -47,7 +47,7 @@ router.post('/signup', async (req, res) => {
       }
 
       const uid = 'user-' + Math.random().toString(36).substring(2, 11);
-      const newUser = { uid, email, name, role: selectedRole, createdAt: new Date().toISOString() };
+      const newUser = { uid, email, name, role: selectedRole, password, createdAt: new Date().toISOString() };
       
       // Save to mock database
       await db.collection('users').doc(uid).set(newUser);
@@ -71,6 +71,7 @@ router.post('/signup', async (req, res) => {
         email,
         name,
         role: selectedRole,
+        password, // Save password for login verification
         createdAt: new Date().toISOString()
       };
 
@@ -111,28 +112,31 @@ router.post('/login', async (req, res) => {
       return res.json({ token, user: adminUser });
     }
 
-    if (isMock) {
-      // Validate with mock password db
-      const expectedPassword = MOCK_PASSWORDS[email];
-      if (!expectedPassword || expectedPassword !== password) {
-        return res.status(401).json({ error: 'Invalid email or password' });
-      }
-
-      // Fetch user profile from database
-      const usersSnap = await db.collection('users').get();
-      const userDoc = usersSnap.docs.find(doc => doc.data().email === email);
-      if (!userDoc) {
-        return res.status(404).json({ error: 'User profile not found' });
-      }
-
-      const user = userDoc.data();
-      const token = generateMockToken(user);
-      return res.json({ token, user });
-    } else {
-      // In real firebase, auth login is handled client-side. The client sends token to backend.
-      // This endpoint behaves as ID token verification and database check.
-      return res.status(400).json({ error: 'Firebase authentication is performed directly via client SDK. Use the hardcoded admin credentials for now.' });
+    // Fetch user profile from database
+    const usersSnap = await db.collection('users').get();
+    const userDoc = usersSnap.docs.find(doc => doc.data().email.toLowerCase() === email.toLowerCase().trim());
+    if (!userDoc) {
+      return res.status(404).json({ error: 'User profile not found' });
     }
+
+    const user = userDoc.data();
+    
+    // Validate password
+    let expectedPassword = user.password;
+    if (isMock) {
+      expectedPassword = MOCK_PASSWORDS[email] || user.password;
+    }
+    
+    if (!expectedPassword || expectedPassword !== password) {
+      return res.status(401).json({ error: 'Invalid email or password' });
+    }
+
+    // Prepare response, stripping password
+    const userResponse = { ...user };
+    delete userResponse.password;
+
+    const token = generateMockToken(userResponse);
+    return res.json({ token, user: userResponse });
   } catch (error) {
     console.error('Login error:', error);
     return res.status(500).json({ error: error.message });
@@ -265,9 +269,9 @@ router.post('/users', authenticateToken, requireRole(['Admin']), async (req, res
   // Determine user permission role based on User Type if role is not passed
   let selectedRole = role;
   if (!selectedRole && userType) {
-    if (userType === 'CEO') selectedRole = 'Executive';
-    else if (userType === 'BU Head') selectedRole = 'Sales Manager';
-    else if (userType === 'Project Manager') selectedRole = 'Sales Manager';
+    if (['CEO', 'Functional Head'].includes(userType)) selectedRole = 'Executive';
+    else if (['BU Head', 'Delivery Head', 'Delivery Manager', 'Sales Manager', 'Account Manager', 'Project Manager'].includes(userType)) selectedRole = 'Sales Manager';
+    else if (userType === 'Admin') selectedRole = 'Admin';
     else selectedRole = 'Employee';
   }
   if (!selectedRole) {
@@ -279,7 +283,27 @@ router.post('/users', authenticateToken, requireRole(['Admin']), async (req, res
       const usersSnap = await db.collection('users').get();
       const userExists = usersSnap.docs.some(doc => doc.data().email === email);
       if (userExists) {
-        return res.status(400).json({ error: 'User already exists' });
+        // Overwrite/update details & password
+        const existingDoc = usersSnap.docs.find(doc => doc.data().email === email);
+        const uid = existingDoc.id;
+        const updatedUser = {
+          ...existingDoc.data(),
+          name,
+          role: selectedRole,
+          position: position || '',
+          userType: userType || 'Employee',
+          department: department || '',
+          reportingTo: reportingTo || '',
+          projects: projects || [],
+          projectManagers: projectManagers || [],
+          employees: employees || [],
+          bu: bu || '',
+          project: project || '',
+          password
+        };
+        await db.collection('users').doc(uid).set(updatedUser);
+        MOCK_PASSWORDS[email] = password;
+        return res.status(200).json(updatedUser);
       }
 
       const uid = 'user-' + Math.random().toString(36).substring(2, 11);
@@ -297,6 +321,7 @@ router.post('/users', authenticateToken, requireRole(['Admin']), async (req, res
         employees: employees || [],
         bu: bu || '',
         project: project || '',
+        password,
         createdAt: new Date().toISOString() 
       };
       
@@ -305,11 +330,21 @@ router.post('/users', authenticateToken, requireRole(['Admin']), async (req, res
 
       return res.status(201).json(newUser);
     } else {
-      const userRecord = await auth.createUser({
-        email,
-        password,
-        displayName: name
-      });
+      let userRecord;
+      try {
+        userRecord = await auth.createUser({
+          email,
+          password,
+          displayName: name
+        });
+      } catch (err) {
+        if (err.code === 'auth/email-already-exists') {
+          userRecord = await auth.getUserByEmail(email);
+          await auth.updateUser(userRecord.uid, { password, displayName: name });
+        } else {
+          throw err;
+        }
+      }
 
       await auth.setCustomUserClaims(userRecord.uid, { role: selectedRole });
 
@@ -327,10 +362,11 @@ router.post('/users', authenticateToken, requireRole(['Admin']), async (req, res
         employees: employees || [],
         bu: bu || '',
         project: project || '',
+        password,
         createdAt: new Date().toISOString()
       };
 
-      await db.collection('users').doc(userRecord.uid).set(newUser);
+      await db.collection('users').doc(userRecord.uid).set(newUser, { merge: true });
       return res.status(201).json(newUser);
     }
   } catch (error) {

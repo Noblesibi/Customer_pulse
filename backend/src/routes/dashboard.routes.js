@@ -14,19 +14,54 @@ router.get('/stats', async (req, res) => {
   try {
     // 1. Fetch Accounts
     const accountsSnap = await db.collection('accounts').get();
-    const accounts = accountsSnap.docs.map(doc => doc.data());
+    let accounts = accountsSnap.docs.map(doc => doc.data());
 
     // 2. Fetch Contacts
     const contactsSnap = await db.collection('contacts').get();
-    const contacts = contactsSnap.docs.map(doc => doc.data());
+    let contacts = contactsSnap.docs.map(doc => doc.data());
 
     // 3. Fetch Interactions
     const interactionsSnap = await db.collection('interactions').get();
-    const interactions = interactionsSnap.docs.map(doc => doc.data());
+    let interactions = interactionsSnap.docs.map(doc => doc.data());
 
     // 4. Fetch Risks
     const risksSnap = await db.collection('risks').get();
-    const risks = risksSnap.docs.map(doc => doc.data());
+    let risks = risksSnap.docs.map(doc => doc.data());
+
+    // 5. Query user profile to apply BU/Project filtering
+    const userDoc = await db.collection('users').doc(req.user.uid).get();
+    const userProfile = userDoc.exists ? userDoc.data() : null;
+
+    if (userProfile) {
+      if (userProfile.userType === 'BU Head') {
+        const targetBu = userProfile.bu || '';
+        const targetProjects = userProfile.projects || [];
+        
+        accounts = accounts.filter(a => 
+          (targetBu && a.industry.toLowerCase() === targetBu.toLowerCase()) || 
+          (targetProjects.length > 0 && targetProjects.some(tp => {
+            const tpName = typeof tp === 'string' ? tp : tp.name;
+            return tpName && a.companyName.toLowerCase().includes(tpName.toLowerCase());
+          }))
+        );
+        
+        const accountIds = accounts.map(a => a.accountId || a.id);
+        contacts = contacts.filter(c => accountIds.includes(c.accountId));
+        interactions = interactions.filter(i => accountIds.includes(i.accountId));
+        risks = risks.filter(r => accountIds.includes(r.accountId));
+      } else if (['Project Manager', 'Delivery Manager', 'Sales Manager', 'Account Manager', 'Delivery Head'].includes(userProfile.userType)) {
+        const targetProjects = (userProfile.projects || []).map(p => typeof p === 'string' ? p : p.name).filter(Boolean);
+        
+        accounts = accounts.filter(a => 
+          targetProjects.some(tp => a.companyName.toLowerCase().includes(tp.toLowerCase()))
+        );
+        
+        const accountIds = accounts.map(a => a.accountId || a.id);
+        contacts = contacts.filter(c => accountIds.includes(c.accountId));
+        interactions = interactions.filter(i => accountIds.includes(i.accountId));
+        risks = risks.filter(r => accountIds.includes(r.accountId));
+      }
+    }
 
     // Card details
     const totalAccounts = accounts.length;
