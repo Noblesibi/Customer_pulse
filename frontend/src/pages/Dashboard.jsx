@@ -16,7 +16,8 @@ export default function Dashboard() {
     dashboardStats, dashboardLoading, fetchDashboardStats,
     user,
     myTasks, myTasksLoading, fetchMyTasks,
-    replyToInteraction, fetchReplies, repliesByInteraction
+    replyToInteraction, fetchReplies, repliesByInteraction,
+    usersList, fetchUsersList
   } = useStore();
 
   const [replyTexts, setReplyTexts] = useState({}); // { [interactionId]: string }
@@ -25,12 +26,18 @@ export default function Dashboard() {
   useEffect(() => {
     fetchDashboardStats();
     fetchMyTasks();
+    if (user?.userType === 'CEO') {
+      fetchUsersList();
+    }
     const interval = setInterval(() => {
       fetchDashboardStats();
       fetchMyTasks();
+      if (user?.userType === 'CEO') {
+        fetchUsersList();
+      }
     }, 5000);
     return () => clearInterval(interval);
-  }, []);
+  }, [user]);
 
   if (dashboardLoading && !dashboardStats) {
     return (
@@ -133,14 +140,13 @@ export default function Dashboard() {
                 </span>
               </div>
               <h1 className="text-xl font-bold text-white mt-1">Welcome back, {user?.name || 'User'}</h1>
-              <p className="text-xs text-slate-400">Here's a breakdown of client engagement health and risk alerts across the platform.</p>
             </>
           )}
         </div>
       </div>
 
       {/* 1. KPI Cards Grid */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
         {/* Total Accounts */}
         <div className="glass p-3 rounded-xl border border-slate-800/80 flex flex-col justify-between">
           <div className="flex items-center justify-between text-slate-400">
@@ -204,18 +210,6 @@ export default function Dashboard() {
           <div className="mt-2">
             <h3 className="text-lg font-bold text-white">{cards.activeContacts}</h3>
             <span className="text-[9px] text-slate-500 block mt-0.5">Relationship Depth</span>
-          </div>
-        </div>
-
-        {/* Monthly Interactions */}
-        <div className="glass p-3 rounded-xl border border-slate-800/80 flex flex-col justify-between">
-          <div className="flex items-center justify-between text-slate-400">
-            <span className="text-[10px] font-semibold uppercase tracking-wider">30D Activity</span>
-            <Activity className="w-4 h-4 text-purple-400" />
-          </div>
-          <div className="mt-2">
-            <h3 className="text-lg font-bold text-white">{cards.monthlyInteractions}</h3>
-            <span className="text-[9px] text-slate-500 block mt-0.5">Interactions Logged</span>
           </div>
         </div>
       </div>
@@ -602,6 +596,155 @@ export default function Dashboard() {
             ) : (
               <div className="p-6 text-center text-xs text-slate-500 col-span-full">No projects managed yet.</div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* ── CEO PORTAL OVERVIEW ── */}
+      {user?.userType === 'CEO' && (
+        <div className="space-y-6 mt-5">
+          <div className="glass p-5 rounded-2xl border border-slate-800/80 space-y-4">
+            <h3 className="text-sm font-extrabold uppercase tracking-wider text-slate-300 flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-indigo-500 animate-pulse" /> Corporate Heads Directory & Operations
+            </h3>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {['Finance Head', 'Global HR Head', 'ITG Head', 'NDA Head', 'TC Head', 'Quality Head'].map(pos => {
+                const head = usersList.find(u => u.position?.toLowerCase().includes(pos.toLowerCase().replace(' head', '')) || u.position?.toLowerCase() === pos.toLowerCase());
+                return (
+                  <div key={pos} className="bg-dark-900/60 border border-slate-800 p-4 rounded-xl space-y-3 hover:border-slate-700/80 transition-colors">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">{pos}</span>
+                      <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase ${head ? 'bg-emerald-500/10 border border-emerald-500/25 text-emerald-400' : 'bg-rose-500/10 border border-rose-500/25 text-rose-400'}`}>
+                        {head ? 'ACTIVE' : 'VACANT'}
+                      </span>
+                    </div>
+                    {head ? (
+                      <div className="space-y-1">
+                        <h4 className="text-xs font-bold text-white">{head.name}</h4>
+                        <p className="text-[10px] text-slate-400">{head.email}</p>
+                        <div className="flex items-center gap-2 pt-2 text-[9px] text-slate-500">
+                          <span>📁 {head.projects?.length || 0} Projects</span>
+                          <span>•</span>
+                          <span>👥 {head.employees?.length || 0} Team Members</span>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="py-2 text-[10px] text-slate-500 italic">No head currently assigned to this function.</div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="glass p-5 rounded-2xl border border-slate-800/80 space-y-4">
+            <h3 className="text-sm font-extrabold uppercase tracking-wider text-slate-350">
+              Corporate Business Units Status
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Delivery Division */}
+              <div className="bg-dark-900/60 border border-slate-800 p-4 rounded-xl space-y-3">
+                <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                  <h4 className="text-xs font-bold text-emerald-400">Delivery Division (Farming)</h4>
+                  <span className="text-[9px] text-slate-500 font-medium">Managed under ITG</span>
+                </div>
+                <div className="space-y-2">
+                  <div className="flex justify-between text-[11px]">
+                    <span className="text-slate-400">Main Delivery Head:</span>
+                    <span className="text-white font-semibold">
+                      {usersList.find(u => (u.userType || u.role) === 'Delivery Head' && !u.position?.toLowerCase().includes('insurance') && !u.position?.toLowerCase().includes('industrial') && !u.position?.toLowerCase().includes('healthcare'))?.name || 'Vacant'}
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-[11px]">
+                    <span className="text-slate-400">Sub-Divisions:</span>
+                    <span className="text-slate-200">Insurance, Industrial, Healthcare & Mobility</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* P&L Division */}
+              <div className="bg-dark-900/60 border border-slate-800 p-4 rounded-xl space-y-3">
+                <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                  <h4 className="text-xs font-bold text-purple-400">P&L Division (Hunting & Mining)</h4>
+                  <span className="text-[9px] text-slate-500 font-medium">Sales Consultation</span>
+                </div>
+                <div className="space-y-2">
+                  <div className="flex justify-between text-[11px]">
+                    <span className="text-slate-400">P&L BU Head:</span>
+                    <span className="text-white font-semibold">
+                      {usersList.find(u => u.position?.toLowerCase().includes('p&l head'))?.name || 'Vacant'}
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-[11px]">
+                    <span className="text-slate-400">Key Roster:</span>
+                    <span className="text-slate-200">BFS BU Consultants, Sales Managers</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── FUNCTIONAL HEAD DEPARTMENT OVERVIEW ── */}
+      {user?.userType === 'Functional Head' && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mt-5">
+          {/* Projects under this Department */}
+          <div className="glass p-4 rounded-xl border border-slate-800/80 space-y-3">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">
+              Departmental Projects & SLA Status
+            </h3>
+            
+            <div className="space-y-2.5">
+              {user.projects && user.projects.length > 0 ? (
+                user.projects.map((p, idx) => {
+                  const projName = typeof p === 'string' ? p : p.name;
+                  const employeesCount = typeof p === 'string' ? 0 : (p.employees?.length || 0);
+                  return (
+                    <div key={idx} className="bg-dark-900/40 border border-slate-800/60 p-3 rounded-lg flex items-center justify-between text-xs animate-soft-pulse">
+                      <div className="space-y-0.5">
+                        <span className="font-bold text-slate-200">📁 {projName}</span>
+                        <span className="text-[9px] text-slate-500 block">Overseeing {employeesCount} assigned employee(s)</span>
+                      </div>
+                      <span className="bg-primary/10 border border-primary/20 text-primary text-[8px] px-2 py-0.5 rounded font-black tracking-wider">
+                        ACTIVE IN PROGRESS
+                      </span>
+                    </div>
+                  );
+                })
+              ) : (
+                <div className="text-xs text-slate-550 py-2 italic text-center">No active projects logged for this department.</div>
+              )}
+            </div>
+          </div>
+
+          {/* Department Staff & Directory */}
+          <div className="glass p-4 rounded-xl border border-slate-800/80 space-y-3">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">
+              Department Operations & Headcount
+            </h3>
+            
+            <div className="space-y-2">
+              <span className="text-[10px] text-slate-500 font-bold uppercase block pb-1 border-b border-slate-850">Active Employees Directory</span>
+              <div className="grid grid-cols-1 gap-2 mt-2">
+                {user.employees && user.employees.length > 0 ? (
+                  user.employees.map(emp => (
+                    <div key={emp} className="bg-dark-900/60 border border-slate-800/60 p-2.5 rounded-lg text-xs font-bold text-slate-350 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="bg-primary/10 border border-primary/25 text-primary w-5 h-5 rounded flex items-center justify-center font-bold text-[9px]">
+                          {emp.substring(0, 2).toUpperCase()}
+                        </div>
+                        <span className="text-slate-200 font-semibold">{emp}</span>
+                      </div>
+                      <span className="text-[9px] bg-slate-800 px-2 py-0.5 border border-slate-700/65 text-slate-400 rounded-full font-semibold uppercase">{user.department || 'Staff'} team</span>
+                    </div>
+                  ))
+                ) : (
+                  <span className="text-xs text-slate-500 text-center block py-2 italic">No employee records mapped to this department.</span>
+                )}
+              </div>
+            </div>
           </div>
         </div>
       )}

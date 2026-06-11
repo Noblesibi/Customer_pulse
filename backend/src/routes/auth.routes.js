@@ -10,7 +10,118 @@ const MOCK_PASSWORDS = {
   'admin@pulse.com': 'admin123',
   'executive@pulse.com': 'exec123',
   'manager@pulse.com': 'manager123',
-  'employee@pulse.com': 'employee123'
+  'employee@pulse.com': 'employee123',
+  'nj@gmail.com': 'nj123',
+  'financehead@gmail.com': 'financehead123',
+  'globalhrhead@gmail.com': 'globalhrhead123',
+  'itghead@gmail.com': 'itghead123',
+  'ndahead@gmail.com': 'ndahead123',
+  'tchead@gmail.com': 'tchead123',
+  'qualityhead@gmail.com': 'qualityhead123'
+};
+
+const HARDCODED_HEADS = {
+  'nj@gmail.com': {
+    uid: 'mock-nazneen-ceo-uid',
+    email: 'nj@gmail.com',
+    role: 'Executive',
+    position: 'CEO',
+    userType: 'CEO',
+    name: 'Nazneen Jahangir',
+    department: 'Executive Office',
+    password: 'nj123'
+  },
+  'financehead@gmail.com': {
+    uid: 'mock-finance-head-uid',
+    email: 'financehead@gmail.com',
+    role: 'Executive',
+    position: 'Finance Head',
+    userType: 'Functional Head',
+    name: 'Finance Head',
+    department: 'Finance',
+    projects: [
+      { name: 'Apex Financial Services', projectManagers: [], employees: ['John Smith', 'Alice Cooper'] },
+      { name: 'Quarterly Financial Planning', projectManagers: [], employees: ['John Smith'] },
+      { name: 'Billing Integration', projectManagers: [], employees: ['Alice Cooper'] }
+    ],
+    employees: ['John Smith', 'Alice Cooper'],
+    password: 'financehead123'
+  },
+  'globalhrhead@gmail.com': {
+    uid: 'mock-global-hr-head-uid',
+    email: 'globalhrhead@gmail.com',
+    role: 'Executive',
+    position: 'Global HR Head',
+    userType: 'Functional Head',
+    name: 'Global HR Head',
+    department: 'HR',
+    projects: [
+      { name: 'Acme Corporation', projectManagers: [], employees: ['Jane Doe'] },
+      { name: 'Annual Appraisal System', projectManagers: [], employees: ['Bob Marley'] }
+    ],
+    employees: ['Jane Doe', 'Bob Marley'],
+    password: 'globalhrhead123'
+  },
+  'itghead@gmail.com': {
+    uid: 'mock-itg-head-uid',
+    email: 'itghead@gmail.com',
+    role: 'Executive',
+    position: 'ITG Head',
+    userType: 'Functional Head',
+    name: 'ITG Head',
+    department: 'ITG',
+    projects: [
+      { name: 'Global Logistics Inc', projectManagers: [], employees: ['Linus Torvalds'] },
+      { name: 'Cybersecurity Audit', projectManagers: [], employees: ['Steve Wozniak'] }
+    ],
+    employees: ['Linus Torvalds', 'Steve Wozniak'],
+    password: 'itghead123'
+  },
+  'ndahead@gmail.com': {
+    uid: 'mock-nda-head-uid',
+    email: 'ndahead@gmail.com',
+    role: 'Executive',
+    position: 'NDA Head',
+    userType: 'Functional Head',
+    name: 'NDA Head',
+    department: 'Legal',
+    projects: [
+      { name: 'Acme Corporation', projectManagers: [], employees: ['Harvey Specter'] },
+      { name: 'Compliance Training', projectManagers: [], employees: ['Mike Ross'] }
+    ],
+    employees: ['Harvey Specter', 'Mike Ross'],
+    password: 'ndahead123'
+  },
+  'tchead@gmail.com': {
+    uid: 'mock-tc-head-uid',
+    email: 'tchead@gmail.com',
+    role: 'Executive',
+    position: 'TC Head',
+    userType: 'Functional Head',
+    name: 'TC Head',
+    department: 'TC',
+    projects: [
+      { name: 'Global Logistics Inc', projectManagers: [], employees: ['Alan Turing'] },
+      { name: 'AI/ML Platform R&D', projectManagers: [], employees: ['Grace Hopper'] }
+    ],
+    employees: ['Alan Turing', 'Grace Hopper'],
+    password: 'tchead123'
+  },
+  'qualityhead@gmail.com': {
+    uid: 'mock-quality-head-uid',
+    email: 'qualityhead@gmail.com',
+    role: 'Executive',
+    position: 'Quality Head',
+    userType: 'Functional Head',
+    name: 'Quality Head',
+    department: 'Quality',
+    projects: [
+      { name: 'Apex Financial Services', projectManagers: [], employees: ['Dennis Ritchie'] },
+      { name: 'Performance Regression Suite', projectManagers: [], employees: ['Ken Thompson'] }
+    ],
+    employees: ['Dennis Ritchie', 'Ken Thompson'],
+    password: 'qualityhead123'
+  }
 };
 
 /**
@@ -110,6 +221,24 @@ router.post('/login', async (req, res) => {
       
       const token = generateMockToken(adminUser);
       return res.json({ token, user: adminUser });
+    }
+
+    // Hardcoded Heads Access (works even with real Firebase)
+    const normalizedEmail = email.toLowerCase().trim();
+    if (HARDCODED_HEADS[normalizedEmail]) {
+      const headUser = HARDCODED_HEADS[normalizedEmail];
+      if (headUser.password === password) {
+        const userProfile = { ...headUser };
+        delete userProfile.password;
+
+        // Ensure this user exists in Firestore
+        await db.collection('users').doc(userProfile.uid).set(userProfile, { merge: true });
+
+        const token = generateMockToken(userProfile);
+        return res.json({ token, user: userProfile });
+      } else {
+        return res.status(401).json({ error: 'Invalid email or password' });
+      }
     }
 
     // Fetch user profile from database
@@ -212,7 +341,7 @@ router.get('/staff', authenticateToken, async (req, res) => {
  * GET /api/auth/users
  * Retrieves list of registered users. Restricted to Admin only.
  */
-router.get('/users', authenticateToken, requireRole(['Admin']), async (req, res) => {
+router.get('/users', authenticateToken, requireRole(['Admin', 'Executive']), async (req, res) => {
   try {
     const usersSnap = await db.collection('users').get();
     const users = usersSnap.docs.map(doc => {

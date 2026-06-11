@@ -8,6 +8,7 @@ import Landing from './pages/Landing.jsx';
 import Dashboard from './pages/Dashboard.jsx';
 import Accounts from './pages/Accounts.jsx';
 import NewAccount from './pages/NewAccount.jsx';
+import EditAccount from './pages/EditAccount.jsx';
 import Contacts from './pages/Contacts.jsx';
 import Risks from './pages/Risks.jsx';
 import WebhooksDemo from './pages/WebhooksDemo.jsx';
@@ -25,6 +26,7 @@ export default function App() {
         <Route element={<AppLayout />}>
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/accounts/new" element={<NewAccount />} />
+          <Route path="/accounts/:id/edit" element={<EditAccount />} />
           <Route path="/accounts" element={<Accounts />} />
           <Route path="/contacts" element={<Contacts />} />
           <Route path="/risks" element={<Risks />} />

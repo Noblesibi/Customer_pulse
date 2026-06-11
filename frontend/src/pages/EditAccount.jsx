@@ -1,11 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Building2, UserPlus, ArrowRight, ArrowLeft } from 'lucide-react';
 import { useStore } from '../store/index.js';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 
-export default function NewAccount() {
+export default function EditAccount() {
   const navigate = useNavigate();
-  const { addAccount } = useStore();
+  const { id } = useParams();
+  const { token, updateAccount } = useStore();
 
   // Company Information
   const [companyName, setCompanyName] = useState('');
@@ -16,7 +17,7 @@ export default function NewAccount() {
   const [ceoName, setCeoName] = useState('');
   const [domain, setDomain] = useState('');
 
-  // Stakeholder Details
+  // Stakeholder Details (Hierarchical Projects)
   const [projects, setProjects] = useState([
     {
       projectName: '',
@@ -34,6 +35,84 @@ export default function NewAccount() {
       ]
     }
   ]);
+
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+
+  const industries = ['Technology', 'Finance', 'Logistics', 'Healthcare', 'Manufacturing', 'Retail'];
+  const regions = ['North America', 'Europe', 'Asia Pacific', 'Latin America', 'Middle East'];
+
+  // Fetch account and contact details on load
+  useEffect(() => {
+    const fetchAccountData = async () => {
+      if (!token || !id) return;
+      try {
+        setIsLoading(true);
+        // Fetch account profile
+        const accRes = await fetch(`http://localhost:5000/api/accounts/${id}`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (!accRes.ok) {
+          throw new Error('Failed to fetch account info');
+        }
+        const accData = await accRes.json();
+        
+        setCompanyName(accData.companyName || '');
+        setIndustry(accData.industry || 'Technology');
+        setRegion(accData.region || 'North America');
+        setEmail(accData.email || '');
+        setPhone(accData.phone || '');
+        setCeoName(accData.ceoName || '');
+        setDomain(accData.domain || '');
+
+        // Fetch contacts
+        const conRes = await fetch(`http://localhost:5000/api/contacts?accountId=${id}`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (conRes.ok) {
+          const conData = await conRes.json();
+          // Group contacts by project
+          const projectMap = {};
+          
+          conData.forEach(c => {
+            const pName = c.projectName || '';
+            const pInd = c.projectIndustry || 'Technology';
+            const key = `${pName}::${pInd}`;
+            
+            if (!projectMap[key]) {
+              projectMap[key] = {
+                projectName: pName,
+                projectIndustry: pInd,
+                employees: []
+              };
+            }
+            projectMap[key].employees.push({
+              contactId: c.contactId, // Retain ID for smart backend updates
+              name: c.name || '',
+              email: c.email || '',
+              phone: c.phone || '',
+              position: c.designation || '',
+              department: c.department || '',
+              hierarchyTag: c.hierarchyTag || 'Staff',
+              influenceTag: c.influenceTag || 'Observer'
+            });
+          });
+
+          const groupedProjects = Object.values(projectMap);
+          if (groupedProjects.length > 0) {
+            setProjects(groupedProjects);
+          }
+        }
+      } catch (err) {
+        console.error('Error loading account data:', err);
+        alert('Failed to load client profile data.');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchAccountData();
+  }, [id, token]);
 
   const addProject = () => {
     setProjects([...projects, {
@@ -89,11 +168,6 @@ export default function NewAccount() {
     setProjects(newProjects);
   };
 
-  const [isSubmitting, setIsSubmitting] = useState(false);
-
-  const industries = ['Technology', 'Finance', 'Logistics', 'Healthcare', 'Manufacturing', 'Retail'];
-  const regions = ['North America', 'Europe', 'Asia Pacific', 'Latin America', 'Middle East'];
-
   const handleSubmit = async (e) => {
     e.preventDefault();
     setIsSubmitting(true);
@@ -103,6 +177,7 @@ export default function NewAccount() {
     projects.forEach(proj => {
       proj.employees.forEach(emp => {
         flatContacts.push({
+          contactId: emp.contactId || null,
           name: emp.name,
           email: emp.email,
           phone: emp.phone,
@@ -116,7 +191,7 @@ export default function NewAccount() {
       });
     });
 
-    const success = await addAccount({
+    const success = await updateAccount(id, {
       companyName,
       industry,
       region,
@@ -124,7 +199,6 @@ export default function NewAccount() {
       phone,
       ceoName,
       domain,
-      projectName: '',
       contacts: flatContacts
     });
 
@@ -133,9 +207,17 @@ export default function NewAccount() {
     if (success) {
       navigate('/accounts');
     } else {
-      alert("Failed to create account. Please try again.");
+      alert("Failed to update account. Please try again.");
     }
   };
+
+  if (isLoading) {
+    return (
+      <div className="h-[calc(100vh-10rem)] flex items-center justify-center">
+        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-4xl mx-auto py-8 px-4 h-[calc(100vh-10rem)] overflow-y-auto animate-soft-pulse duration-1000">
@@ -151,7 +233,7 @@ export default function NewAccount() {
         <div>
           <h1 className="text-2xl font-bold text-white tracking-wide flex items-center gap-3">
             <Building2 className="w-6 h-6 text-primary" />
-            Create New Client Account
+            Edit Client Profile
           </h1>
         </div>
       </div>
@@ -248,7 +330,7 @@ export default function NewAccount() {
           </div>
         </div>
 
-        {/* Section 2: Stakeholders */}
+        {/* Section 2: Projects & Stakeholders */}
         <div className="glass p-8 rounded-2xl border border-slate-800/80 shadow-2xl relative overflow-hidden">
           <div className="absolute bottom-0 left-0 w-64 h-64 bg-blue-500/5 rounded-full blur-3xl translate-y-1/2 -translate-x-1/3 pointer-events-none"></div>
 
@@ -256,7 +338,7 @@ export default function NewAccount() {
             <div>
               <h2 className="text-sm font-bold text-blue-400 uppercase tracking-widest flex items-center gap-2 mb-2">
                 <span className="w-6 h-px bg-blue-500/50"></span>
-                Stakeholders & Connections
+                Projects & Stakeholders
               </h2>
               <p className="text-xs text-slate-500">Details of the projects we are running and the employees related to each project.</p>
             </div>
@@ -336,7 +418,7 @@ export default function NewAccount() {
                           <button 
                             type="button" 
                             onClick={() => removeEmployee(pIndex, eIndex)}
-                            className="absolute top-3 right-3 text-slate-650 hover:text-red-400 transition-colors text-[10px] font-bold uppercase"
+                            className="absolute top-3 right-3 text-slate-655 hover:text-red-400 transition-colors text-[10px] font-bold uppercase"
                           >
                             Remove Employee
                           </button>
@@ -487,7 +569,7 @@ export default function NewAccount() {
               <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
             ) : (
               <>
-                Save Client Profile
+                Save Changes
                 <ArrowRight className="w-4 h-4" />
               </>
             )}
