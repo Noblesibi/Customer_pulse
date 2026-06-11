@@ -31,18 +31,32 @@ export default function Login() {
   };
 
   // Preset accounts for ease of evaluation
+  // Preset accounts for ease of evaluation
   const setPresetCredentials = (userType) => {
     const presets = {
       admin: { email: 'admin@pulse.com', pass: 'admin123' },
       exec: { email: 'executive@pulse.com', pass: 'exec123' },
       manager: { email: 'manager@pulse.com', pass: 'manager123' },
-      employee: { email: 'employee@pulse.com', pass: 'employee123' }
+      employee: { email: 'employee@pulse.com', pass: 'employee123' },
+      ceo: { email: 'nj@gmail.com', pass: 'nj123' },
+      finance: { email: 'financehead@gmail.com', pass: 'financehead123' },
+      hr: { email: 'globalhrhead@gmail.com', pass: 'globalhrhead123' },
+      itg: { email: 'itghead@gmail.com', pass: 'itghead123' },
+      nda: { email: 'ndahead@gmail.com', pass: 'ndahead123' },
+      tc: { email: 'tchead@gmail.com', pass: 'tchead123' },
+      quality: { email: 'qualityhead@gmail.com', pass: 'qualityhead123' }
     };
     const creds = presets[userType];
     if (creds) {
       setEmail(creds.email);
       setPassword(creds.pass);
     }
+  };
+
+  const [selectedPreset, setSelectedPreset] = useState('');
+  const handlePresetSelect = (val) => {
+    setSelectedPreset(val);
+    setPresetCredentials(val);
   };
 
   return (
@@ -118,45 +132,30 @@ export default function Login() {
             </button>
           </form>
 
-          {/* Microsoft Auth Option */}
-          <div className="relative my-6 text-center">
-            <hr className="border-slate-800" />
-            <span className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-dark-900 px-3.5 text-[10px] text-slate-500 font-bold tracking-wider uppercase">
-              Or Connect With
-            </span>
-          </div>
-
-          <button 
-            onClick={handleMSLogin}
-            className="w-full bg-slate-900 hover:bg-slate-800 border border-slate-800 hover:border-slate-700 active:scale-98 text-slate-200 text-xs font-semibold rounded-xl py-3 flex items-center justify-center gap-2.5 transition-all duration-200"
-          >
-            {/* Simple colored MS Logo blocks */}
-            <div className="grid grid-cols-2 gap-0.5 w-3.5 h-3.5">
-              <div className="bg-[#F25022]" />
-              <div className="bg-[#7FBA00]" />
-              <div className="bg-[#00A4EF]" />
-              <div className="bg-[#FFB900]" />
-            </div>
-            Sign In with Microsoft SSO
-          </button>
         </div>
 
         {/* Preset accounts helpers for evaluator convenience */}
-        <div className="glass mt-4 rounded-2xl p-4 border border-slate-800/80 text-center text-xs space-y-2">
+        <div className="glass mt-4 rounded-2xl p-4 border border-slate-800/80 text-center text-xs space-y-3">
           <p className="text-slate-400 font-medium">Quick Credentials presets for evaluation:</p>
-          <div className="flex flex-wrap gap-2 justify-center">
-            <button onClick={() => setPresetCredentials('admin')} className="bg-primary/10 border border-primary/20 hover:bg-primary/20 text-blue-300 rounded px-2.5 py-1 font-semibold text-[10px]">
-              Admin
-            </button>
-            <button onClick={() => setPresetCredentials('exec')} className="bg-emerald-500/10 border border-emerald-500/20 hover:bg-emerald-500/20 text-emerald-300 rounded px-2.5 py-1 font-semibold text-[10px]">
-              CEO
-            </button>
-            <button onClick={() => setPresetCredentials('manager')} className="bg-amber-500/10 border border-amber-500/20 hover:bg-amber-500/20 text-amber-300 rounded px-2.5 py-1 font-semibold text-[10px]">
-              BU Head
-            </button>
-            <button onClick={() => setPresetCredentials('employee')} className="bg-purple-500/10 border border-purple-500/20 hover:bg-purple-500/20 text-purple-300 rounded px-2.5 py-1 font-semibold text-[10px]">
-              Employee
-            </button>
+          <div className="flex flex-col gap-2 max-w-xs mx-auto">
+
+            <div className="relative">
+              <select 
+                value={selectedPreset}
+                onChange={(e) => handlePresetSelect(e.target.value)}
+                className="w-full bg-slate-900 border border-slate-800 focus:border-primary/50 text-slate-350 rounded-lg py-2 px-3 text-[10px] font-bold focus:outline-none cursor-pointer"
+              >
+                <option value="">-- Choose corporate head preset --</option>
+                <option value="admin">Admin</option>
+                <option value="ceo">CEO (Nazneen Jahangir)</option>
+                <option value="finance">Finance Head</option>
+                <option value="hr">Global HR Head</option>
+                <option value="itg">ITG Head</option>
+                <option value="nda">NDA Head</option>
+                <option value="tc">TC Head</option>
+                <option value="quality">Quality Head</option>
+              </select>
+            </div>
           </div>
         </div>
       </div>

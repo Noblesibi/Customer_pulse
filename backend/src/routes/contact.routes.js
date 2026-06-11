@@ -25,6 +25,44 @@ router.get('/', async (req, res) => {
 
     let contacts = querySnap.docs.map(doc => doc.data());
 
+    // Filter by User Profile permissions / assigned projects (Secure-by-default)
+    const userDoc = await db.collection('users').doc(req.user.uid).get();
+    const userProfile = userDoc.exists ? userDoc.data() : null;
+
+    const isAdmin = req.user.role === 'Admin' || (userProfile && (userProfile.userType === 'Admin' || userProfile.role === 'Admin'));
+    const isCeo = userProfile && userProfile.userType === 'CEO';
+
+    if (!isAdmin && !isCeo) {
+      const accountsSnap = await db.collection('accounts').get();
+      let accounts = accountsSnap.docs.map(doc => doc.data());
+
+      if (userProfile && userProfile.userType === 'BU Head') {
+        const targetBu = userProfile.bu || '';
+        const targetProjects = userProfile.projects || [];
+        accounts = accounts.filter(a => 
+          (targetBu && a.industry.toLowerCase() === targetBu.toLowerCase()) || 
+          (targetProjects.length > 0 && targetProjects.some(tp => {
+            const tpName = typeof tp === 'string' ? tp : tp.name;
+            return tpName && (a.companyName.toLowerCase().includes(tpName.toLowerCase()) || tpName.toLowerCase().includes(a.companyName.toLowerCase()));
+          }))
+        );
+      } else {
+        // Fallback filter for Functional Heads, Project Managers, Delivery Heads, Employees, etc.
+        const projectsList = userProfile ? (userProfile.projects || []) : [];
+        const targetProjects = projectsList.map(p => typeof p === 'string' ? p : p.name).filter(Boolean);
+        
+        accounts = accounts.filter(a => 
+          targetProjects.some(tp => 
+            a.companyName.toLowerCase().includes(tp.toLowerCase()) || 
+            tp.toLowerCase().includes(a.companyName.toLowerCase())
+          )
+        );
+      }
+
+      const allowedAccountIds = accounts.map(a => a.accountId || a.id);
+      contacts = contacts.filter(c => allowedAccountIds.includes(c.accountId));
+    }
+
     if (search) {
       const q = search.toLowerCase();
       contacts = contacts.filter(c => 
@@ -63,7 +101,7 @@ router.get('/:id', async (req, res) => {
  * Create contact (restricted to Admin, Manager, and Employee).
  */
 router.post('/', requireRole(['Admin', 'Sales Manager', 'Employee']), async (req, res) => {
-  const { accountId, name, email, designation, hierarchyTag, influenceTag, phone } = req.body;
+  const { accountId, name, email, designation, hierarchyTag, influenceTag, phone, projectName, projectIndustry } = req.body;
 
   if (!accountId || !name || !email) {
     return res.status(400).json({ error: 'Missing accountId, name, or email' });
@@ -92,7 +130,9 @@ router.post('/', requireRole(['Admin', 'Sales Manager', 'Employee']), async (req
       designation: designation || 'Staff Member',
       hierarchyTag: hTag,
       influenceTag: iTag,
-      phone: phone || ''
+      phone: phone || '',
+      projectName: projectName || '',
+      projectIndustry: projectIndustry || 'Technology'
     };
 
     await db.collection('contacts').doc(contactId).set(newContact);
@@ -113,7 +153,7 @@ router.post('/', requireRole(['Admin', 'Sales Manager', 'Employee']), async (req
  */
 router.put('/:id', requireRole(['Admin', 'Sales Manager', 'Employee']), async (req, res) => {
   const { id } = req.params;
-  const { name, email, designation, hierarchyTag, influenceTag, phone } = req.body;
+  const { name, email, designation, hierarchyTag, influenceTag, phone, projectName, projectIndustry } = req.body;
 
   try {
     const docRef = db.collection('contacts').doc(id);
@@ -131,6 +171,8 @@ router.put('/:id', requireRole(['Admin', 'Sales Manager', 'Employee']), async (r
     if (hierarchyTag) updates.hierarchyTag = hierarchyTag;
     if (influenceTag) updates.influenceTag = influenceTag;
     if (phone !== undefined) updates.phone = phone;
+    if (projectName !== undefined) updates.projectName = projectName;
+    if (projectIndustry !== undefined) updates.projectIndustry = projectIndustry;
 
     await docRef.update(updates);
 
