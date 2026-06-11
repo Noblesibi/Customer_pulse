@@ -54,10 +54,10 @@ export default function Navbar() {
     const links = [
       { path: '/dashboard',      label: 'Dashboard',  roles: ['Admin', 'Executive', 'Sales Manager', 'Employee'] },
       { path: '/accounts',        label: 'Accounts',   roles: ['Admin', 'Executive', 'Sales Manager', 'Employee'] },
-      { path: '/contacts',        label: 'Contacts',   roles: ['Admin', 'Sales Manager', 'Employee'] },
+      { path: '/contacts',        label: 'Contacts',   roles: ['Admin', 'Executive', 'Sales Manager', 'Employee'] },
       { path: '/risks',           label: 'Risks',      roles: ['Admin', 'Executive', 'Sales Manager'] },
-      { path: '/webhooks-demo',   label: 'Webhooks',   roles: ['Admin', 'Sales Manager'] },
-      { path: '/users',           label: 'Users',      roles: ['Admin'] }
+      { path: '/webhooks-demo',   label: 'Email Ingestion',   roles: ['Admin', 'Executive', 'Sales Manager'] },
+      { path: '/users',           label: 'Org Hierarchy',      roles: ['Admin', 'Executive'] }
     ];
 
     return links.filter(link => link.roles.includes(role));

@@ -7,11 +7,10 @@ import { useStore } from '../store/index.js';
 export default function Contacts() {
   const { 
     user,
+    token,
     contacts, 
-    accounts,
     contactsLoading, 
     fetchContacts, 
-    fetchAccounts,
     addContact,
     updateContact,
     deleteContact
@@ -19,6 +18,7 @@ export default function Contacts() {
 
   const [search, setSearch] = useState('');
   const [selectedAccountId, setSelectedAccountId] = useState('');
+  const [localAccounts, setLocalAccounts] = useState([]);
 
   // Modals state
   const [isAddContactOpen, setIsAddContactOpen] = useState(false);
@@ -33,15 +33,37 @@ export default function Contacts() {
   const [designation, setDesignation] = useState('');
   const [hierarchyTag, setHierarchyTag] = useState('Staff');
   const [influenceTag, setInfluenceTag] = useState('Observer');
+  const [projectName, setProjectName] = useState('');
+  const [projectIndustry, setProjectIndustry] = useState('Technology');
 
   const hierarchyTags = ['CXO', 'VP', 'Director', 'Manager', 'Staff'];
   const influenceTags = ['Decision Maker', 'Influencer', 'Champion', 'Gatekeeper', 'Observer'];
 
-  // Load all contacts and accounts
+  const canEdit = ['Admin', 'Sales Manager', 'Employee'].includes(user?.role);
+
+  // Load all contacts when selection changes
   useEffect(() => {
     fetchContacts(selectedAccountId);
-    fetchAccounts(1, '', {}); // load accounts list for form mapping
   }, [selectedAccountId]);
+
+  // Load accounts locally to list in dropdown/matrix mappings
+  useEffect(() => {
+    const loadAccounts = async () => {
+      if (!token) return;
+      try {
+        const res = await fetch('http://localhost:5000/api/accounts?limit=1000', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const data = await res.json();
+        if (res.ok) {
+          setLocalAccounts(data.accounts || []);
+        }
+      } catch (err) {
+        console.error('Error loading accounts for contacts dropdown:', err);
+      }
+    };
+    loadAccounts();
+  }, [token]);
 
   const handleCreateContact = async (e) => {
     e.preventDefault();
@@ -56,7 +78,9 @@ export default function Contacts() {
       phone,
       designation,
       hierarchyTag,
-      influenceTag
+      influenceTag,
+      projectName,
+      projectIndustry
     });
     if (success) {
       setIsAddContactOpen(false);
@@ -73,7 +97,9 @@ export default function Contacts() {
       phone,
       designation,
       hierarchyTag,
-      influenceTag
+      influenceTag,
+      projectName,
+      projectIndustry
     });
     if (success) {
       setIsEditContactOpen(false);
@@ -91,6 +117,8 @@ export default function Contacts() {
     setDesignation(c.designation);
     setHierarchyTag(c.hierarchyTag);
     setInfluenceTag(c.influenceTag);
+    setProjectName(c.projectName || '');
+    setProjectIndustry(c.projectIndustry || 'Technology');
     setIsEditContactOpen(true);
   };
 
@@ -110,6 +138,8 @@ export default function Contacts() {
     setDesignation('');
     setHierarchyTag('Staff');
     setInfluenceTag('Observer');
+    setProjectName('');
+    setProjectIndustry('Technology');
   };
 
   const filteredContacts = contacts.filter(c => 
@@ -140,8 +170,10 @@ export default function Contacts() {
             onChange={(e) => setSelectedAccountId(e.target.value)}
             className="bg-dark-900/60 border border-slate-800 text-xs rounded-xl p-2.5 text-slate-300 focus:outline-none cursor-pointer"
           >
-            <option value="">All Accounts</option>
-            {accounts.map(acc => (
+            <option value="">
+              {['CEO', 'Admin'].includes(user?.userType || user?.role) ? 'All Accounts' : 'All Assigned Projects'}
+            </option>
+            {localAccounts.map(acc => (
               <option key={acc.accountId || acc.id} value={acc.accountId || acc.id}>
                 {acc.companyName}
               </option>
@@ -186,7 +218,7 @@ export default function Contacts() {
                       }`}
                     >
                       {cellContacts.map(c => {
-                        const accRef = accounts.find(a => a.accountId === c.accountId || a.id === c.accountId);
+                        const accRef = localAccounts.find(a => a.accountId === c.accountId || a.id === c.accountId);
                         return (
                           <div 
                             key={c.contactId || c.id} 
@@ -250,7 +282,7 @@ export default function Contacts() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             {filteredContacts.map(c => {
-              const account = accounts.find(a => a.accountId === c.accountId || a.id === c.accountId);
+              const account = localAccounts.find(a => a.accountId === c.accountId || a.id === c.accountId);
               return (
                 <div key={c.contactId || c.id} className="bg-dark-900/40 border border-slate-800 hover:border-slate-700/80 rounded-2xl p-5 flex flex-col justify-between space-y-4 transition-all duration-200">
                   <div className="space-y-1.5">
@@ -266,6 +298,14 @@ export default function Contacts() {
                     <h3 className="text-sm font-bold text-white pt-1">{c.name}</h3>
                     <p className="text-[11px] text-primary font-medium">{c.designation}</p>
                     <span className="text-[10px] text-slate-400 block font-semibold">{account?.companyName || 'Corporate Client'}</span>
+                    {c.projectName && (
+                      <div className="mt-2 space-y-1">
+                        <span className="text-[9px] uppercase font-bold text-slate-500 block">Project & Industry</span>
+                        <span className="text-[10px] text-emerald-400 font-semibold block truncate">
+                          📁 {c.projectName} ({c.projectIndustry || 'Technology'})
+                        </span>
+                      </div>
+                    )}
                   </div>
 
                   <div className="space-y-2 border-t border-slate-800/60 pt-3 text-slate-400 text-xs">
@@ -326,10 +366,32 @@ export default function Contacts() {
                   className="w-full bg-dark-900/60 border border-slate-800 text-xs text-white rounded-lg p-2 focus:outline-none cursor-pointer"
                 >
                   <option value="">Select Client Account</option>
-                  {accounts.map(acc => (
+                  {localAccounts.map(acc => (
                     <option key={acc.accountId || acc.id} value={acc.accountId || acc.id}>
                       {acc.companyName}
                     </option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-1">
+                <label className="text-[9px] text-slate-400 uppercase font-semibold">Project Name Details</label>
+                <input 
+                  type="text" 
+                  value={projectName}
+                  onChange={(e) => setProjectName(e.target.value)}
+                  className="w-full bg-dark-900/60 border border-slate-800 text-xs text-white rounded-lg p-2 focus:outline-none focus:border-primary/50"
+                  placeholder="e.g. Acme Migration Platform"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[9px] text-slate-400 uppercase font-semibold">Project Industry</label>
+                <select 
+                  value={projectIndustry}
+                  onChange={(e) => setProjectIndustry(e.target.value)}
+                  className="w-full bg-dark-900/60 border border-slate-800 text-xs text-white rounded-lg p-2 focus:outline-none cursor-pointer"
+                >
+                  {['Technology', 'Finance', 'Logistics', 'Healthcare', 'Manufacturing', 'Retail'].map(ind => (
+                    <option key={ind} value={ind}>{ind}</option>
                   ))}
                 </select>
               </div>
@@ -387,16 +449,7 @@ export default function Contacts() {
                   </select>
                 </div>
               </div>
-              <div className="space-y-1">
-                <label className="text-[9px] text-slate-400 uppercase font-semibold">Phone Number</label>
-                <input 
-                  type="text" 
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  className="w-full bg-dark-900/60 border border-slate-800 text-xs text-white rounded-lg p-2 focus:outline-none"
-                  placeholder="+1 (555) 123-4567"
-                />
-              </div>
+              
               <button type="submit" className="w-full bg-primary hover:bg-blue-600 text-xs text-white font-semibold rounded-lg py-2.5 mt-2 transition-all">
                 Save Stakeholder
               </button>
@@ -410,10 +463,36 @@ export default function Contacts() {
         <div className="fixed inset-0 bg-dark-950/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="glass max-w-sm w-full rounded-2xl p-6 border border-slate-800">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="font-bold text-white text-base">Edit Stakeholder Profile</h3>
+              <h3 className="font-bold text-white text-base">
+                {canEdit ? 'Edit Stakeholder Profile' : 'Stakeholder Profile'}
+              </h3>
               <button onClick={() => setIsEditContactOpen(false)} className="text-slate-400 hover:text-white"><X className="w-5 h-5" /></button>
             </div>
             <form onSubmit={handleEditContact} className="space-y-3">
+              <div className="space-y-1">
+                <label className="text-[9px] text-slate-400 uppercase font-semibold">Project Name Details</label>
+                <input 
+                  type="text" 
+                  value={projectName}
+                  onChange={(e) => setProjectName(e.target.value)}
+                  disabled={!canEdit}
+                  className={`w-full bg-dark-900/60 border border-slate-800 text-xs text-white rounded-lg p-2 focus:outline-none ${!canEdit ? 'opacity-70 cursor-not-allowed' : 'focus:border-primary/50'}`}
+                  placeholder="e.g. Acme Migration Platform"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[9px] text-slate-400 uppercase font-semibold">Project Industry</label>
+                <select 
+                  value={projectIndustry}
+                  onChange={(e) => setProjectIndustry(e.target.value)}
+                  disabled={!canEdit}
+                  className={`w-full bg-dark-900/60 border border-slate-800 text-xs text-white rounded-lg p-2 focus:outline-none ${!canEdit ? 'opacity-70 cursor-not-allowed' : 'cursor-pointer'}`}
+                >
+                  {['Technology', 'Finance', 'Logistics', 'Healthcare', 'Manufacturing', 'Retail'].map(ind => (
+                    <option key={ind} value={ind}>{ind}</option>
+                  ))}
+                </select>
+              </div>
               <div className="space-y-1">
                 <label className="text-[9px] text-slate-400 uppercase font-semibold">Contact Name</label>
                 <input 
@@ -421,7 +500,8 @@ export default function Contacts() {
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   required 
-                  className="w-full bg-dark-900/60 border border-slate-800 text-xs text-white rounded-lg p-2 focus:outline-none focus:border-primary/50"
+                  disabled={!canEdit}
+                  className={`w-full bg-dark-900/60 border border-slate-800 text-xs text-white rounded-lg p-2 focus:outline-none ${!canEdit ? 'opacity-70 cursor-not-allowed' : 'focus:border-primary/50'}`}
                 />
               </div>
               <div className="space-y-1">
@@ -431,7 +511,8 @@ export default function Contacts() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required 
-                  className="w-full bg-dark-900/60 border border-slate-800 text-xs text-white rounded-lg p-2 focus:outline-none"
+                  disabled={!canEdit}
+                  className={`w-full bg-dark-900/60 border border-slate-800 text-xs text-white rounded-lg p-2 focus:outline-none ${!canEdit ? 'opacity-70 cursor-not-allowed' : 'focus:border-primary/50'}`}
                 />
               </div>
               <div className="space-y-1">
@@ -440,7 +521,8 @@ export default function Contacts() {
                   type="text" 
                   value={designation}
                   onChange={(e) => setDesignation(e.target.value)}
-                  className="w-full bg-dark-900/60 border border-slate-800 text-xs text-white rounded-lg p-2 focus:outline-none"
+                  disabled={!canEdit}
+                  className={`w-full bg-dark-900/60 border border-slate-800 text-xs text-white rounded-lg p-2 focus:outline-none ${!canEdit ? 'opacity-70 cursor-not-allowed' : 'focus:border-primary/50'}`}
                 />
               </div>
               <div className="grid grid-cols-2 gap-3">
@@ -449,7 +531,8 @@ export default function Contacts() {
                   <select 
                     value={hierarchyTag}
                     onChange={(e) => setHierarchyTag(e.target.value)}
-                    className="w-full bg-dark-900/60 border border-slate-800 text-xs text-white rounded-lg p-2 focus:outline-none cursor-pointer"
+                    disabled={!canEdit}
+                    className={`w-full bg-dark-900/60 border border-slate-800 text-xs text-white rounded-lg p-2 focus:outline-none ${!canEdit ? 'opacity-70 cursor-not-allowed' : 'cursor-pointer'}`}
                   >
                     {hierarchyTags.map(tag => <option key={tag} value={tag}>{tag}</option>)}
                   </select>
@@ -459,7 +542,8 @@ export default function Contacts() {
                   <select 
                     value={influenceTag}
                     onChange={(e) => setInfluenceTag(e.target.value)}
-                    className="w-full bg-dark-900/60 border border-slate-800 text-xs text-white rounded-lg p-2 focus:outline-none cursor-pointer"
+                    disabled={!canEdit}
+                    className={`w-full bg-dark-900/60 border border-slate-800 text-xs text-white rounded-lg p-2 focus:outline-none ${!canEdit ? 'opacity-70 cursor-not-allowed' : 'cursor-pointer'}`}
                   >
                     {influenceTags.map(tag => <option key={tag} value={tag}>{tag}</option>)}
                   </select>
@@ -471,12 +555,15 @@ export default function Contacts() {
                   type="text" 
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
-                  className="w-full bg-dark-900/60 border border-slate-800 text-xs text-white rounded-lg p-2"
+                  disabled={!canEdit}
+                  className={`w-full bg-dark-900/60 border border-slate-800 text-xs text-white rounded-lg p-2 focus:outline-none ${!canEdit ? 'opacity-70 cursor-not-allowed' : 'focus:border-primary/50'}`}
                 />
               </div>
-              <button type="submit" className="w-full bg-primary hover:bg-blue-600 text-xs text-white font-semibold rounded-lg py-2.5 mt-2 transition-all">
-                Save Updates
-              </button>
+              {canEdit && (
+                <button type="submit" className="w-full bg-primary hover:bg-blue-600 text-xs text-white font-semibold rounded-lg py-2.5 mt-2 transition-all">
+                  Save Updates
+                </button>
+              )}
             </form>
           </div>
         </div>

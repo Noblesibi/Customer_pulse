@@ -77,18 +77,39 @@ export default function Users() {
     if (matched.length > 0) {
       return (
         <div className="flex flex-col gap-2">
-          {matched.map(u => (
-            <div key={u.uid || u.id} className={`${bgClass} border ${borderClass} p-3 rounded-xl shadow-lg flex flex-col items-center justify-between w-44 text-center hover:border-primary/50 transition-all shrink-0`}>
-              <div className={`${accentBg} w-8 h-8 rounded-lg flex items-center justify-center font-bold text-xs mx-auto`}>
-                {u.name ? u.name.substring(0, 2).toUpperCase() : 'US'}
+          {matched.map(u => {
+            const isCurrentUser = user && user.email?.toLowerCase() === u.email?.toLowerCase();
+            return (
+              <div key={u.uid || u.id} className={`${bgClass} border ${isCurrentUser ? 'border-primary ring-2 ring-primary/45 shadow-primary/20' : borderClass} p-3 rounded-xl shadow-lg flex flex-col items-center justify-between w-44 text-center hover:border-primary/50 transition-all shrink-0 relative overflow-hidden`}>
+                {isCurrentUser && (
+                  <div className="absolute top-0 right-0 bg-primary text-white text-[7px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded-bl-lg">
+                    You
+                  </div>
+                )}
+                <div className={`${accentBg} w-8 h-8 rounded-lg flex items-center justify-center font-bold text-xs mx-auto`}>
+                  {u.name ? u.name.substring(0, 2).toUpperCase() : 'US'}
+                </div>
+                <div className="mt-1.5 flex flex-col items-center">
+                  <span className={`font-extrabold ${textClass} text-xs block truncate max-w-[160px]`}>{u.name}</span>
+                  <span className="text-[9px] text-slate-500 mt-0.5 font-bold uppercase tracking-wider">{u.position || u.userType || u.role}</span>
+                  <span className="text-[8px] text-slate-400 mt-0.5 truncate max-w-[160px]">{u.email}</span>
+                </div>
               </div>
-              <div className="mt-1.5 flex flex-col items-center">
-                <span className={`font-extrabold ${textClass} text-xs block truncate max-w-[160px]`}>{u.name}</span>
-                <span className="text-[9px] text-slate-500 mt-0.5 font-bold uppercase tracking-wider">{u.position || u.userType || u.role}</span>
-                <span className="text-[8px] text-slate-400 mt-0.5 truncate max-w-[160px]">{u.email}</span>
-              </div>
-            </div>
-          ))}
+            );
+          })}
+        </div>
+      );
+    }
+
+    if (user?.role !== 'Admin') {
+      return (
+        <div 
+          className="border border-dashed border-slate-400 p-3 rounded-xl flex flex-col items-center justify-center w-44 h-[94px] text-center bg-slate-50/50 text-black transition-all shrink-0 select-none"
+        >
+          <span className="text-[10px] font-extrabold text-black uppercase tracking-wider block">{title}</span>
+          <span className="text-[10px] text-black mt-1.5 font-black italic">
+            Vacant
+          </span>
         </div>
       );
     }
@@ -96,11 +117,11 @@ export default function Users() {
     return (
       <div 
         onClick={() => handleAssignRole(matchType, details)}
-        className="border border-dashed border-slate-700/50 hover:border-primary/50 hover:bg-primary/5 p-3 rounded-xl flex flex-col items-center justify-center w-44 h-[94px] text-center bg-dark-950/10 text-slate-500 cursor-pointer transition-all shrink-0 select-none group"
+        className="border border-dashed border-slate-400 hover:border-primary/50 hover:bg-primary/5 p-3 rounded-xl flex flex-col items-center justify-center w-44 h-[94px] text-center bg-slate-50/50 text-black cursor-pointer transition-all shrink-0 select-none group"
       >
-        <span className="text-[10px] font-bold text-slate-450 uppercase tracking-wider block">{title}</span>
-        <span className="text-[9px] text-slate-500 mt-1 flex items-center gap-0.5 group-hover:text-primary transition-colors font-semibold">
-          <PlusCircle className="w-3.5 h-3.5 text-slate-500 group-hover:text-primary transition-colors" /> Assign
+        <span className="text-[10px] font-extrabold text-black uppercase tracking-wider block">{title}</span>
+        <span className="text-[10px] text-black mt-1 flex items-center gap-0.5 group-hover:text-primary transition-colors font-black">
+          <PlusCircle className="w-3.5 h-3.5 text-black group-hover:text-primary transition-colors" /> Assign
         </span>
       </div>
     );
@@ -114,24 +135,32 @@ export default function Users() {
         <h4 className="text-xs font-bold text-center text-slate-400 uppercase tracking-wider mb-2 pb-1.5 border-b border-slate-800/50">{title}</h4>
         <div className="flex flex-col gap-2 max-h-48 overflow-y-auto pr-1">
           {matched.length > 0 ? (
-            matched.map(u => (
-              <div key={u.uid || u.id} className="glass border border-slate-700/60 p-2.5 rounded-xl flex items-center gap-2.5">
-                <div className="bg-primary/10 border border-primary/20 text-primary w-7 h-7 rounded-lg flex items-center justify-center font-bold text-xs shrink-0">
-                  {u.name ? u.name.substring(0, 2).toUpperCase() : 'US'}
+            matched.map(u => {
+              const isCurrentUser = user && user.email?.toLowerCase() === u.email?.toLowerCase();
+              return (
+                <div key={u.uid || u.id} className={`glass border ${isCurrentUser ? 'border-primary' : 'border-slate-700/60'} p-2.5 rounded-xl flex items-center gap-2.5 relative`}>
+                  {isCurrentUser && (
+                    <span className="absolute top-1 right-2 bg-primary text-white text-[7px] font-bold px-1 rounded uppercase">You</span>
+                  )}
+                  <div className="bg-primary/10 border border-primary/20 text-primary w-7 h-7 rounded-lg flex items-center justify-center font-bold text-xs shrink-0">
+                    {u.name ? u.name.substring(0, 2).toUpperCase() : 'US'}
+                  </div>
+                  <div className="min-w-0">
+                    <span className="font-extrabold text-white text-xs block truncate">{u.name}</span>
+                    <span className="text-[8px] text-slate-500 block truncate">{u.email}</span>
+                  </div>
                 </div>
-                <div className="min-w-0">
-                  <span className="font-extrabold text-white text-xs block truncate">{u.name}</span>
-                  <span className="text-[8px] text-slate-500 block truncate">{u.email}</span>
-                </div>
-              </div>
-            ))
-          ) : (
+              );
+            })
+          ) : user?.role === 'Admin' ? (
             <button 
               onClick={() => handleAssignRole(matchType, details)}
               className="border border-dashed border-slate-700/50 hover:border-primary/50 hover:bg-primary/5 p-2 rounded-xl flex items-center justify-center gap-1.5 text-xs text-slate-500 cursor-pointer transition-all w-full select-none font-semibold"
             >
               <PlusCircle className="w-4 h-4 text-slate-500" /> Assign Manager
             </button>
+          ) : (
+            <div className="p-2 text-center text-[10px] text-slate-650 italic">No managers assigned</div>
           )}
         </div>
       </div>
@@ -1084,13 +1113,15 @@ export default function Users() {
                 </button>
               </div>
 
-              <button 
-                onClick={() => setIsAddUserOpen(true)}
-                className="bg-primary hover:bg-blue-600 px-4 py-2.5 rounded-xl text-xs font-semibold flex items-center gap-2 text-white active:scale-98 transition-all cursor-pointer"
-              >
-                <Plus className="w-4 h-4" />
-                Add User
-              </button>
+              {user?.role === 'Admin' && (
+                <button 
+                  onClick={() => setIsAddUserOpen(true)}
+                  className="bg-primary hover:bg-blue-600 px-4 py-2.5 rounded-xl text-xs font-semibold flex items-center gap-2 text-white active:scale-98 transition-all cursor-pointer"
+                >
+                  <Plus className="w-4 h-4" />
+                  Add User
+                </button>
+              )}
             </div>
           </div>
 
@@ -1365,7 +1396,7 @@ export default function Users() {
                                     {u.projects?.filter(p => p.name)?.length || (u.project ? 1 : 0)} project{(u.projects?.filter(p => p.name)?.length || (u.project ? 1 : 0)) !== 1 ? 's' : ''}
                                   </span>
                                 )}
-                                {user && user.uid !== u.uid && (
+                                {user?.role === 'Admin' && user.uid !== u.uid && (
                                   <button
                                     onClick={() => handleDeleteUser(u.uid, u.name)}
                                     className="text-rose-555 hover:text-rose-400 p-1.5 rounded-lg hover:bg-rose-500/10 active:scale-95 transition-all cursor-pointer inline-flex items-center gap-1 font-semibold"

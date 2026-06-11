@@ -26,6 +26,44 @@ router.get('/', async (req, res) => {
 
     let interactions = snapshot.docs.map(doc => doc.data());
 
+    // Filter by User Profile permissions / assigned projects (Secure-by-default)
+    const userDoc = await db.collection('users').doc(req.user.uid).get();
+    const userProfile = userDoc.exists ? userDoc.data() : null;
+
+    const isAdmin = req.user.role === 'Admin' || (userProfile && (userProfile.userType === 'Admin' || userProfile.role === 'Admin'));
+    const isCeo = userProfile && userProfile.userType === 'CEO';
+
+    if (!isAdmin && !isCeo) {
+      const accountsSnap = await db.collection('accounts').get();
+      let accounts = accountsSnap.docs.map(doc => doc.data());
+
+      if (userProfile && userProfile.userType === 'BU Head') {
+        const targetBu = userProfile.bu || '';
+        const targetProjects = userProfile.projects || [];
+        accounts = accounts.filter(a => 
+          (targetBu && a.industry.toLowerCase() === targetBu.toLowerCase()) || 
+          (targetProjects.length > 0 && targetProjects.some(tp => {
+            const tpName = typeof tp === 'string' ? tp : tp.name;
+            return tpName && (a.companyName.toLowerCase().includes(tpName.toLowerCase()) || tpName.toLowerCase().includes(a.companyName.toLowerCase()));
+          }))
+        );
+      } else {
+        // Fallback filter for Functional Heads, Project Managers, Delivery Heads, Employees, etc.
+        const projectsList = userProfile ? (userProfile.projects || []) : [];
+        const targetProjects = projectsList.map(p => typeof p === 'string' ? p : p.name).filter(Boolean);
+        
+        accounts = accounts.filter(a => 
+          targetProjects.some(tp => 
+            a.companyName.toLowerCase().includes(tp.toLowerCase()) || 
+            tp.toLowerCase().includes(a.companyName.toLowerCase())
+          )
+        );
+      }
+
+      const allowedAccountIds = accounts.map(a => a.accountId || a.id);
+      interactions = interactions.filter(i => allowedAccountIds.includes(i.accountId));
+    }
+
     // Filter by source
     if (source) {
       interactions = interactions.filter(i => i.source === source);
@@ -275,13 +313,15 @@ router.post('/', async (req, res) => {
     if (actionMentions && actionMentions.length > 0) {
       const mentionNotifPromises = actionMentions.map(async (mention) => {
         const taskNotifId = 'notif-' + Math.random().toString(36).substring(2, 11);
+        const taskText = mention.task || (messageText.slice(0, 100) + (messageText.length > 100 ? '...' : ''));
+        const message = `${loggedByName} assigned you a task for ${companyName}: "${taskText}"`;
         const notifDoc = {
           notificationId: taskNotifId,
           toUserId: mention.uid,           // Personal — only Melbin sees this
           type: 'Task Assigned',
           accountId,
           interactionId,
-          message: `${loggedByName} assigned you a task for ${companyName}: "${messageText.slice(0, 100)}${messageText.length > 100 ? '...' : ''}"`,
+          message,
           read: false,
           readAt: null,
           timestamp: new Date().toISOString()

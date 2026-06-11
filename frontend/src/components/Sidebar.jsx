@@ -17,10 +17,10 @@ export default function Sidebar() {
     const links = [
       { path: '/dashboard', label: 'Executive Dashboard', icon: <LayoutDashboard className="w-5 h-5" />, roles: ['Admin', 'Executive', 'Sales Manager', 'Employee'] },
       { path: '/accounts', label: 'Accounts CRM', icon: <Users className="w-5 h-5" />, roles: ['Admin', 'Executive', 'Sales Manager', 'Employee'] },
-      { path: '/contacts', label: 'Contact Mapping', icon: <UserSquare2 className="w-5 h-5" />, roles: ['Admin', 'Sales Manager', 'Employee'] },
+      { path: '/contacts', label: 'Contact Mapping', icon: <UserSquare2 className="w-5 h-5" />, roles: ['Admin', 'Executive', 'Sales Manager', 'Employee'] },
       { path: '/risks', label: 'Risk Center', icon: <AlertOctagon className="w-5 h-5" />, roles: ['Admin', 'Executive', 'Sales Manager'] },
-      { path: '/webhooks-demo', label: 'MS Graph Webhooks', icon: <Terminal className="w-5 h-5" />, roles: ['Admin', 'Sales Manager'] },
-      { path: '/users', label: 'User Directory', icon: <Shield className="w-5 h-5" />, roles: ['Admin'] }
+      { path: '/webhooks-demo', label: 'Email Ingestion', icon: <Terminal className="w-5 h-5" />, roles: ['Admin', 'Executive', 'Sales Manager'] },
+      { path: '/users', label: 'User Directory', icon: <Shield className="w-5 h-5" />, roles: ['Admin', 'Executive'] }
     ];
 
     return links.filter(link => link.roles.includes(role));

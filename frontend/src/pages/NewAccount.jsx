@@ -14,16 +14,80 @@ export default function NewAccount() {
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [ceoName, setCeoName] = useState('');
+  const [domain, setDomain] = useState('');
 
   // Stakeholder Details
-  const [contacts, setContacts] = useState([{
-    name: '',
-    email: '',
-    phone: '',
-    position: '',
-    department: '',
-    projects: ''
-  }]);
+  const [projects, setProjects] = useState([
+    {
+      projectName: '',
+      projectIndustry: 'Technology',
+      employees: [
+        {
+          name: '',
+          email: '',
+          phone: '',
+          position: '',
+          department: '',
+          hierarchyTag: 'Staff',
+          influenceTag: 'Observer'
+        }
+      ]
+    }
+  ]);
+
+  const addProject = () => {
+    setProjects([...projects, {
+      projectName: '',
+      projectIndustry: 'Technology',
+      employees: [
+        {
+          name: '',
+          email: '',
+          phone: '',
+          position: '',
+          department: '',
+          hierarchyTag: 'Staff',
+          influenceTag: 'Observer'
+        }
+      ]
+    }]);
+  };
+
+  const removeProject = (pIndex) => {
+    setProjects(projects.filter((_, i) => i !== pIndex));
+  };
+
+  const updateProjectField = (pIndex, field, value) => {
+    const newProjects = [...projects];
+    newProjects[pIndex][field] = value;
+    setProjects(newProjects);
+  };
+
+  const addEmployee = (pIndex) => {
+    const newProjects = [...projects];
+    newProjects[pIndex].employees.push({
+      name: '',
+      email: '',
+      phone: '',
+      position: '',
+      department: '',
+      hierarchyTag: 'Staff',
+      influenceTag: 'Observer'
+    });
+    setProjects(newProjects);
+  };
+
+  const removeEmployee = (pIndex, eIndex) => {
+    const newProjects = [...projects];
+    newProjects[pIndex].employees = newProjects[pIndex].employees.filter((_, i) => i !== eIndex);
+    setProjects(newProjects);
+  };
+
+  const updateEmployeeField = (pIndex, eIndex, field, value) => {
+    const newProjects = [...projects];
+    newProjects[pIndex].employees[eIndex][field] = value;
+    setProjects(newProjects);
+  };
 
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -34,6 +98,24 @@ export default function NewAccount() {
     e.preventDefault();
     setIsSubmitting(true);
     
+    // Flatten projects -> employees into flat contacts list
+    const flatContacts = [];
+    projects.forEach(proj => {
+      proj.employees.forEach(emp => {
+        flatContacts.push({
+          name: emp.name,
+          email: emp.email,
+          phone: emp.phone,
+          position: emp.position,
+          department: emp.department,
+          projectName: proj.projectName,
+          projectIndustry: proj.projectIndustry,
+          hierarchyTag: emp.hierarchyTag,
+          influenceTag: emp.influenceTag
+        });
+      });
+    });
+
     const success = await addAccount({
       companyName,
       industry,
@@ -41,7 +123,9 @@ export default function NewAccount() {
       email,
       phone,
       ceoName,
-      contacts
+      domain,
+      projectName: '',
+      contacts: flatContacts
     });
 
     setIsSubmitting(false);
@@ -69,7 +153,6 @@ export default function NewAccount() {
             <Building2 className="w-6 h-6 text-primary" />
             Create New Client Account
           </h1>
-          <p className="text-xs text-slate-400 mt-1">Complete the corporate profile and assign the primary stakeholder relationship.</p>
         </div>
       </div>
 
@@ -151,6 +234,17 @@ export default function NewAccount() {
                 {regions.map(reg => <option key={reg} value={reg}>{reg}</option>)}
               </select>
             </div>
+
+            <div className="space-y-2">
+              <label className="text-[10px] text-slate-400 uppercase font-semibold">Domain</label>
+              <input 
+                type="text" 
+                value={domain}
+                onChange={e => setDomain(e.target.value)}
+                className="w-full bg-dark-950/60 border border-slate-800 focus:border-primary/50 text-sm text-white rounded-xl p-3 focus:outline-none transition-colors"
+                placeholder="e.g. acme.com"
+              />
+            </div>
           </div>
         </div>
 
@@ -164,126 +258,214 @@ export default function NewAccount() {
                 <span className="w-6 h-px bg-blue-500/50"></span>
                 Stakeholders & Connections
               </h2>
-              <p className="text-xs text-slate-500">Details of the employees we are connecting with. This will automatically create their contact profiles.</p>
+              <p className="text-xs text-slate-500">Details of the projects we are running and the employees related to each project.</p>
             </div>
             <button 
               type="button"
-              onClick={() => setContacts([...contacts, { name: '', email: '', phone: '', position: '', department: '', projects: '' }])}
+              onClick={addProject}
               className="px-4 py-2 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 rounded-xl text-xs font-bold transition-all flex items-center gap-2 border border-blue-500/20 hover:border-blue-500/50"
             >
-              <UserPlus className="w-4 h-4" />
-              Add Employee
+              <Building2 className="w-4 h-4" />
+              Add Project
             </button>
           </div>
 
-          <div className="space-y-6">
-            {contacts.map((contact, index) => (
-              <div key={index} className="relative bg-dark-950/40 p-6 rounded-xl border border-slate-800/50">
-                {contacts.length > 1 && (
+          <div className="space-y-8">
+            {projects.map((project, pIndex) => (
+              <div key={pIndex} className="relative bg-dark-950/40 p-6 rounded-xl border border-slate-800/50 space-y-6">
+                
+                {/* Remove Project Button */}
+                {projects.length > 1 && (
                   <button 
                     type="button" 
-                    onClick={() => setContacts(contacts.filter((_, i) => i !== index))}
+                    onClick={() => removeProject(pIndex)}
                     className="absolute top-4 right-4 text-slate-500 hover:text-red-400 transition-colors text-xs font-bold uppercase"
                   >
-                    Remove
+                    Remove Project
                   </button>
                 )}
                 
-                <h3 className="text-xs font-bold text-slate-400 mb-4">Contact {index + 1}</h3>
+                <h3 className="text-xs font-bold text-slate-400 mb-2">Project {pIndex + 1}</h3>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Project level inputs */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pb-4 border-b border-slate-800/40">
                   <div className="space-y-2">
-                    <label className="text-[10px] text-slate-400 uppercase font-semibold">Employee Name</label>
+                    <label className="text-[10px] text-slate-400 uppercase font-semibold">Project Name Details *</label>
                     <input 
                       type="text" 
-                      value={contact.name}
-                      onChange={e => {
-                        const newContacts = [...contacts];
-                        newContacts[index].name = e.target.value;
-                        setContacts(newContacts);
-                      }}
+                      required
+                      value={project.projectName}
+                      onChange={e => updateProjectField(pIndex, 'projectName', e.target.value)}
                       className="w-full bg-dark-950/60 border border-slate-800 focus:border-blue-500/50 text-sm text-white rounded-xl p-3 focus:outline-none transition-colors"
-                      placeholder="e.g. John Smith"
+                      placeholder="e.g. Acme Migration Platform"
                     />
                   </div>
 
                   <div className="space-y-2">
-                    <label className="text-[10px] text-slate-400 uppercase font-semibold">Position / Role</label>
-                    <input 
-                      type="text" 
-                      value={contact.position}
-                      onChange={e => {
-                        const newContacts = [...contacts];
-                        newContacts[index].position = e.target.value;
-                        setContacts(newContacts);
-                      }}
-                      className="w-full bg-dark-950/60 border border-slate-800 focus:border-blue-500/50 text-sm text-white rounded-xl p-3 focus:outline-none transition-colors"
-                      placeholder="e.g. VP of Operations"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <label className="text-[10px] text-slate-400 uppercase font-semibold">Direct Email</label>
-                    <input 
-                      type="email" 
-                      value={contact.email}
-                      onChange={e => {
-                        const newContacts = [...contacts];
-                        newContacts[index].email = e.target.value;
-                        setContacts(newContacts);
-                      }}
-                      className="w-full bg-dark-950/60 border border-slate-800 focus:border-blue-500/50 text-sm text-white rounded-xl p-3 focus:outline-none transition-colors"
-                      placeholder="john.smith@acme.com"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <label className="text-[10px] text-slate-400 uppercase font-semibold">Direct Phone</label>
-                    <input 
-                      type="text" 
-                      value={contact.phone}
-                      onChange={e => {
-                        const newContacts = [...contacts];
-                        newContacts[index].phone = e.target.value;
-                        setContacts(newContacts);
-                      }}
-                      className="w-full bg-dark-950/60 border border-slate-800 focus:border-blue-500/50 text-sm text-white rounded-xl p-3 focus:outline-none transition-colors"
-                      placeholder="+1 (555) 111-2222"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <label className="text-[10px] text-slate-400 uppercase font-semibold">Department</label>
-                    <input 
-                      type="text" 
-                      value={contact.department}
-                      onChange={e => {
-                        const newContacts = [...contacts];
-                        newContacts[index].department = e.target.value;
-                        setContacts(newContacts);
-                      }}
-                      className="w-full bg-dark-950/60 border border-slate-800 focus:border-blue-500/50 text-sm text-white rounded-xl p-3 focus:outline-none transition-colors"
-                      placeholder="e.g. Engineering, Sales"
-                    />
-                  </div>
-
-                  <div className="space-y-2 md:col-span-2">
-                    <label className="text-[10px] text-slate-400 uppercase font-semibold">Projects / Notes / Interactions</label>
-                    <textarea 
-                      value={contact.projects}
-                      onChange={e => {
-                        const newContacts = [...contacts];
-                        newContacts[index].projects = e.target.value;
-                        setContacts(newContacts);
-                      }}
-                      rows={3}
-                      className="w-full bg-dark-950/60 border border-slate-800 focus:border-blue-500/50 text-sm text-white rounded-xl p-3 focus:outline-none transition-colors resize-none"
-                      placeholder="List key projects we are collaborating on or any preliminary notes..."
-                    />
+                    <label className="text-[10px] text-slate-400 uppercase font-semibold">Project Industry</label>
+                    <select 
+                      value={project.projectIndustry}
+                      onChange={e => updateProjectField(pIndex, 'projectIndustry', e.target.value)}
+                      className="w-full bg-dark-950/60 border border-slate-800 focus:border-blue-500/50 text-sm text-white rounded-xl p-3 focus:outline-none cursor-pointer transition-colors appearance-none"
+                    >
+                      {industries.map(ind => <option key={ind} value={ind}>{ind}</option>)}
+                    </select>
                   </div>
                 </div>
+
+                {/* Employees sub-section */}
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center">
+                    <h4 className="text-[11px] font-bold text-blue-400/80 uppercase tracking-wide">Project Employees ({project.employees.length})</h4>
+                    <button 
+                      type="button"
+                      onClick={() => addEmployee(pIndex)}
+                      className="px-3 py-1.5 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 rounded-lg text-[10px] font-bold transition-all border border-blue-500/20 hover:border-blue-500/50 flex items-center gap-1"
+                    >
+                      <UserPlus className="w-3.5 h-3.5" />
+                      Add Employee
+                    </button>
+                  </div>
+
+                  <div className="space-y-4">
+                    {project.employees.map((employee, eIndex) => (
+                      <div key={eIndex} className="relative bg-dark-950/60 p-4 rounded-lg border border-slate-850 space-y-4">
+                        
+                        {/* Remove Employee Button */}
+                        {project.employees.length > 1 && (
+                          <button 
+                            type="button" 
+                            onClick={() => removeEmployee(pIndex, eIndex)}
+                            className="absolute top-3 right-3 text-slate-650 hover:text-red-400 transition-colors text-[10px] font-bold uppercase"
+                          >
+                            Remove Employee
+                          </button>
+                        )}
+
+                        <span className="text-[10px] font-bold text-slate-500">Employee {eIndex + 1}</span>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div className="space-y-1">
+                            <label className="text-[9px] text-slate-400 uppercase font-semibold">Employee Name</label>
+                            <input 
+                              type="text" 
+                              required
+                              value={employee.name}
+                              onChange={e => updateEmployeeField(pIndex, eIndex, 'name', e.target.value)}
+                              className="w-full bg-dark-950/40 border border-slate-800 focus:border-blue-500/50 text-xs text-white rounded-lg p-2.5 focus:outline-none transition-colors"
+                              placeholder="e.g. John Smith"
+                            />
+                          </div>
+
+                          <div className="space-y-1">
+                            <label className="text-[9px] text-slate-400 uppercase font-semibold">Position / Role</label>
+                            <input 
+                              type="text" 
+                              value={employee.position}
+                              onChange={e => updateEmployeeField(pIndex, eIndex, 'position', e.target.value)}
+                              className="w-full bg-dark-950/40 border border-slate-800 focus:border-blue-500/50 text-xs text-white rounded-lg p-2.5 focus:outline-none transition-colors"
+                              placeholder="e.g. VP of Operations"
+                            />
+                          </div>
+
+                          <div className="space-y-1">
+                            <label className="text-[9px] text-slate-400 uppercase font-semibold">Direct Email</label>
+                            <input 
+                              type="email" 
+                              value={employee.email}
+                              onChange={e => updateEmployeeField(pIndex, eIndex, 'email', e.target.value)}
+                              className="w-full bg-dark-950/40 border border-slate-800 focus:border-blue-500/50 text-xs text-white rounded-lg p-2.5 focus:outline-none transition-colors"
+                              placeholder="john.smith@acme.com"
+                            />
+                          </div>
+
+                          <div className="space-y-1">
+                            <label className="text-[9px] text-slate-400 uppercase font-semibold">Direct Phone</label>
+                            <input 
+                              type="text" 
+                              value={employee.phone}
+                              onChange={e => updateEmployeeField(pIndex, eIndex, 'phone', e.target.value)}
+                              className="w-full bg-dark-950/40 border border-slate-800 focus:border-blue-500/50 text-xs text-white rounded-lg p-2.5 focus:outline-none transition-colors"
+                              placeholder="+1 (555) 111-2222"
+                            />
+                          </div>
+
+                          <div className="space-y-1">
+                            <label className="text-[9px] text-slate-400 uppercase font-semibold">Department</label>
+                            <input 
+                              type="text" 
+                              value={employee.department}
+                              onChange={e => updateEmployeeField(pIndex, eIndex, 'department', e.target.value)}
+                              className="w-full bg-dark-950/40 border border-slate-800 focus:border-blue-500/50 text-xs text-white rounded-lg p-2.5 focus:outline-none transition-colors"
+                              placeholder="e.g. Engineering, Sales"
+                            />
+                          </div>
+
+                          <div className="space-y-1">
+                            <label className="text-[9px] text-slate-400 uppercase font-semibold">Hierarchy Tag</label>
+                            <select
+                              value={employee.hierarchyTag || 'Staff'}
+                              onChange={e => updateEmployeeField(pIndex, eIndex, 'hierarchyTag', e.target.value)}
+                              className="w-full bg-dark-950/40 border border-slate-800 focus:border-blue-500/50 text-xs text-white rounded-lg p-2.5 focus:outline-none cursor-pointer transition-colors"
+                            >
+                              <option value="CXO">CXO</option>
+                              <option value="VP">VP</option>
+                              <option value="Director">Director</option>
+                              <option value="Manager">Manager</option>
+                              <option value="Staff">Staff</option>
+                            </select>
+                          </div>
+
+                          <div className="space-y-1 md:col-span-2">
+                            <label className="text-[9px] text-slate-400 uppercase font-semibold">Influence Tag</label>
+                            <select
+                              value={employee.influenceTag || 'Observer'}
+                              onChange={e => updateEmployeeField(pIndex, eIndex, 'influenceTag', e.target.value)}
+                              className="w-full bg-dark-950/40 border border-slate-800 focus:border-blue-500/50 text-xs text-white rounded-lg p-2.5 focus:outline-none cursor-pointer transition-colors"
+                            >
+                              <option value="Decision Maker">Decision Maker</option>
+                              <option value="Influencer">Influencer</option>
+                              <option value="Champion">Champion</option>
+                              <option value="Gatekeeper">Gatekeeper</option>
+                              <option value="Observer">Observer</option>
+                            </select>
+                          </div>
+                        </div>
+
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
               </div>
             ))}
+          </div>
+
+          {/* Influence Glossary/Guide Section */}
+          <div className="mt-8 pt-6 border-t border-slate-800/60 space-y-4">
+            <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Stakeholder Influence Tags Guide</h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+              <div className="bg-dark-950/30 p-3 rounded-xl border border-slate-850 space-y-1">
+                <span className="text-[10px] font-black uppercase text-primary tracking-wide">Decision Maker</span>
+                <p className="text-[10px] text-slate-400 leading-normal">Final sign-off authority for budget, contracts, and renewals.</p>
+              </div>
+              <div className="bg-dark-950/30 p-3 rounded-xl border border-slate-850 space-y-1">
+                <span className="text-[10px] font-black uppercase text-indigo-400 tracking-wide">Influencer</span>
+                <p className="text-[10px] text-slate-400 leading-normal">Shapes technical standards and vendor evaluations.</p>
+              </div>
+              <div className="bg-dark-950/30 p-3 rounded-xl border border-slate-850 space-y-1">
+                <span className="text-[10px] font-black uppercase text-emerald-400 tracking-wide">Champion</span>
+                <p className="text-[10px] text-slate-400 leading-normal">Advocates for our platform and drives internal adoption.</p>
+              </div>
+              <div className="bg-dark-950/30 p-3 rounded-xl border border-slate-850 space-y-1">
+                <span className="text-[10px] font-black uppercase text-amber-400 tracking-wide">Gatekeeper</span>
+                <p className="text-[10px] text-slate-400 leading-normal">Controls access to decision makers and critical data.</p>
+              </div>
+              <div className="bg-dark-950/30 p-3 rounded-xl border border-slate-850 space-y-1">
+                <span className="text-[10px] font-black uppercase text-slate-400 tracking-wide">Observer</span>
+                <p className="text-[10px] text-slate-400 leading-normal">Monitors relationship with minimal transaction influence.</p>
+              </div>
+            </div>
           </div>
         </div>
 

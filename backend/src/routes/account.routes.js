@@ -20,6 +20,38 @@ router.get('/', async (req, res) => {
     const snapshot = await db.collection('accounts').get();
     let accounts = snapshot.docs.map(doc => doc.data());
 
+    // Filter by User Profile permissions / assigned projects (Secure-by-default)
+    const userDoc = await db.collection('users').doc(req.user.uid).get();
+    const userProfile = userDoc.exists ? userDoc.data() : null;
+
+    const isAdmin = req.user.role === 'Admin' || (userProfile && (userProfile.userType === 'Admin' || userProfile.role === 'Admin'));
+    const isCeo = userProfile && userProfile.userType === 'CEO';
+
+    if (!isAdmin && !isCeo) {
+      if (userProfile && userProfile.userType === 'BU Head') {
+        const targetBu = userProfile.bu || '';
+        const targetProjects = userProfile.projects || [];
+        accounts = accounts.filter(a => 
+          (targetBu && a.industry.toLowerCase() === targetBu.toLowerCase()) || 
+          (targetProjects.length > 0 && targetProjects.some(tp => {
+            const tpName = typeof tp === 'string' ? tp : tp.name;
+            return tpName && (a.companyName.toLowerCase().includes(tpName.toLowerCase()) || tpName.toLowerCase().includes(a.companyName.toLowerCase()));
+          }))
+        );
+      } else {
+        // Fallback filter for Functional Heads, Project Managers, Delivery Heads, Employees, etc.
+        const projectsList = userProfile ? (userProfile.projects || []) : [];
+        const targetProjects = projectsList.map(p => typeof p === 'string' ? p : p.name).filter(Boolean);
+        
+        accounts = accounts.filter(a => 
+          targetProjects.some(tp => 
+            a.companyName.toLowerCase().includes(tp.toLowerCase()) || 
+            tp.toLowerCase().includes(a.companyName.toLowerCase())
+          )
+        );
+      }
+    }
+
     // Filter by search query (companyName)
     if (search) {
       const q = search.toLowerCase();
@@ -86,7 +118,7 @@ router.get('/:id', async (req, res) => {
 router.post('/', requireRole(['Admin', 'Sales Manager']), async (req, res) => {
   const { 
     companyName, industry, region,
-    email, phone, ceoName,
+    email, phone, ceoName, domain, projectName,
     contactName, contactEmail, contactPhone, contactPosition, contactDepartment, contactProjects,
     contacts
   } = req.body;
@@ -105,6 +137,8 @@ router.post('/', requireRole(['Admin', 'Sales Manager']), async (req, res) => {
       email: email || '',
       phone: phone || '',
       ceoName: ceoName || '',
+      domain: domain || '',
+      projectName: '',
       healthScore: 70, // baseline
       status: 'Warning',
       createdAt: new Date().toISOString()
@@ -125,9 +159,10 @@ router.post('/', requireRole(['Admin', 'Sales Manager']), async (req, res) => {
             phone: contact.phone || '',
             designation: contact.position || '',
             department: contact.department || '',
-            projects: contact.projects || '',
-            hierarchyTag: 'Staff',
-            influenceTag: 'Observer',
+            projectName: contact.projectName || '',
+            projectIndustry: contact.projectIndustry || 'Technology',
+            hierarchyTag: contact.hierarchyTag || 'Staff',
+            influenceTag: contact.influenceTag || 'Observer',
             createdAt: new Date().toISOString()
           };
           await db.collection('contacts').doc(contactId).set(newContact);
@@ -144,7 +179,8 @@ router.post('/', requireRole(['Admin', 'Sales Manager']), async (req, res) => {
         phone: contactPhone || '',
         designation: contactPosition || '',
         department: contactDepartment || '',
-        projects: contactProjects || '',
+        projectName: contactProjects || '',
+        projectIndustry: 'Technology',
         hierarchyTag: 'Staff', // Default, can be updated later
         influenceTag: 'Observer', // Default
         createdAt: new Date().toISOString()
@@ -181,7 +217,7 @@ router.post('/', requireRole(['Admin', 'Sales Manager']), async (req, res) => {
  */
 router.put('/:id', requireRole(['Admin', 'Sales Manager']), async (req, res) => {
   const { id } = req.params;
-  const { companyName, industry, region } = req.body;
+  const { companyName, industry, region, email, phone, ceoName, domain, contacts } = req.body;
 
   try {
     const docRef = db.collection('accounts').doc(id);
@@ -195,8 +231,60 @@ router.put('/:id', requireRole(['Admin', 'Sales Manager']), async (req, res) => 
     if (companyName) updates.companyName = companyName;
     if (industry) updates.industry = industry;
     if (region) updates.region = region;
+    if (email !== undefined) updates.email = email;
+    if (phone !== undefined) updates.phone = phone;
+    if (ceoName !== undefined) updates.ceoName = ceoName;
+    if (domain !== undefined) updates.domain = domain;
 
     await docRef.update(updates);
+
+    // Sync contacts
+    if (contacts && Array.isArray(contacts)) {
+      const existingSnap = await db.collection('contacts').where('accountId', '==', id).get();
+      const existingDocs = existingSnap.docs.map(d => d.data());
+      const existingIds = existingDocs.map(c => c.contactId);
+
+      const incomingIds = contacts.map(c => c.contactId).filter(Boolean);
+
+      // Delete removed
+      const deletedIds = existingIds.filter(eid => !incomingIds.includes(eid));
+      for (const delId of deletedIds) {
+        await db.collection('contacts').doc(delId).delete();
+      }
+
+      // Create or update incoming
+      for (const contact of contacts) {
+        if (contact.contactId) {
+          await db.collection('contacts').doc(contact.contactId).update({
+            name: contact.name,
+            email: contact.email || '',
+            phone: contact.phone || '',
+            designation: contact.position || contact.designation || '',
+            department: contact.department || '',
+            projectName: contact.projectName || '',
+            projectIndustry: contact.projectIndustry || 'Technology',
+            hierarchyTag: contact.hierarchyTag || 'Staff',
+            influenceTag: contact.influenceTag || 'Observer'
+          });
+        } else {
+          const contactId = 'con-' + Math.random().toString(36).substring(2, 11);
+          await db.collection('contacts').doc(contactId).set({
+            contactId,
+            accountId: id,
+            name: contact.name,
+            email: contact.email || '',
+            phone: contact.phone || '',
+            designation: contact.position || contact.designation || '',
+            department: contact.department || '',
+            projectName: contact.projectName || '',
+            projectIndustry: contact.projectIndustry || 'Technology',
+            hierarchyTag: contact.hierarchyTag || 'Staff',
+            influenceTag: contact.influenceTag || 'Observer',
+            createdAt: new Date().toISOString()
+          });
+        }
+      }
+    }
 
     // Recalculate health to update states
     await calculateAccountHealth(id);
