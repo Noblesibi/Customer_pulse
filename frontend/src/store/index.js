@@ -663,6 +663,30 @@ export const useStore = create((set, get) => ({
       console.error(err);
       return null;
     }
+  },
+
+  // ── ACTIVITY LOGS ──
+  activityLogs: [],
+  activityLogsLoading: false,
+
+  fetchActivityLogs: async () => {
+    const token = get().token;
+    if (!token) return;
+    set({ activityLogsLoading: true });
+    try {
+      const res = await fetch(`${API_BASE}/activity-logs`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (res.ok) {
+        set({ activityLogs: data, activityLogsLoading: false });
+      } else {
+        set({ activityLogsLoading: false });
+      }
+    } catch (err) {
+      console.error('Error fetching activity logs:', err);
+      set({ activityLogsLoading: false });
+    }
   }
 }));
 

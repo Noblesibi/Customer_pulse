@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { db } from '../config/firebase.js';
+import { db } from '../config/database.js';
 import { authenticateToken } from '../middleware/auth.middleware.js';
 
 const router = Router();

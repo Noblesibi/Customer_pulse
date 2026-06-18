@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { db } from '../config/firebase.js';
+import { db, logActivity } from '../config/database.js';
 import { authenticateToken, requireRole } from '../middleware/auth.middleware.js';
 import { calculateAccountHealth } from '../services/health.service.js';
 
@@ -140,6 +140,7 @@ router.post('/', requireRole(['Admin', 'Sales Manager', 'Employee']), async (req
     // Update health score since relationship depth might have changed
     await calculateAccountHealth(accountId);
 
+    await logActivity(req.user.uid, req.user.name, 'Create Contact', `Created contact ${name} (${designation || 'Staff'}) for account ID ${accountId}`);
     return res.status(201).json(newContact);
   } catch (error) {
     console.error('Error creating contact:', error);
@@ -180,6 +181,7 @@ router.put('/:id', requireRole(['Admin', 'Sales Manager', 'Employee']), async (r
     await calculateAccountHealth(currentData.accountId);
 
     const updatedDoc = await docRef.get();
+    await logActivity(req.user.uid, req.user.name, 'Update Contact', `Updated details for contact ${updatedDoc.data().name} (ID: ${id})`);
     return res.json(updatedDoc.data());
   } catch (error) {
     console.error('Error updating contact:', error);
@@ -206,6 +208,7 @@ router.delete('/:id', requireRole(['Admin', 'Sales Manager']), async (req, res) 
     // Recalculate health
     await calculateAccountHealth(accountId);
 
+    await logActivity(req.user.uid, req.user.name, 'Delete Contact', `Deleted contact ${doc.data().name} (ID: ${id})`);
     return res.json({ message: 'Contact deleted successfully' });
   } catch (error) {
     console.error('Error deleting contact:', error);

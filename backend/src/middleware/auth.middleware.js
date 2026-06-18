@@ -1,4 +1,4 @@
-import { auth, isMock } from '../config/firebase.js';
+import { auth, isMock } from '../config/database.js';
 import jwt from 'jsonwebtoken';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'customer-pulse-super-secret-key';

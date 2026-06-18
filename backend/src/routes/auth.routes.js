@@ -1,6 +1,7 @@
 import { Router } from 'express';
-import { db, auth, isMock } from '../config/firebase.js';
+import { db, auth, isMock, logActivity } from '../config/database.js';
 import jwt from 'jsonwebtoken';
+import { authenticateLdapUser } from '../services/ldap.service.js';
 
 const router = Router();
 const JWT_SECRET = process.env.JWT_SECRET || 'customer-pulse-super-secret-key';
@@ -165,6 +166,7 @@ router.post('/signup', async (req, res) => {
       MOCK_PASSWORDS[email] = password; // store temporarily in memory
 
       const token = generateMockToken(newUser);
+      await logActivity(newUser.uid, newUser.name, 'User Signup', `Created user account: ${email}`);
       return res.status(201).json({ token, user: newUser });
     } else {
       // Real Firebase Create User
@@ -187,6 +189,7 @@ router.post('/signup', async (req, res) => {
       };
 
       await db.collection('users').doc(userRecord.uid).set(newUser);
+      await logActivity(newUser.uid, newUser.name, 'User Signup', `Created user account: ${email}`);
       return res.status(201).json({ user: newUser });
     }
   } catch (error) {
@@ -206,20 +209,69 @@ router.post('/login', async (req, res) => {
   }
 
   try {
+    // 1. LDAP Authentication (if enabled in .env)
+    let ldapResult = null;
+    if (process.env.LDAP_ENABLED === 'true') {
+      try {
+        ldapResult = await authenticateLdapUser(email, password);
+      } catch (ldapErr) {
+        console.error('LDAP auth server error, checking local fallback:', ldapErr.message);
+      }
+    }
+
+    if (ldapResult && ldapResult.authenticated) {
+      const normalizedEmail = email.toLowerCase().trim();
+      const usersSnap = await db.collection('users').get();
+      let userDoc = usersSnap.docs.find(doc => doc.data().email.toLowerCase() === normalizedEmail);
+      let user;
+
+      if (!userDoc) {
+        // Automatically provision user record in the SQL Server database upon successful LDAP login
+        const uid = 'ldap-' + Math.random().toString(36).substring(2, 11);
+        user = {
+          uid,
+          email: ldapResult.user.email,
+          name: ldapResult.user.name,
+          role: ldapResult.user.role,
+          position: ldapResult.user.position,
+          userType: ldapResult.user.role === 'Executive' ? 'CEO' : ldapResult.user.role === 'Admin' ? 'Admin' : 'Employee',
+          department: ldapResult.user.department,
+          createdAt: new Date().toISOString()
+        };
+        await db.collection('users').doc(uid).set(user);
+        console.log(`👤 Auto-provisioned LDAP user in database: ${email}`);
+      } else {
+        user = userDoc.data();
+      }
+
+      const userResponse = { ...user };
+      delete userResponse.password;
+
+      const token = generateMockToken(userResponse);
+      await logActivity(userResponse.uid, userResponse.name, 'User Login', `Logged in via LDAP: ${email}`);
+      return res.json({ token, user: userResponse });
+    }
+
+    // 2. Local/Pre-seeded DB Authentication Fallback
     // Hardcoded Admin Access (works even with real Firebase)
     if (email === 'admin@pulse.com' && password === 'admin123') {
       const adminUser = {
-        uid: 'hardcoded-admin-uid',
+        uid: 'mock-admin-uid',
         email: 'admin@pulse.com',
         role: 'Admin',
-        name: 'System Admin',
+        name: 'Admin User',
         userType: 'Admin'
       };
       
       // Ensure this admin exists in Firestore so other queries don't break
-      await db.collection('users').doc(adminUser.uid).set(adminUser, { merge: true });
+      try {
+        await db.collection('users').doc(adminUser.uid).set(adminUser, { merge: true });
+      } catch (dbErr) {
+        console.warn('⚠️ Failed to save hardcoded admin to database:', dbErr.message);
+      }
       
       const token = generateMockToken(adminUser);
+      await logActivity(adminUser.uid, adminUser.name, 'User Login', `Logged in via hardcoded admin: ${email}`);
       return res.json({ token, user: adminUser });
     }
 
@@ -232,9 +284,14 @@ router.post('/login', async (req, res) => {
         delete userProfile.password;
 
         // Ensure this user exists in Firestore
-        await db.collection('users').doc(userProfile.uid).set(userProfile, { merge: true });
+        try {
+          await db.collection('users').doc(userProfile.uid).set(userProfile, { merge: true });
+        } catch (dbErr) {
+          console.warn(`⚠️ Failed to save hardcoded head ${userProfile.email} to database:`, dbErr.message);
+        }
 
         const token = generateMockToken(userProfile);
+        await logActivity(userProfile.uid, userProfile.name, 'User Login', `Logged in via functional head credentials: ${email}`);
         return res.json({ token, user: userProfile });
       } else {
         return res.status(401).json({ error: 'Invalid email or password' });
@@ -265,6 +322,7 @@ router.post('/login', async (req, res) => {
     delete userResponse.password;
 
     const token = generateMockToken(userResponse);
+    await logActivity(userResponse.uid, userResponse.name, 'User Login', `Logged in via database credentials: ${email}`);
     return res.json({ token, user: userResponse });
   } catch (error) {
     console.error('Login error:', error);
@@ -304,6 +362,7 @@ router.post('/microsoft-login', async (req, res) => {
     }
 
     const token = generateMockToken(user);
+    await logActivity(user.uid, user.name, 'User Login', `Logged in via Microsoft SSO: ${email}`);
     return res.json({ token, user });
   } catch (error) {
     console.error('Microsoft login error:', error);
@@ -432,6 +491,7 @@ router.post('/users', authenticateToken, requireRole(['Admin']), async (req, res
         };
         await db.collection('users').doc(uid).set(updatedUser);
         MOCK_PASSWORDS[email] = password;
+        await logActivity(req.user.uid, req.user.name, 'Update User', `Admin updated user profile: ${email}`);
         return res.status(200).json(updatedUser);
       }
 
@@ -456,6 +516,7 @@ router.post('/users', authenticateToken, requireRole(['Admin']), async (req, res
       
       await db.collection('users').doc(uid).set(newUser);
       MOCK_PASSWORDS[email] = password;
+      await logActivity(req.user.uid, req.user.name, 'Create User', `Admin created user profile: ${email}`);
 
       return res.status(201).json(newUser);
     } else {
@@ -496,6 +557,7 @@ router.post('/users', authenticateToken, requireRole(['Admin']), async (req, res
       };
 
       await db.collection('users').doc(userRecord.uid).set(newUser, { merge: true });
+      await logActivity(req.user.uid, req.user.name, 'Create/Update User', `Admin created/updated user profile: ${email}`);
       return res.status(201).json(newUser);
     }
   } catch (error) {
@@ -529,11 +591,17 @@ router.delete('/users/:uid', authenticateToken, requireRole(['Admin']), async (r
         delete MOCK_PASSWORDS[userData.email];
       }
 
+      await logActivity(req.user.uid, req.user.name, 'Delete User', `Admin deleted user profile: ${userData.email} (UID: ${uid})`);
       return res.json({ success: true, message: `User ${uid} deleted successfully (mock)` });
     } else {
       // Real Firebase Delete User from Auth + Firestore
+      const userDocSnap = await db.collection('users').doc(uid).get();
+      const userData = userDocSnap.exists ? userDocSnap.data() : null;
+      const userEmail = userData ? userData.email : 'Unknown';
+
       await auth.deleteUser(uid);
       await db.collection('users').doc(uid).delete();
+      await logActivity(req.user.uid, req.user.name, 'Delete User', `Admin deleted user profile: ${userEmail} (UID: ${uid})`);
       return res.json({ success: true, message: `User ${uid} deleted successfully` });
     }
   } catch (error) {

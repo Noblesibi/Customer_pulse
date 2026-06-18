@@ -1,4 +1,4 @@
-import { db } from '../config/firebase.js';
+import { db } from '../config/database.js';
 import { analyzeCommunication } from '../services/ai.service.js';
 import { calculateAccountHealth } from '../services/health.service.js';
 

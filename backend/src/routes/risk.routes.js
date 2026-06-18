@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { db } from '../config/firebase.js';
+import { db, logActivity } from '../config/database.js';
 import { authenticateToken, requireRole } from '../middleware/auth.middleware.js';
 import { calculateAccountHealth } from '../services/health.service.js';
 
@@ -128,6 +128,7 @@ router.put('/:id', requireRole(['Admin', 'Sales Manager']), async (req, res) => 
     await calculateAccountHealth(currentRisk.accountId);
 
     const updatedDoc = await docRef.get();
+    await logActivity(req.user.uid, req.user.name, 'Resolve Risk', `Updated risk ID ${id} status to: ${status || 'Updated'}. Description: ${description || 'None'}`);
     return res.json(updatedDoc.data());
   } catch (error) {
     console.error('Error updating risk:', error);

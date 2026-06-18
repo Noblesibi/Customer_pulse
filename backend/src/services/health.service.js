@@ -1,4 +1,4 @@
-import { db } from '../config/firebase.js';
+import { db } from '../config/database.js';
 
 /**
  * Calculates the health score for a specific account.
