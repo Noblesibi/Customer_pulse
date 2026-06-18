@@ -57,7 +57,8 @@ export default function Navbar() {
       { path: '/contacts',        label: 'Contacts',   roles: ['Admin', 'Executive', 'Sales Manager', 'Employee'] },
       { path: '/risks',           label: 'Risks',      roles: ['Admin', 'Executive', 'Sales Manager'] },
       { path: '/webhooks-demo',   label: 'Email Ingestion',   roles: ['Admin', 'Executive', 'Sales Manager'] },
-      { path: '/users',           label: 'Org Hierarchy',      roles: ['Admin', 'Executive'] }
+      { path: '/users',           label: 'Org Hierarchy',      roles: ['Admin', 'Executive'] },
+      { path: '/activity-log',    label: 'Activity Log',   roles: ['Admin', 'Executive'] }
     ];
 
     return links.filter(link => link.roles.includes(role));
@@ -67,7 +68,7 @@ export default function Navbar() {
     <header className="h-20 glass border-b border-slate-800/80 px-8 flex items-center justify-between z-30 sticky top-0 shrink-0 select-none">
       
       {/* Brand Logo - click to go back to landing page */}
-      <div className="flex items-center gap-3 cursor-pointer" onClick={() => navigate('/')}>
+      <div className="flex items-center gap-3 cursor-pointer shrink-0" onClick={() => navigate('/')}>
         <div className="bg-[#0f172a] rounded-xl px-3 py-1.5">
           <img
             src="/nest-digital-logo.png"
@@ -82,13 +83,13 @@ export default function Navbar() {
       </div>
 
       {/* Horizontal Links Navigation */}
-      <nav className="hidden lg:flex items-center gap-0.5">
+      <nav className="hidden lg:flex items-center gap-2 shrink-0">
         {getLinks().map(link => (
           <NavLink
             key={link.path}
             to={link.path}
             className={({ isActive }) => 
-              `px-3 py-1.5 rounded-lg text-xs font-semibold border ${
+              `px-3 py-1.5 rounded-lg text-xs font-semibold border whitespace-nowrap ${
                 isActive 
                   ? 'bg-primary/10 border-primary/25 text-primary' 
                   : 'bg-transparent border-transparent text-primary/70 hover:text-primary hover:bg-primary/5'
@@ -101,7 +102,7 @@ export default function Navbar() {
       </nav>
 
       {/* Right Actions Block */}
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-4 shrink-0">
         
         {/* Notification Bell */}
         <div className="relative" ref={notifDropdownRef}>
@@ -187,7 +188,7 @@ export default function Navbar() {
               {user?.name?.substring(0, 2).toUpperCase()}
             </div>
             <div className="hidden md:block min-w-0 leading-none pr-1">
-              <span className="text-xs font-bold text-white block truncate">{user?.name}</span>
+              <span className="text-xs font-bold text-black block truncate">{user?.name}</span>
               <span className="text-[9px] text-emerald-500 font-semibold uppercase mt-0.5 block truncate">
                 {user?.userType || user?.role}
               </span>
@@ -198,7 +199,7 @@ export default function Navbar() {
           {isProfileOpen && (
             <div className="absolute right-0 mt-3 w-56 glass border border-slate-800 rounded-xl shadow-2xl p-1.5 z-50 animate-soft-pulse duration-500">
               <div className="px-3.5 py-2.5 border-b border-slate-800/80 mb-1 leading-none md:hidden">
-                <span className="text-xs font-bold text-white block truncate">{user?.name}</span>
+                <span className="text-xs font-bold text-black block truncate">{user?.name}</span>
                 <span className="text-[9px] text-emerald-500 font-semibold uppercase mt-1 block truncate">
                   {user?.userType || user?.role}
                 </span>

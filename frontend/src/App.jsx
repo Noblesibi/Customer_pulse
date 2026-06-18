@@ -13,6 +13,7 @@ import Contacts from './pages/Contacts.jsx';
 import Risks from './pages/Risks.jsx';
 import WebhooksDemo from './pages/WebhooksDemo.jsx';
 import Users from './pages/Users.jsx';
+import ActivityLog from './pages/ActivityLog.jsx';
 
 export default function App() {
   return (
@@ -32,6 +33,7 @@ export default function App() {
           <Route path="/risks" element={<Risks />} />
           <Route path="/webhooks-demo" element={<WebhooksDemo />} />
           <Route path="/users" element={<Users />} />
+          <Route path="/activity-log" element={<ActivityLog />} />
         </Route>
 
         {/* Fallback routing */}

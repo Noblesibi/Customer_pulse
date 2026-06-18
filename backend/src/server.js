@@ -12,6 +12,7 @@ import riskRouter from './routes/risk.routes.js';
 import dashboardRouter from './routes/dashboard.routes.js';
 import summaryRouter from './routes/summary.routes.js';
 import notificationRouter from './routes/notification.routes.js';
+import activityRouter from './routes/activity.routes.js';
 
 // Webhook imports
 import { handleOutlookWebhook, handleTeamsWebhook } from './controllers/webhook.controller.js';
@@ -43,6 +44,7 @@ app.use('/api/risks', riskRouter);
 app.use('/api/dashboard', dashboardRouter);
 app.use('/api/summary', summaryRouter);
 app.use('/api/notifications', notificationRouter);
+app.use('/api/activity-logs', activityRouter);
 
 // Service Health check
 app.get('/api/health', (req, res) => {

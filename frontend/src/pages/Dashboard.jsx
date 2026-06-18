@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { 
   Users, CheckCircle2, AlertTriangle, AlertOctagon, Activity, HelpCircle,
   ArrowUpRight, ArrowDownRight, Sparkles, ClipboardList, Send, Clock, CheckCheck,
-  MessageSquare, Building2
+  MessageSquare, Building2, ArrowRight
 } from 'lucide-react';
 
 import { 
@@ -12,12 +13,15 @@ import {
 import { useStore } from '../store/index.js';
 
 export default function Dashboard() {
+  const navigate = useNavigate();
   const {
     dashboardStats, dashboardLoading, fetchDashboardStats,
     user,
     myTasks, myTasksLoading, fetchMyTasks,
     replyToInteraction, fetchReplies, repliesByInteraction,
-    usersList, fetchUsersList
+    usersList, fetchUsersList,
+    activityLogs, activityLogsLoading, fetchActivityLogs,
+    interactions, interactionsLoading, fetchInteractions
   } = useStore();
 
   const [replyTexts, setReplyTexts] = useState({}); // { [interactionId]: string }
@@ -26,12 +30,20 @@ export default function Dashboard() {
   useEffect(() => {
     fetchDashboardStats();
     fetchMyTasks();
+    fetchInteractions();
+    if (user?.role === 'Admin' || user?.role === 'Executive') {
+      fetchActivityLogs();
+    }
     if (user?.userType === 'CEO') {
       fetchUsersList();
     }
     const interval = setInterval(() => {
       fetchDashboardStats();
       fetchMyTasks();
+      fetchInteractions();
+      if (user?.role === 'Admin' || user?.role === 'Executive') {
+        fetchActivityLogs();
+      }
       if (user?.userType === 'CEO') {
         fetchUsersList();
       }
@@ -396,6 +408,228 @@ export default function Dashboard() {
           </div>
         </div>
       </div>
+
+      {/* ── CLIENT INTERACTION LOGS PROGRESS TRACKER ── */}
+      <div className="glass p-5 rounded-2xl border border-slate-800/80 space-y-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <ClipboardList className="w-5 h-5 text-primary" />
+            <div>
+              <h3 className="text-sm font-extrabold uppercase tracking-wider text-slate-350">
+                Client log progress tracking
+              </h3>
+              <p className="text-[10px] text-slate-500">
+                Tracking stage lifecycle (Sent ➔ Seen ➔ Replied ➔ Received) of client communication logs.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {interactionsLoading && interactions.length === 0 ? (
+          <div className="flex items-center justify-center py-8">
+            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary" />
+          </div>
+        ) : interactions.length === 0 ? (
+          <div className="text-center py-8 text-xs text-slate-500">
+            No client interactions logged yet.
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {interactions.slice(0, 4).map((interaction) => {
+              const hasMentions = Array.isArray(interaction.actionMentions) && interaction.actionMentions.length > 0;
+              
+              // 1. Sent: Always complete
+              const isSent = true;
+              
+              // 2. Seen: True if the notification has been marked read (read === true)
+              const taskAssignedNotifications = Array.isArray(interaction.notifications) 
+                ? interaction.notifications.filter(n => n.type === 'Task Assigned') 
+                : [];
+              const isSeen = !hasMentions || (taskAssignedNotifications.length > 0 && taskAssignedNotifications.some(n => n.read));
+              
+              // 3. Replied: True if the assignee replied (replies.length > 0)
+              const hasReplies = Array.isArray(interaction.replies) && interaction.replies.length > 0;
+              const isReplied = hasReplies;
+              
+              // 4. Received: True if the admin/creator has read the task reply notification (read === true) or replied back
+              const taskReplyNotifications = Array.isArray(interaction.notifications) 
+                ? interaction.notifications.filter(n => n.type === 'Task Reply') 
+                : [];
+              const isReceived = isReplied && (
+                (taskReplyNotifications.length > 0 && taskReplyNotifications.some(n => n.read)) || 
+                (Array.isArray(interaction.replies) && interaction.replies.some(r => r.authorUid === interaction.loggedByUid))
+              );
+
+              return (
+                <div key={interaction.interactionId} className="bg-dark-900/60 border border-slate-800 p-4 rounded-xl space-y-3.5 hover:border-slate-700/60 transition-all duration-200">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-xs font-extrabold text-slate-200">{interaction.companyName}</span>
+                        <span className="bg-primary/10 border border-primary/20 text-primary text-[8px] font-black uppercase tracking-wider px-2 py-0.5 rounded">
+                          {interaction.source}
+                        </span>
+                        {hasMentions && (
+                          <span className="bg-amber-500/10 border border-amber-500/25 text-amber-500 text-[8px] font-black uppercase tracking-wider px-2 py-0.5 rounded flex items-center gap-0.5">
+                            Task Assigned to: {interaction.actionMentions.map(m => m.name).join(', ')}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-[11px] text-slate-300 mt-1 line-clamp-1 font-semibold">
+                        {interaction.subject || interaction.messageText}
+                      </p>
+                    </div>
+                    <div className="flex flex-col items-end shrink-0 text-[10px] text-slate-500 font-semibold leading-none">
+                      <span>Logged by {interaction.loggedByName || 'System'}</span>
+                      <span className="mt-1 text-[9px] text-slate-450">
+                        {new Date(interaction.timestamp).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Horizontal progress timeline */}
+                  <div className="grid grid-cols-4 gap-2 pt-2 border-t border-slate-800/40">
+                    {/* Step 1: Sent */}
+                    <div className="flex flex-col items-center text-center space-y-1">
+                      <div className="flex items-center justify-center w-6 h-6 rounded-full bg-emerald-500/20 border border-emerald-500/40 text-emerald-500 text-[10px] font-bold">
+                        ✓
+                      </div>
+                      <span className="text-[9px] font-bold text-emerald-500 uppercase tracking-wider">Sent (Logged)</span>
+                    </div>
+
+                    {/* Step 2: Seen */}
+                    <div className="flex flex-col items-center text-center space-y-1">
+                      <div className={`flex items-center justify-center w-6 h-6 rounded-full text-[10px] font-bold ${
+                        isSeen 
+                          ? 'bg-emerald-500/20 border border-emerald-500/40 text-emerald-500' 
+                          : 'bg-dark-800 border border-slate-350 text-slate-450'
+                      }`}>
+                        {isSeen ? '✓' : '2'}
+                      </div>
+                      <span className={`text-[9px] font-bold uppercase tracking-wider ${
+                        isSeen ? 'text-emerald-500' : 'text-slate-450'
+                      }`}>
+                        Seen
+                      </span>
+                    </div>
+
+                    {/* Step 3: Replied */}
+                    <div className="flex flex-col items-center text-center space-y-1">
+                      <div className={`flex items-center justify-center w-6 h-6 rounded-full text-[10px] font-bold ${
+                        isReplied 
+                          ? 'bg-emerald-500/20 border border-emerald-500/40 text-emerald-500' 
+                          : 'bg-dark-800 border border-slate-350 text-slate-450'
+                      }`}>
+                        {isReplied ? '✓' : '3'}
+                      </div>
+                      <span className={`text-[9px] font-bold uppercase tracking-wider ${
+                        isReplied ? 'text-emerald-500' : 'text-slate-450'
+                      }`}>
+                        Replied
+                      </span>
+                    </div>
+
+                    {/* Step 4: Received */}
+                    <div className="flex flex-col items-center text-center space-y-1">
+                      <div className={`flex items-center justify-center w-6 h-6 rounded-full text-[10px] font-bold ${
+                        isReceived 
+                          ? 'bg-emerald-500/20 border border-emerald-500/40 text-emerald-500' 
+                          : 'bg-dark-800 border border-slate-350 text-slate-450'
+                      }`}>
+                        {isReceived ? '✓' : '4'}
+                      </div>
+                      <span className={`text-[9px] font-bold uppercase tracking-wider ${
+                        isReceived ? 'text-emerald-500' : 'text-slate-450'
+                      }`}>
+                        Received
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* 4. RECENT ACTIVITY TRACKING WIDGET (Admin & Executive Only) */}
+      {(user?.role === 'Admin' || user?.role === 'Executive') && (
+        <div className="glass p-5 rounded-2xl border border-slate-800/80 space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Activity className="w-5 h-5 text-primary" />
+              <div>
+                <h3 className="text-sm font-extrabold uppercase tracking-wider text-slate-350">
+                  Recent System Activity Feed
+                </h3>
+                <p className="text-[10px] text-slate-500">
+                  Real-time audit log tracking system events, logins, and account actions.
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => navigate('/activity-log')}
+              className="bg-primary/10 hover:bg-primary/20 border border-primary/25 px-3.5 py-2 rounded-xl text-[10px] font-bold text-primary flex items-center gap-1.5 transition-all cursor-pointer"
+            >
+              View Full Audit Trail
+              <ArrowRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
+
+          {activityLogsLoading && activityLogs.length === 0 ? (
+            <div className="flex items-center justify-center py-8">
+              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary" />
+            </div>
+          ) : activityLogs.length === 0 ? (
+            <div className="text-center py-8 text-xs text-slate-500">
+              No recent activity logs found.
+            </div>
+          ) : (
+            <div className="divide-y divide-slate-800/40">
+              {activityLogs.slice(0, 5).map((log) => {
+                const getActionClass = (action) => {
+                  const act = action.toLowerCase();
+                  if (act.includes('login')) return 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-600';
+                  if (act.includes('signup')) return 'bg-teal-500/10 border border-teal-500/20 text-teal-600';
+                  if (act.includes('create')) return 'bg-blue-500/10 border border-blue-500/20 text-blue-600';
+                  if (act.includes('update')) return 'bg-amber-500/10 border border-amber-500/20 text-amber-600';
+                  if (act.includes('delete')) return 'bg-rose-500/10 border border-rose-500/20 text-rose-600';
+                  if (act.includes('resolve')) return 'bg-indigo-500/10 border border-indigo-500/20 text-indigo-600';
+                  return 'bg-slate-500/10 border border-slate-500/20 text-slate-600';
+                };
+
+                return (
+                  <div key={log.logId} className="py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                    <div className="flex items-start gap-3 min-w-0">
+                      <div className="bg-primary/10 border border-primary/20 text-primary w-8 h-8 rounded-lg flex items-center justify-center font-bold text-xs shrink-0 mt-0.5">
+                        {log.userName ? log.userName.substring(0, 2).toUpperCase() : 'US'}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="font-bold text-slate-200">{log.userName || 'System/SSO User'}</span>
+                          <span className={`inline-block px-2 py-0.5 rounded border text-[8px] font-black uppercase tracking-wider ${getActionClass(log.action)}`}>
+                            {log.action}
+                          </span>
+                        </div>
+                        <p className="text-slate-350 mt-1 line-clamp-1 font-semibold">{log.details}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3 self-end sm:self-auto shrink-0 text-slate-550 font-semibold text-[10px]">
+                      <Clock className="w-3.5 h-3.5 text-slate-500" />
+                      <span>
+                        {new Date(log.timestamp).toLocaleString([], {
+                          dateStyle: 'short',
+                          timeStyle: 'short'
+                        })}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* ── MY TASKS WIDGET ── visible to non-admin users when they have assignments */}
       {user?.role !== 'Admin' && (

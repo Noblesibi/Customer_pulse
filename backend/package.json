@@ -5,17 +5,19 @@
   "main": "src/server.js",
   "type": "module",
   "scripts": {
-    "start": "node src/server.js",
-    "dev": "nodemon src/server.js"
+    "start": "node --use-system-ca src/server.js",
+    "dev": "nodemon --exec \"node --use-system-ca\" src/server.js"
   },
   "dependencies": {
     "@google/generative-ai": "^0.13.0",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
-    "firebase-admin": "^12.1.1",
     "jsonwebtoken": "^9.0.2",
-    "morgan": "^1.10.0"
+    "ldapjs": "^3.0.7",
+    "morgan": "^1.10.0",
+    "mssql": "^12.5.5",
+    "mysql2": "^3.22.5"
   },
   "devDependencies": {
     "nodemon": "^3.1.2"
