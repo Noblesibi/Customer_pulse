@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { db } from '../config/firebase.js';
+import { db, logActivity } from '../config/database.js';
 import { authenticateToken, requireRole } from '../middleware/auth.middleware.js';
 import { calculateAccountHealth } from '../services/health.service.js';
 
@@ -204,6 +204,7 @@ router.post('/', requireRole(['Admin', 'Sales Manager']), async (req, res) => {
     });
 
     const doc = await db.collection('accounts').doc(accountId).get();
+    await logActivity(req.user.uid, req.user.name, 'Create Account', `Created account ${companyName} (ID: ${accountId})`);
     return res.status(201).json(doc.data());
   } catch (error) {
     console.error('Error creating account:', error);
@@ -290,6 +291,7 @@ router.put('/:id', requireRole(['Admin', 'Sales Manager']), async (req, res) => 
     await calculateAccountHealth(id);
 
     const updatedDoc = await docRef.get();
+    await logActivity(req.user.uid, req.user.name, 'Update Account', `Updated account ${updatedDoc.data().companyName} (ID: ${id})`);
     return res.json(updatedDoc.data());
   } catch (error) {
     console.error('Error updating account:', error);
@@ -322,6 +324,7 @@ router.delete('/:id', requireRole(['Admin']), async (req, res) => {
 
     await Promise.all([...cleanContacts, ...cleanRisks]);
 
+    await logActivity(req.user.uid, req.user.name, 'Delete Account', `Deleted account ${doc.data().companyName} (ID: ${id})`);
     return res.json({ message: 'Account deleted successfully' });
   } catch (error) {
     console.error('Error deleting account:', error);

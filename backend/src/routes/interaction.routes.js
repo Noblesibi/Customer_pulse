@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { db } from '../config/firebase.js';
+import { db, logActivity } from '../config/database.js';
 import { authenticateToken } from '../middleware/auth.middleware.js';
 import { analyzeCommunication } from '../services/ai.service.js';
 import { calculateAccountHealth } from '../services/health.service.js';
@@ -80,7 +80,7 @@ router.get('/', async (req, res) => {
     // Limit output
     const limitedInteractions = interactions.slice(0, parseInt(limit));
 
-    // Enrich with contact name, account name and notifications
+    // Enrich with contact name, account name, notifications and replies
     const enriched = await Promise.all(limitedInteractions.map(async (i) => {
       const contactDoc = await db.collection('contacts').doc(i.contactId).get();
       const accountDoc = await db.collection('accounts').doc(i.accountId).get();
@@ -93,11 +93,20 @@ router.get('/', async (req, res) => {
         console.error('Error fetching notifications for interaction:', err);
       }
 
+      let replies = [];
+      try {
+        const repliesSnap = await db.collection('interactions').doc(i.interactionId).collection('replies').get();
+        replies = repliesSnap.docs.map(doc => doc.data());
+      } catch (err) {
+        console.error('Error fetching replies for interaction:', err);
+      }
+
       return {
         ...i,
         contactName: contactDoc.exists ? contactDoc.data().name : 'System/Unknown',
         companyName: accountDoc.exists ? accountDoc.data().companyName : 'External Account',
-        notifications
+        notifications,
+        replies
       };
     }));
 
@@ -214,6 +223,7 @@ router.post('/:id/reply', async (req, res) => {
     });
     await Promise.all(notifPromises);
 
+    await logActivity(req.user.uid, req.user.name, 'Reply to Interaction', `Replied to task for interaction: "${text.slice(0, 55)}${text.length > 55 ? '...' : ''}"`);
     return res.status(201).json(reply);
   } catch (error) {
     console.error('Error saving reply:', error);
@@ -335,6 +345,12 @@ router.post('/', async (req, res) => {
     // Recalculate health
     const updatedHealth = await calculateAccountHealth(accountId);
 
+    const assigneeNames = Array.isArray(actionMentions) && actionMentions.length > 0
+      ? actionMentions.map(m => m.name).join(', ')
+      : '';
+    const detailsSuffix = assigneeNames ? ` (Assigned to: ${assigneeNames})` : '';
+
+    await logActivity(req.user.uid, req.user.name, 'Create Interaction', `Logged ${source} interaction "${subject || 'No Subject'}" for account ${companyName}${detailsSuffix}`);
     return res.status(201).json({
       interaction: {
         ...newInteraction,
