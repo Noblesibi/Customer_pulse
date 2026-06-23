@@ -29,12 +29,23 @@ router.get('/', async (req, res) => {
     const userDoc = await db.collection('users').doc(req.user.uid).get();
     const userProfile = userDoc.exists ? userDoc.data() : null;
 
-    const isAdmin = req.user.role === 'Admin' || (userProfile && (userProfile.userType === 'Admin' || userProfile.role === 'Admin'));
+    // Use DB userProfile (not JWT role) for true role determination
+    const isTrueAdmin = userProfile && (userProfile.userType === 'Admin' || userProfile.role === 'Admin');
     const isCeo = userProfile && userProfile.userType === 'CEO';
 
-    if (!isAdmin && !isCeo) {
+    if (!isTrueAdmin && !isCeo) {
       const accountsSnap = await db.collection('accounts').get();
       let accounts = accountsSnap.docs.map(doc => doc.data());
+
+      // 1. Contacts where user is the Stakeholder Owner directly
+      const ownedContactIds = new Set(
+        contacts.filter(c => c.ownerId === req.user.uid).map(c => c.contactId)
+      );
+
+      // 2. Contacts belonging to accounts the user owns
+      const ownedAccountIds = new Set(
+        accounts.filter(a => a.ownerId === req.user.uid).map(a => a.accountId || a.id)
+      );
 
       if (userProfile && userProfile.userType === 'BU Head') {
         const targetBu = userProfile.bu || '';
@@ -47,10 +58,8 @@ router.get('/', async (req, res) => {
           }))
         );
       } else {
-        // Fallback filter for Functional Heads, Project Managers, Delivery Heads, Employees, etc.
         const projectsList = userProfile ? (userProfile.projects || []) : [];
         const targetProjects = projectsList.map(p => typeof p === 'string' ? p : p.name).filter(Boolean);
-        
         accounts = accounts.filter(a => 
           targetProjects.some(tp => 
             a.companyName.toLowerCase().includes(tp.toLowerCase()) || 
@@ -59,9 +68,14 @@ router.get('/', async (req, res) => {
         );
       }
 
-      const allowedAccountIds = accounts.map(a => a.accountId || a.id);
-      contacts = contacts.filter(c => allowedAccountIds.includes(c.accountId));
+      const projectAccountIds = new Set(accounts.map(a => a.accountId || a.id));
+      const allowedAccountIds = new Set([...projectAccountIds, ...ownedAccountIds]);
+
+      contacts = contacts.filter(c =>
+        allowedAccountIds.has(c.accountId) || ownedContactIds.has(c.contactId)
+      );
     }
+
 
     if (search) {
       const q = search.toLowerCase();
@@ -100,8 +114,8 @@ router.get('/:id', async (req, res) => {
  * POST /api/contacts
  * Create contact (restricted to Admin, Manager, and Employee).
  */
-router.post('/', requireRole(['Admin', 'Sales Manager', 'Employee']), async (req, res) => {
-  const { accountId, name, email, designation, hierarchyTag, influenceTag, phone, projectName, projectIndustry } = req.body;
+router.post('/', requireRole(['Admin', 'Sales Manager', 'Employee', 'Executive']), async (req, res) => {
+  const { accountId, name, email, designation, hierarchyTag, influenceTag, phone, projectName, projectIndustry, ownerId, ownerName } = req.body;
 
   if (!accountId || !name || !email) {
     return res.status(400).json({ error: 'Missing accountId, name, or email' });
@@ -121,6 +135,18 @@ router.post('/', requireRole(['Admin', 'Sales Manager', 'Employee']), async (req
       return res.status(404).json({ error: 'Associated Account not found' });
     }
 
+    let finalOwnerId = ownerId || req.user.uid;
+    let finalOwnerName = ownerName;
+    if (ownerId && !ownerName) {
+      const ownerUserDoc = await db.collection('users').doc(ownerId).get();
+      if (ownerUserDoc.exists) {
+        finalOwnerName = ownerUserDoc.data().name;
+      }
+    }
+    if (!finalOwnerName) {
+      finalOwnerName = req.user.name || 'System User';
+    }
+
     const contactId = 'con-' + Math.random().toString(36).substring(2, 11);
     const newContact = {
       contactId,
@@ -132,7 +158,10 @@ router.post('/', requireRole(['Admin', 'Sales Manager', 'Employee']), async (req
       influenceTag: iTag,
       phone: phone || '',
       projectName: projectName || '',
-      projectIndustry: projectIndustry || 'Technology'
+      projectIndustry: projectIndustry || 'Technology',
+      ownerId: finalOwnerId,
+      ownerName: finalOwnerName,
+      createdAt: new Date().toISOString()
     };
 
     await db.collection('contacts').doc(contactId).set(newContact);
@@ -152,9 +181,9 @@ router.post('/', requireRole(['Admin', 'Sales Manager', 'Employee']), async (req
  * PUT /api/contacts/:id
  * Edit contact details.
  */
-router.put('/:id', requireRole(['Admin', 'Sales Manager', 'Employee']), async (req, res) => {
+router.put('/:id', requireRole(['Admin', 'Sales Manager', 'Employee', 'Executive']), async (req, res) => {
   const { id } = req.params;
-  const { name, email, designation, hierarchyTag, influenceTag, phone, projectName, projectIndustry } = req.body;
+  const { name, email, designation, hierarchyTag, influenceTag, phone, projectName, projectIndustry, ownerId, ownerName } = req.body;
 
   try {
     const docRef = db.collection('contacts').doc(id);
@@ -175,6 +204,22 @@ router.put('/:id', requireRole(['Admin', 'Sales Manager', 'Employee']), async (r
     if (projectName !== undefined) updates.projectName = projectName;
     if (projectIndustry !== undefined) updates.projectIndustry = projectIndustry;
 
+    if (ownerId !== undefined) {
+      updates.ownerId = ownerId;
+      if (ownerName) {
+        updates.ownerName = ownerName;
+      } else if (ownerId) {
+        const ownerUserDoc = await db.collection('users').doc(ownerId).get();
+        if (ownerUserDoc.exists) {
+          updates.ownerName = ownerUserDoc.data().name;
+        } else {
+          updates.ownerName = 'Unknown User';
+        }
+      } else {
+        updates.ownerName = null;
+      }
+    }
+
     await docRef.update(updates);
 
     // Recalculate health since tags might have changed
@@ -192,7 +237,7 @@ router.put('/:id', requireRole(['Admin', 'Sales Manager', 'Employee']), async (r
 /**
  * DELETE /api/contacts/:id
  */
-router.delete('/:id', requireRole(['Admin', 'Sales Manager']), async (req, res) => {
+router.delete('/:id', requireRole(['Admin', 'Sales Manager', 'Executive']), async (req, res) => {
   const { id } = req.params;
   try {
     const docRef = db.collection('contacts').doc(id);

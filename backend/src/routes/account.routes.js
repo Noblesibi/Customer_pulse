@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { db, logActivity } from '../config/database.js';
 import { authenticateToken, requireRole } from '../middleware/auth.middleware.js';
-import { calculateAccountHealth } from '../services/health.service.js';
+import { calculateAccountHealth, getAccountHealthExplanation } from '../services/health.service.js';
 
 const router = Router();
 
@@ -24,33 +24,32 @@ router.get('/', async (req, res) => {
     const userDoc = await db.collection('users').doc(req.user.uid).get();
     const userProfile = userDoc.exists ? userDoc.data() : null;
 
-    const isAdmin = req.user.role === 'Admin' || (userProfile && (userProfile.userType === 'Admin' || userProfile.role === 'Admin'));
+    // Use DB userProfile (not JWT role) for true role determination
+    // JWT role is hardcoded to 'Admin' for all users; real role is in the DB profile
+    const isTrueAdmin = userProfile && (userProfile.userType === 'Admin' || userProfile.role === 'Admin');
     const isCeo = userProfile && userProfile.userType === 'CEO';
 
-    if (!isAdmin && !isCeo) {
-      if (userProfile && userProfile.userType === 'BU Head') {
-        const targetBu = userProfile.bu || '';
-        const targetProjects = userProfile.projects || [];
-        accounts = accounts.filter(a => 
-          (targetBu && a.industry.toLowerCase() === targetBu.toLowerCase()) || 
-          (targetProjects.length > 0 && targetProjects.some(tp => {
-            const tpName = typeof tp === 'string' ? tp : tp.name;
-            return tpName && (a.companyName.toLowerCase().includes(tpName.toLowerCase()) || tpName.toLowerCase().includes(a.companyName.toLowerCase()));
-          }))
-        );
-      } else {
-        // Fallback filter for Functional Heads, Project Managers, Delivery Heads, Employees, etc.
-        const projectsList = userProfile ? (userProfile.projects || []) : [];
-        const targetProjects = projectsList.map(p => typeof p === 'string' ? p : p.name).filter(Boolean);
-        
-        accounts = accounts.filter(a => 
-          targetProjects.some(tp => 
-            a.companyName.toLowerCase().includes(tp.toLowerCase()) || 
-            tp.toLowerCase().includes(a.companyName.toLowerCase())
-          )
-        );
-      }
+    if (!isTrueAdmin && !isCeo) {
+      // 1. Accounts where this user is the Account Owner
+      const ownedAccountIds = new Set(
+        accounts
+          .filter(a => a.ownerId === req.user.uid)
+          .map(a => a.accountId || a.id)
+      );
+
+      // 2. Accounts where this user is a Stakeholder Owner (any contact ownerId matches)
+      const allContactsSnap = await db.collection('contacts').get();
+      const stakeholderAccountIds = new Set(
+        allContactsSnap.docs
+          .map(d => d.data())
+          .filter(c => c.ownerId === req.user.uid)
+          .map(c => c.accountId)
+      );
+
+      const allowedIds = new Set([...ownedAccountIds, ...stakeholderAccountIds]);
+      accounts = accounts.filter(a => allowedIds.has(a.accountId || a.id));
     }
+
 
     // Filter by search query (companyName)
     if (search) {
@@ -115,12 +114,12 @@ router.get('/:id', async (req, res) => {
  * POST /api/accounts
  * Add Account (Admin or Sales Manager only).
  */
-router.post('/', requireRole(['Admin', 'Sales Manager']), async (req, res) => {
+router.post('/', requireRole(['Admin', 'Sales Manager', 'Executive']), async (req, res) => {
   const { 
     companyName, industry, region,
     email, phone, ceoName, domain, projectName,
     contactName, contactEmail, contactPhone, contactPosition, contactDepartment, contactProjects,
-    contacts
+    contacts, ownerId, ownerName
   } = req.body;
 
   if (!companyName) {
@@ -128,6 +127,18 @@ router.post('/', requireRole(['Admin', 'Sales Manager']), async (req, res) => {
   }
 
   try {
+    let finalOwnerId = ownerId || req.user.uid;
+    let finalOwnerName = ownerName;
+    if (ownerId && !ownerName) {
+      const ownerUserDoc = await db.collection('users').doc(ownerId).get();
+      if (ownerUserDoc.exists) {
+        finalOwnerName = ownerUserDoc.data().name;
+      }
+    }
+    if (!finalOwnerName) {
+      finalOwnerName = req.user.name || 'System User';
+    }
+
     const accountId = 'acc-' + Math.random().toString(36).substring(2, 11);
     const newAccount = {
       accountId,
@@ -141,6 +152,8 @@ router.post('/', requireRole(['Admin', 'Sales Manager']), async (req, res) => {
       projectName: '',
       healthScore: 70, // baseline
       status: 'Warning',
+      ownerId: finalOwnerId,
+      ownerName: finalOwnerName,
       createdAt: new Date().toISOString()
     };
 
@@ -151,6 +164,18 @@ router.post('/', requireRole(['Admin', 'Sales Manager']), async (req, res) => {
       for (const contact of contacts) {
         if (contact.name) {
           const contactId = 'con-' + Math.random().toString(36).substring(2, 11);
+          let cOwnerId = contact.ownerId || finalOwnerId;
+          let cOwnerName = contact.ownerName;
+          if (contact.ownerId && !contact.ownerName) {
+            const ownerUserDoc = await db.collection('users').doc(contact.ownerId).get();
+            if (ownerUserDoc.exists) {
+              cOwnerName = ownerUserDoc.data().name;
+            }
+          }
+          if (!cOwnerName) {
+            cOwnerName = finalOwnerName;
+          }
+
           const newContact = {
             contactId,
             accountId,
@@ -163,6 +188,8 @@ router.post('/', requireRole(['Admin', 'Sales Manager']), async (req, res) => {
             projectIndustry: contact.projectIndustry || 'Technology',
             hierarchyTag: contact.hierarchyTag || 'Staff',
             influenceTag: contact.influenceTag || 'Observer',
+            ownerId: cOwnerId,
+            ownerName: cOwnerName,
             createdAt: new Date().toISOString()
           };
           await db.collection('contacts').doc(contactId).set(newContact);
@@ -183,6 +210,8 @@ router.post('/', requireRole(['Admin', 'Sales Manager']), async (req, res) => {
         projectIndustry: 'Technology',
         hierarchyTag: 'Staff', // Default, can be updated later
         influenceTag: 'Observer', // Default
+        ownerId: finalOwnerId,
+        ownerName: finalOwnerName,
         createdAt: new Date().toISOString()
       };
       await db.collection('contacts').doc(contactId).set(newContact);
@@ -216,9 +245,9 @@ router.post('/', requireRole(['Admin', 'Sales Manager']), async (req, res) => {
  * PUT /api/accounts/:id
  * Edit Account (Admin or Sales Manager only).
  */
-router.put('/:id', requireRole(['Admin', 'Sales Manager']), async (req, res) => {
+router.put('/:id', requireRole(['Admin', 'Sales Manager', 'Executive']), async (req, res) => {
   const { id } = req.params;
-  const { companyName, industry, region, email, phone, ceoName, domain, contacts } = req.body;
+  const { companyName, industry, region, email, phone, ceoName, domain, contacts, ownerId, ownerName } = req.body;
 
   try {
     const docRef = db.collection('accounts').doc(id);
@@ -236,6 +265,22 @@ router.put('/:id', requireRole(['Admin', 'Sales Manager']), async (req, res) => 
     if (phone !== undefined) updates.phone = phone;
     if (ceoName !== undefined) updates.ceoName = ceoName;
     if (domain !== undefined) updates.domain = domain;
+
+    if (ownerId !== undefined) {
+      updates.ownerId = ownerId;
+      if (ownerName) {
+        updates.ownerName = ownerName;
+      } else if (ownerId) {
+        const ownerUserDoc = await db.collection('users').doc(ownerId).get();
+        if (ownerUserDoc.exists) {
+          updates.ownerName = ownerUserDoc.data().name;
+        } else {
+          updates.ownerName = 'Unknown User';
+        }
+      } else {
+        updates.ownerName = null;
+      }
+    }
 
     await docRef.update(updates);
 
@@ -256,7 +301,7 @@ router.put('/:id', requireRole(['Admin', 'Sales Manager']), async (req, res) => 
       // Create or update incoming
       for (const contact of contacts) {
         if (contact.contactId) {
-          await db.collection('contacts').doc(contact.contactId).update({
+          const contactUpdates = {
             name: contact.name,
             email: contact.email || '',
             phone: contact.phone || '',
@@ -266,9 +311,33 @@ router.put('/:id', requireRole(['Admin', 'Sales Manager']), async (req, res) => 
             projectIndustry: contact.projectIndustry || 'Technology',
             hierarchyTag: contact.hierarchyTag || 'Staff',
             influenceTag: contact.influenceTag || 'Observer'
-          });
+          };
+          if (contact.ownerId !== undefined) {
+            contactUpdates.ownerId = contact.ownerId;
+            if (contact.ownerName) {
+              contactUpdates.ownerName = contact.ownerName;
+            } else if (contact.ownerId) {
+              const ownerUserDoc = await db.collection('users').doc(contact.ownerId).get();
+              if (ownerUserDoc.exists) {
+                contactUpdates.ownerName = ownerUserDoc.data().name;
+              } else {
+                contactUpdates.ownerName = 'Unknown User';
+              }
+            } else {
+              contactUpdates.ownerName = null;
+            }
+          }
+          await db.collection('contacts').doc(contact.contactId).update(contactUpdates);
         } else {
           const contactId = 'con-' + Math.random().toString(36).substring(2, 11);
+          let cOwnerId = contact.ownerId || ownerId || doc.data().ownerId || req.user.uid;
+          let cOwnerName = contact.ownerName || ownerName || doc.data().ownerName || req.user.name;
+          if (contact.ownerId && !contact.ownerName) {
+            const ownerUserDoc = await db.collection('users').doc(contact.ownerId).get();
+            if (ownerUserDoc.exists) {
+              cOwnerName = ownerUserDoc.data().name;
+            }
+          }
           await db.collection('contacts').doc(contactId).set({
             contactId,
             accountId: id,
@@ -281,6 +350,8 @@ router.put('/:id', requireRole(['Admin', 'Sales Manager']), async (req, res) => 
             projectIndustry: contact.projectIndustry || 'Technology',
             hierarchyTag: contact.hierarchyTag || 'Staff',
             influenceTag: contact.influenceTag || 'Observer',
+            ownerId: cOwnerId,
+            ownerName: cOwnerName,
             createdAt: new Date().toISOString()
           });
         }
@@ -303,7 +374,7 @@ router.put('/:id', requireRole(['Admin', 'Sales Manager']), async (req, res) => 
  * DELETE /api/accounts/:id
  * Delete Account (Admin only).
  */
-router.delete('/:id', requireRole(['Admin']), async (req, res) => {
+router.delete('/:id', requireRole(['Admin', 'Executive']), async (req, res) => {
   const { id } = req.params;
   try {
     const docRef = db.collection('accounts').doc(id);
@@ -328,6 +399,24 @@ router.delete('/:id', requireRole(['Admin']), async (req, res) => {
     return res.json({ message: 'Account deleted successfully' });
   } catch (error) {
     console.error('Error deleting account:', error);
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * GET /api/accounts/:id/health-explanation
+ * Get detailed sub-score breakdown explaining account health.
+ */
+router.get('/:id/health-explanation', async (req, res) => {
+  const { id } = req.params;
+  try {
+    const explanation = await getAccountHealthExplanation(id);
+    if (!explanation) {
+      return res.status(404).json({ error: 'Account health details not found' });
+    }
+    return res.json(explanation);
+  } catch (error) {
+    console.error('Error fetching account health explanation:', error);
     return res.status(500).json({ error: error.message });
   }
 });

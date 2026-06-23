@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import morgan from 'morgan';
+import path from 'path';
 
 // Routes imports
 import authRouter from './routes/auth.routes.js';
@@ -28,8 +29,12 @@ app.use(cors({
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
-app.use(express.json());
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
 app.use(morgan('dev'));
+
+// Static Uploads Folder
+app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
 
 // Webhook Endpoints (Mounted before authenticateToken since Microsoft Graph bypasses jwt auth)
 app.post('/api/webhooks/outlook', handleOutlookWebhook);
@@ -48,12 +53,18 @@ app.use('/api/activity-logs', activityRouter);
 
 // Service Health check
 app.get('/api/health', (req, res) => {
+  const ldapEnabled = process.env.LDAP_ENABLED || 'false';
   res.json({
     status: 'healthy',
     timestamp: new Date().toISOString(),
     env: {
-      firebaseMode: process.env.FIREBASE_SERVICE_ACCOUNT_KEY ? 'Production' : 'Mock/Development',
-      geminiMode: process.env.GEMINI_API_KEY ? 'Gemini API' : 'Local NLP Fallback'
+      database:  process.env.DB_TYPE    || 'mock',
+      ldap:      ldapEnabled === 'true' ? `enabled (${process.env.LDAP_URL || 'unconfigured'})`
+               : ldapEnabled === 'mock' ? 'mock (simulation mode)'
+               : 'disabled',
+      rbac:      'enabled',
+      ai:        process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY !== 'your_gemini_api_key_here'
+               ? 'Gemini API' : 'Local NLP Fallback'
     }
   });
 });

@@ -40,7 +40,7 @@ export default function Sidebar() {
           </div>
           <div className="border-t border-slate-200/60 pt-2 w-full">
             <span className="font-extrabold text-lg text-slate-800 tracking-wide block">CustomerPulse</span>
-            <span className="text-[10px] text-primary font-semibold tracking-wider uppercase">Rel Intelligence</span>
+            <span className="text-xs text-primary font-semibold tracking-wider uppercase">Rel Intelligence</span>
           </div>
         </div>
 
@@ -53,7 +53,7 @@ export default function Sidebar() {
             <h4 className="text-sm font-semibold text-white truncate">{user?.name}</h4>
             <div className="flex items-center gap-1 mt-0.5">
               <Shield className="w-3 h-3 text-emerald-400" />
-              <span className="text-[11px] text-emerald-400 font-medium">{user?.userType || user?.role}</span>
+              <span className="text-xs text-emerald-400 font-medium">{user?.userType || user?.role}</span>
             </div>
           </div>
         </div>

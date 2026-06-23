@@ -13,7 +13,9 @@ export default function Contacts() {
     fetchContacts, 
     addContact,
     updateContact,
-    deleteContact
+    deleteContact,
+    staffList,
+    fetchStaff
   } = useStore();
 
   const [search, setSearch] = useState('');
@@ -35,6 +37,8 @@ export default function Contacts() {
   const [influenceTag, setInfluenceTag] = useState('Observer');
   const [projectName, setProjectName] = useState('');
   const [projectIndustry, setProjectIndustry] = useState('Technology');
+  const [ownerId, setOwnerId] = useState('');
+  const [ownerName, setOwnerName] = useState('');
 
   const hierarchyTags = ['CXO', 'VP', 'Director', 'Manager', 'Staff'];
   const influenceTags = ['Decision Maker', 'Influencer', 'Champion', 'Gatekeeper', 'Observer'];
@@ -44,6 +48,7 @@ export default function Contacts() {
   // Load all contacts when selection changes
   useEffect(() => {
     fetchContacts(selectedAccountId);
+    fetchStaff();
   }, [selectedAccountId]);
 
   // Load accounts locally to list in dropdown/matrix mappings
@@ -80,7 +85,9 @@ export default function Contacts() {
       hierarchyTag,
       influenceTag,
       projectName,
-      projectIndustry
+      projectIndustry,
+      ownerId,
+      ownerName
     });
     if (success) {
       setIsAddContactOpen(false);
@@ -99,7 +106,9 @@ export default function Contacts() {
       hierarchyTag,
       influenceTag,
       projectName,
-      projectIndustry
+      projectIndustry,
+      ownerId,
+      ownerName
     });
     if (success) {
       setIsEditContactOpen(false);
@@ -119,6 +128,8 @@ export default function Contacts() {
     setInfluenceTag(c.influenceTag);
     setProjectName(c.projectName || '');
     setProjectIndustry(c.projectIndustry || 'Technology');
+    setOwnerId(c.ownerId || '');
+    setOwnerName(c.ownerName || '');
     setIsEditContactOpen(true);
   };
 
@@ -140,6 +151,8 @@ export default function Contacts() {
     setInfluenceTag('Observer');
     setProjectName('');
     setProjectIndustry('Technology');
+    setOwnerId('');
+    setOwnerName('');
   };
 
   const filteredContacts = contacts.filter(c => 
@@ -186,13 +199,13 @@ export default function Contacts() {
           <div className="min-w-[700px] grid grid-cols-6 gap-2">
             
             {/* Empty top corner */}
-            <div className="p-2 flex items-center justify-center text-[10px] text-slate-500 font-bold uppercase tracking-wider">
+            <div className="p-2 flex items-center justify-center text-xs text-slate-500 font-bold uppercase tracking-wider">
               Hierarchy \ Influence
             </div>
 
             {/* Influence headers */}
             {influenceTags.map(inf => (
-              <div key={inf} className="bg-primary/5 border border-primary/15 rounded-xl p-2.5 text-center text-[10px] font-extrabold uppercase text-slate-300 tracking-wide">
+              <div key={inf} className="bg-primary/5 border border-primary/15 rounded-xl p-2.5 text-center text-xs font-extrabold uppercase text-slate-300 tracking-wide">
                 {inf}
               </div>
             ))}
@@ -201,7 +214,7 @@ export default function Contacts() {
             {hierarchyTags.map(hier => (
               <React.Fragment key={hier}>
                 {/* Y-axis label */}
-                <div className="bg-slate-900/40 border border-slate-800/60 rounded-xl p-2 flex items-center justify-center text-center text-[10px] font-bold text-slate-400">
+                <div className="bg-slate-900/40 border border-slate-800/60 rounded-xl p-2 flex items-center justify-center text-center text-xs font-bold text-slate-400">
                   {hier}
                 </div>
 
@@ -223,11 +236,11 @@ export default function Contacts() {
                           <div 
                             key={c.contactId || c.id} 
                             onClick={() => openEditModal(c)}
-                            className="bg-dark-900 border border-slate-800 p-1.5 rounded-lg text-[10px] hover:border-primary cursor-pointer"
+                            className="bg-dark-900 border border-slate-800 p-1.5 rounded-lg text-xs hover:border-primary cursor-pointer"
                             title={`${c.name} - ${c.designation} (${accRef?.companyName || 'External'})`}
                           >
                             <div className="font-bold text-white truncate">{c.name}</div>
-                            <div className="text-slate-400 text-[9px] truncate">{accRef?.companyName || 'CRM Account'}</div>
+                            <div className="text-slate-400 text-xs truncate">{accRef?.companyName || 'CRM Account'}</div>
                           </div>
                         );
                       })}
@@ -287,25 +300,31 @@ export default function Contacts() {
                 <div key={c.contactId || c.id} className="bg-dark-900/40 border border-slate-800 hover:border-slate-700/80 rounded-2xl p-5 flex flex-col justify-between space-y-4 transition-all duration-200">
                   <div className="space-y-1.5">
                     <div className="flex items-center justify-between">
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700">
+                      <span className="text-xs font-bold px-2 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700">
                         {c.hierarchyTag}
                       </span>
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/25">
+                      <span className="text-xs font-bold px-2 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/25">
                         {c.influenceTag}
                       </span>
                     </div>
 
                     <h3 className="text-sm font-bold text-white pt-1">{c.name}</h3>
-                    <p className="text-[11px] text-primary font-medium">{c.designation}</p>
-                    <span className="text-[10px] text-slate-400 block font-semibold">{account?.companyName || 'Corporate Client'}</span>
+                    <p className="text-xs text-primary font-medium">{c.designation}</p>
+                    <span className="text-xs text-slate-400 block font-semibold">{account?.companyName || 'Corporate Client'}</span>
                     {c.projectName && (
                       <div className="mt-2 space-y-1">
-                        <span className="text-[9px] uppercase font-bold text-slate-500 block">Project & Industry</span>
-                        <span className="text-[10px] text-emerald-400 font-semibold block truncate">
+                        <span className="text-xs uppercase font-bold text-slate-500 block">Project & Industry</span>
+                        <span className="text-xs text-emerald-400 font-semibold block truncate">
                           📁 {c.projectName} ({c.projectIndustry || 'Technology'})
                         </span>
                       </div>
                     )}
+                    <div className="mt-2 space-y-1">
+                      <span className="text-xs uppercase font-bold text-slate-500 block">Stakeholder Owner</span>
+                      <span className="text-xs text-slate-300 font-semibold block truncate">
+                        👤 {c.ownerName || 'Unassigned'}
+                      </span>
+                    </div>
                   </div>
 
                   <div className="space-y-2 border-t border-slate-800/60 pt-3 text-slate-400 text-xs">
@@ -358,7 +377,7 @@ export default function Contacts() {
             </div>
             <form onSubmit={handleCreateContact} className="space-y-3">
               <div className="space-y-1">
-                <label className="text-[9px] text-slate-400 uppercase font-semibold">Account Company</label>
+                <label className="text-xs text-slate-400 uppercase font-semibold">Account Company</label>
                 <select 
                   value={accountId}
                   onChange={(e) => setAccountId(e.target.value)}
@@ -374,7 +393,7 @@ export default function Contacts() {
                 </select>
               </div>
               <div className="space-y-1">
-                <label className="text-[9px] text-slate-400 uppercase font-semibold">Project Name Details</label>
+                <label className="text-xs text-slate-400 uppercase font-semibold">Project Name Details</label>
                 <input 
                   type="text" 
                   value={projectName}
@@ -384,7 +403,7 @@ export default function Contacts() {
                 />
               </div>
               <div className="space-y-1">
-                <label className="text-[9px] text-slate-400 uppercase font-semibold">Project Industry</label>
+                <label className="text-xs text-slate-400 uppercase font-semibold">Project Industry</label>
                 <select 
                   value={projectIndustry}
                   onChange={(e) => setProjectIndustry(e.target.value)}
@@ -396,7 +415,7 @@ export default function Contacts() {
                 </select>
               </div>
               <div className="space-y-1">
-                <label className="text-[9px] text-slate-400 uppercase font-semibold">Contact Name</label>
+                <label className="text-xs text-slate-400 uppercase font-semibold">Contact Name</label>
                 <input 
                   type="text" 
                   value={name}
@@ -407,7 +426,7 @@ export default function Contacts() {
                 />
               </div>
               <div className="space-y-1">
-                <label className="text-[9px] text-slate-400 uppercase font-semibold">Corporate Email</label>
+                <label className="text-xs text-slate-400 uppercase font-semibold">Corporate Email</label>
                 <input 
                   type="email" 
                   value={email}
@@ -418,7 +437,7 @@ export default function Contacts() {
                 />
               </div>
               <div className="space-y-1">
-                <label className="text-[9px] text-slate-400 uppercase font-semibold">Role Designation</label>
+                <label className="text-xs text-slate-400 uppercase font-semibold">Role Designation</label>
                 <input 
                   type="text" 
                   value={designation}
@@ -429,7 +448,7 @@ export default function Contacts() {
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
-                  <label className="text-[9px] text-slate-400 uppercase font-semibold">Hierarchy Tag</label>
+                  <label className="text-xs text-slate-400 uppercase font-semibold">Hierarchy Tag</label>
                   <select 
                     value={hierarchyTag}
                     onChange={(e) => setHierarchyTag(e.target.value)}
@@ -439,7 +458,7 @@ export default function Contacts() {
                   </select>
                 </div>
                 <div className="space-y-1">
-                  <label className="text-[9px] text-slate-400 uppercase font-semibold">Influence Tag</label>
+                  <label className="text-xs text-slate-400 uppercase font-semibold">Influence Tag</label>
                   <select 
                     value={influenceTag}
                     onChange={(e) => setInfluenceTag(e.target.value)}
@@ -448,6 +467,24 @@ export default function Contacts() {
                     {influenceTags.map(tag => <option key={tag} value={tag}>{tag}</option>)}
                   </select>
                 </div>
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs text-slate-400 uppercase font-semibold">Stakeholder Owner</label>
+                <select 
+                  value={ownerId}
+                  onChange={(e) => {
+                    const selId = e.target.value;
+                    const selStaff = staffList.find(s => s.uid === selId);
+                    setOwnerId(selId);
+                    setOwnerName(selStaff ? selStaff.name : '');
+                  }}
+                  className="w-full bg-dark-900/60 border border-slate-800 text-xs text-white rounded-lg p-2 focus:outline-none cursor-pointer"
+                >
+                  <option value="">Select Stakeholder Owner</option>
+                  {staffList.map(staff => (
+                    <option key={staff.uid} value={staff.uid}>{staff.name} ({staff.role})</option>
+                  ))}
+                </select>
               </div>
               
               <button type="submit" className="w-full bg-primary hover:bg-blue-600 text-xs text-white font-semibold rounded-lg py-2.5 mt-2 transition-all">
@@ -470,7 +507,7 @@ export default function Contacts() {
             </div>
             <form onSubmit={handleEditContact} className="space-y-3">
               <div className="space-y-1">
-                <label className="text-[9px] text-slate-400 uppercase font-semibold">Project Name Details</label>
+                <label className="text-xs text-slate-400 uppercase font-semibold">Project Name Details</label>
                 <input 
                   type="text" 
                   value={projectName}
@@ -481,7 +518,7 @@ export default function Contacts() {
                 />
               </div>
               <div className="space-y-1">
-                <label className="text-[9px] text-slate-400 uppercase font-semibold">Project Industry</label>
+                <label className="text-xs text-slate-400 uppercase font-semibold">Project Industry</label>
                 <select 
                   value={projectIndustry}
                   onChange={(e) => setProjectIndustry(e.target.value)}
@@ -494,7 +531,7 @@ export default function Contacts() {
                 </select>
               </div>
               <div className="space-y-1">
-                <label className="text-[9px] text-slate-400 uppercase font-semibold">Contact Name</label>
+                <label className="text-xs text-slate-400 uppercase font-semibold">Contact Name</label>
                 <input 
                   type="text" 
                   value={name}
@@ -505,7 +542,7 @@ export default function Contacts() {
                 />
               </div>
               <div className="space-y-1">
-                <label className="text-[9px] text-slate-400 uppercase font-semibold">Corporate Email</label>
+                <label className="text-xs text-slate-400 uppercase font-semibold">Corporate Email</label>
                 <input 
                   type="email" 
                   value={email}
@@ -516,7 +553,7 @@ export default function Contacts() {
                 />
               </div>
               <div className="space-y-1">
-                <label className="text-[9px] text-slate-400 uppercase font-semibold">Role Designation</label>
+                <label className="text-xs text-slate-400 uppercase font-semibold">Role Designation</label>
                 <input 
                   type="text" 
                   value={designation}
@@ -527,7 +564,7 @@ export default function Contacts() {
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
-                  <label className="text-[9px] text-slate-400 uppercase font-semibold">Hierarchy Tag</label>
+                  <label className="text-xs text-slate-400 uppercase font-semibold">Hierarchy Tag</label>
                   <select 
                     value={hierarchyTag}
                     onChange={(e) => setHierarchyTag(e.target.value)}
@@ -538,7 +575,7 @@ export default function Contacts() {
                   </select>
                 </div>
                 <div className="space-y-1">
-                  <label className="text-[9px] text-slate-400 uppercase font-semibold">Influence Tag</label>
+                  <label className="text-xs text-slate-400 uppercase font-semibold">Influence Tag</label>
                   <select 
                     value={influenceTag}
                     onChange={(e) => setInfluenceTag(e.target.value)}
@@ -550,7 +587,7 @@ export default function Contacts() {
                 </div>
               </div>
               <div className="space-y-1">
-                <label className="text-[9px] text-slate-400 uppercase font-semibold">Phone Number</label>
+                <label className="text-xs text-slate-400 uppercase font-semibold">Phone Number</label>
                 <input 
                   type="text" 
                   value={phone}
@@ -558,6 +595,25 @@ export default function Contacts() {
                   disabled={!canEdit}
                   className={`w-full bg-dark-900/60 border border-slate-800 text-xs text-white rounded-lg p-2 focus:outline-none ${!canEdit ? 'opacity-70 cursor-not-allowed' : 'focus:border-primary/50'}`}
                 />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs text-slate-400 uppercase font-semibold">Stakeholder Owner</label>
+                <select 
+                  value={ownerId}
+                  onChange={(e) => {
+                    const selId = e.target.value;
+                    const selStaff = staffList.find(s => s.uid === selId);
+                    setOwnerId(selId);
+                    setOwnerName(selStaff ? selStaff.name : '');
+                  }}
+                  disabled={!canEdit}
+                  className={`w-full bg-dark-900/60 border border-slate-800 text-xs text-white rounded-lg p-2 focus:outline-none ${!canEdit ? 'opacity-70 cursor-not-allowed' : 'cursor-pointer'}`}
+                >
+                  <option value="">Select Stakeholder Owner</option>
+                  {staffList.map(staff => (
+                    <option key={staff.uid} value={staff.uid}>{staff.name} ({staff.role})</option>
+                  ))}
+                </select>
               </div>
               {canEdit && (
                 <button type="submit" className="w-full bg-primary hover:bg-blue-600 text-xs text-white font-semibold rounded-lg py-2.5 mt-2 transition-all">
