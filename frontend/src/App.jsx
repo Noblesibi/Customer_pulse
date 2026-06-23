@@ -14,6 +14,7 @@ import Risks from './pages/Risks.jsx';
 import WebhooksDemo from './pages/WebhooksDemo.jsx';
 import Users from './pages/Users.jsx';
 import ActivityLog from './pages/ActivityLog.jsx';
+import LogActivity from './pages/LogActivity.jsx';
 
 export default function App() {
   return (
@@ -34,6 +35,7 @@ export default function App() {
           <Route path="/webhooks-demo" element={<WebhooksDemo />} />
           <Route path="/users" element={<Users />} />
           <Route path="/activity-log" element={<ActivityLog />} />
+          <Route path="/log-activity" element={<LogActivity />} />
         </Route>
 
         {/* Fallback routing */}

@@ -1,4 +1,4 @@
-import mysql from 'mysql2/promise';
+import pg from 'pg';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -8,16 +8,16 @@ const __dirname = path.dirname(__filename);
 
 const config = {
   host: process.env.DB_HOST || 'localhost',
-  port: parseInt(process.env.DB_PORT) || 3306,
-  user: process.env.DB_USER || 'root',
-  password: process.env.DB_PASSWORD || 'YourStrongRootPasswordHere',
+  port: parseInt(process.env.DB_PORT) || 5432,
+  user: process.env.DB_USER || 'postgres',
+  password: process.env.DB_PASSWORD || 'postgres',
   database: process.env.DB_DATABASE || 'customer_pulse'
 };
 
 let pool;
 let isConnected = false;
 
-// Table mapping to map collection names to MySQL table names
+// Table mapping to map collection names to PostgreSQL table names
 const tableMap = {
   users: 'Users',
   accounts: 'Accounts',
@@ -47,7 +47,7 @@ const keyFields = {
 
 /**
  * Parses database rows back into format expected by application.
- * Rehydrates JSON strings to Javascript objects/arrays, maps bit fields to booleans.
+ * Rehydrates JSON strings to Javascript objects/arrays, maps boolean fields.
  */
 function parseRow(tableName, row) {
   if (!row) return null;
@@ -65,6 +65,9 @@ function parseRow(tableName, row) {
   if (tableName === 'Interactions') {
     if (typeof data.actionMentions === 'string') {
       try { data.actionMentions = JSON.parse(data.actionMentions); } catch (e) { data.actionMentions = []; }
+    }
+    if (typeof data.attachments === 'string') {
+      try { data.attachments = JSON.parse(data.attachments); } catch (e) { data.attachments = []; }
     }
     data.riskDetected = !!data.riskDetected;
   }
@@ -94,7 +97,7 @@ async function upsertRow(tableName, keyColumn, keyVal, data) {
   const connection = await getPool();
   
   // Check if row already exists
-  const [checkResult] = await connection.query(`SELECT 1 FROM \`${tableName}\` WHERE \`${keyColumn}\` = ?`, [keyVal]);
+  const checkResult = await connection.query(`SELECT 1 FROM "${tableName}" WHERE "${keyColumn}" = $1`, [keyVal]);
   
   // Prepare input variables
   const columns = Object.keys(data).filter(col => col !== 'id');
@@ -107,7 +110,7 @@ async function upsertRow(tableName, keyColumn, keyVal, data) {
     } else if (Array.isArray(val) || (typeof val === 'object' && !(val instanceof Date))) {
       formattedData[col] = JSON.stringify(val);
     } else if (typeof val === 'boolean') {
-      formattedData[col] = val ? 1 : 0;
+      formattedData[col] = val;
     } else {
       formattedData[col] = val;
     }
@@ -116,12 +119,12 @@ async function upsertRow(tableName, keyColumn, keyVal, data) {
   const colsToBind = Object.keys(formattedData);
   const values = colsToBind.map(col => formattedData[col]);
   
-  if (checkResult.length > 0) {
+  if (checkResult.rows.length > 0) {
     // Perform UPDATE
-    const setClause = colsToBind.map(col => `\`${col}\` = ?`).join(', ');
+    const setClause = colsToBind.map((col, idx) => `"${col}" = $${idx + 1}`).join(', ');
     if (setClause) {
       values.push(keyVal);
-      await connection.query(`UPDATE \`${tableName}\` SET ${setClause} WHERE \`${keyColumn}\` = ?`, values);
+      await connection.query(`UPDATE "${tableName}" SET ${setClause} WHERE "${keyColumn}" = $${values.length}`, values);
     }
   } else {
     // Perform INSERT
@@ -130,9 +133,9 @@ async function upsertRow(tableName, keyColumn, keyVal, data) {
       values.push(keyVal);
     }
     
-    const colList = colsToBind.map(col => `\`${col}\``).join(', ');
-    const placeholderList = colsToBind.map(() => '?').join(', ');
-    await connection.query(`INSERT INTO \`${tableName}\` (${colList}) VALUES (${placeholderList})`, values);
+    const colList = colsToBind.map(col => `"${col}"`).join(', ');
+    const placeholderList = colsToBind.map((_, idx) => `$${idx + 1}`).join(', ');
+    await connection.query(`INSERT INTO "${tableName}" (${colList}) VALUES (${placeholderList})`, values);
   }
 }
 
@@ -151,7 +154,7 @@ async function updateRow(tableName, keyColumn, keyVal, data) {
     } else if (Array.isArray(val) || (typeof val === 'object' && !(val instanceof Date))) {
       formattedData[col] = JSON.stringify(val);
     } else if (typeof val === 'boolean') {
-      formattedData[col] = val ? 1 : 0;
+      formattedData[col] = val;
     } else {
       formattedData[col] = val;
     }
@@ -160,10 +163,10 @@ async function updateRow(tableName, keyColumn, keyVal, data) {
   const colsToBind = Object.keys(formattedData);
   const values = colsToBind.map(col => formattedData[col]);
   
-  const setClause = colsToBind.map(col => `\`${col}\` = ?`).join(', ');
+  const setClause = colsToBind.map((col, idx) => `"${col}" = $${idx + 1}`).join(', ');
   if (setClause) {
     values.push(keyVal);
-    await connection.query(`UPDATE \`${tableName}\` SET ${setClause} WHERE \`${keyColumn}\` = ?`, values);
+    await connection.query(`UPDATE "${tableName}" SET ${setClause} WHERE "${keyColumn}" = $${values.length}`, values);
   }
 }
 
@@ -172,9 +175,9 @@ async function updateRow(tableName, keyColumn, keyVal, data) {
  */
 async function getRow(tableName, keyColumn, keyVal) {
   const connection = await getPool();
-  const [rows] = await connection.query(`SELECT * FROM \`${tableName}\` WHERE \`${keyColumn}\` = ?`, [keyVal]);
-  if (rows.length === 0) return null;
-  return parseRow(tableName, rows[0]);
+  const res = await connection.query(`SELECT * FROM "${tableName}" WHERE "${keyColumn}" = $1`, [keyVal]);
+  if (res.rows.length === 0) return null;
+  return parseRow(tableName, res.rows[0]);
 }
 
 /**
@@ -198,7 +201,7 @@ function generateId(collectionName) {
 /**
  * Query helper class mimicking Firestore Query behaviors.
  */
-class MySQLQuery {
+class PostgreSQLQuery {
   constructor(collectionName) {
     this.collectionName = collectionName;
     this.tableName = tableMap[collectionName.toLowerCase()] || collectionName;
@@ -226,15 +229,15 @@ class MySQLQuery {
   
   async get() {
     const connection = await getPool();
-    let queryStr = `SELECT * FROM \`${this.tableName}\``;
+    let queryStr = `SELECT * FROM "${this.tableName}"`;
     const whereClauses = [];
     const params = [];
     
-    this.filters.forEach((filter) => {
+    this.filters.forEach((filter, index) => {
       let sqlOp = '=';
       if (filter.op === '==') sqlOp = '=';
       
-      whereClauses.push(`\`${filter.field}\` ${sqlOp} ?`);
+      whereClauses.push(`"${filter.field}" ${sqlOp} $${index + 1}`);
       params.push(filter.val);
     });
     
@@ -243,19 +246,19 @@ class MySQLQuery {
     }
     
     if (this.orderByField) {
-      queryStr += ` ORDER BY \`${this.orderByField}\` ${this.orderByDir}`;
+      queryStr += ` ORDER BY "${this.orderByField}" ${this.orderByDir}`;
     }
     
     if (this.limitNum !== null) {
-      queryStr += ` LIMIT ?`;
+      queryStr += ` LIMIT $${params.length + 1}`;
       params.push(parseInt(this.limitNum));
     }
     
-    const [rows] = await connection.query(queryStr, params);
+    const res = await connection.query(queryStr, params);
     const tableName = this.tableName;
     const keyCol = keyFields[this.collectionName.toLowerCase()] || 'id';
     
-    const docs = rows.map(row => {
+    const docs = res.rows.map(row => {
       const dataObj = parseRow(tableName, row);
       const docId = dataObj[keyCol];
       
@@ -266,7 +269,7 @@ class MySQLQuery {
         ref: {
           delete: async () => {
             const poolConn = await getPool();
-            await poolConn.query(`DELETE FROM \`${tableName}\` WHERE \`${keyCol}\` = ?`, [docId]);
+            await poolConn.query(`DELETE FROM "${tableName}" WHERE "${keyCol}" = $1`, [docId]);
           },
           update: async (updates) => {
             await updateRow(tableName, keyCol, docId, updates);
@@ -288,7 +291,7 @@ class MySQLQuery {
 /**
  * Nested collection helper mimicking sub-collections (e.g. replies inside interactions).
  */
-class MySQLSubCollection {
+class PostgreSQLSubCollection {
   constructor(parentTableName, parentId, subColName) {
     this.parentTableName = parentTableName;
     this.parentId = parentId;
@@ -319,7 +322,7 @@ class MySQLSubCollection {
       },
       delete: async () => {
         const connection = await getPool();
-        await connection.query('DELETE FROM `Replies` WHERE `replyId` = ?', [id]);
+        await connection.query('DELETE FROM "Replies" WHERE "replyId" = $1', [id]);
         return { id };
       }
     };
@@ -327,8 +330,8 @@ class MySQLSubCollection {
   
   async get() {
     const connection = await getPool();
-    const [rows] = await connection.query('SELECT * FROM `Replies` WHERE `interactionId` = ?', [this.parentId]);
-    const docs = rows.map(row => {
+    const res = await connection.query('SELECT * FROM "Replies" WHERE "interactionId" = $1', [this.parentId]);
+    const docs = res.rows.map(row => {
       const dataObj = parseRow('Replies', row);
       return {
         id: dataObj.replyId,
@@ -343,7 +346,7 @@ class MySQLSubCollection {
 /**
  * Firestore-compatible collection interface for top-level tables.
  */
-class MySQLCollection {
+class PostgreSQLCollection {
   constructor(collectionName) {
     this.collectionName = collectionName;
     this.tableName = tableMap[collectionName.toLowerCase()] || collectionName;
@@ -376,11 +379,11 @@ class MySQLCollection {
       },
       delete: async () => {
         const connection = await getPool();
-        await connection.query(`DELETE FROM \`${self.tableName}\` WHERE \`${keyCol}\` = ?`, [docId]);
+        await connection.query(`DELETE FROM "${self.tableName}" WHERE "${keyCol}" = $1`, [docId]);
         return { id: docId };
       },
       collection(subColName) {
-        return new MySQLSubCollection(self.tableName, docId, subColName);
+        return new PostgreSQLSubCollection(self.tableName, docId, subColName);
       }
     };
   }
@@ -402,19 +405,19 @@ class MySQLCollection {
   }
   
   where(field, op, val) {
-    return new MySQLQuery(this.collectionName).where(field, op, val);
+    return new PostgreSQLQuery(this.collectionName).where(field, op, val);
   }
   
   orderBy(field, dir) {
-    return new MySQLQuery(this.collectionName).orderBy(field, dir);
+    return new PostgreSQLQuery(this.collectionName).orderBy(field, dir);
   }
   
   limit(num) {
-    return new MySQLQuery(this.collectionName).limit(num);
+    return new PostgreSQLQuery(this.collectionName).limit(num);
   }
   
   async get() {
-    return new MySQLQuery(this.collectionName).get();
+    return new PostgreSQLQuery(this.collectionName).get();
   }
 }
 
@@ -423,18 +426,18 @@ class MySQLCollection {
  */
 class FirestoreSQLAdapter {
   collection(name) {
-    return new MySQLCollection(name);
+    return new PostgreSQLCollection(name);
   }
 }
 
 const db = new FirestoreSQLAdapter();
 
 /**
- * Retrieves the initialized MySQL pool, connecting if needed.
+ * Retrieves the initialized PostgreSQL pool, connecting if needed.
  */
 async function getPool() {
   if (!isConnected) {
-    pool = mysql.createPool(config);
+    pool = new pg.Pool(config);
     isConnected = true;
   }
   return pool;
@@ -444,40 +447,72 @@ async function getPool() {
  * Initializes schema and runs auto-seeding.
  */
 async function initializeDatabase() {
+  let connection;
   try {
-    const connection = await getPool();
-    console.log('🔌 Connected to MySQL / Percona Server successfully.');
+    connection = await getPool();
+    console.log('\uD83D\uDD0C Connected to PostgreSQL Server successfully.');
     
-    console.log('⚙️ Verifying database tables...');
-    const schemaPath = path.resolve(__dirname, '../../schema.mysql.sql');
+    console.log('\u2699\uFE0F Verifying database tables...');
+    const schemaPath = path.resolve(__dirname, '../../schema.postgres.sql');
     if (fs.existsSync(schemaPath)) {
       const schemaSql = fs.readFileSync(schemaPath, 'utf8');
       
-      // Split statements on semicolon and run them one by one
-      const statements = schemaSql
+      // Split on semicolons, strip pure comment blocks, execute each statement
+      const cleanSql = schemaSql
+        .replace(/--.*$/gm, '')
+        .replace(/\/\*[\s\S]*?\*\//g, '');
+      const statements = cleanSql
         .split(';')
         .map(s => s.trim())
-        .filter(s => s.length > 0 && !s.startsWith('--'));
+        .filter(s => s.length > 0);
         
       for (const statement of statements) {
         try {
           await connection.query(statement);
-        } catch (err) {
-          console.error('Warning running schema statement:', err.message);
+        } catch (stmtErr) {
+          // Log schema warnings but continue — most are benign "already exists" notices
+          console.warn('Schema statement warning:', stmtErr.message || stmtErr);
         }
       }
-      console.log('✅ Schema check/creation complete.');
+      console.log('\u2705 Schema check/creation complete.');
+    }
+
+    // ── Migration: add new columns to existing Users table safely ──────────
+    const migrations = [
+      `ALTER TABLE "Users" ADD COLUMN IF NOT EXISTS ldap_provisioned BOOLEAN DEFAULT FALSE`,
+      `ALTER TABLE "Users" ADD COLUMN IF NOT EXISTS last_login TIMESTAMP NULL`,
+      `ALTER TABLE "Accounts" ADD COLUMN IF NOT EXISTS "ownerId" VARCHAR(50) NULL`,
+      `ALTER TABLE "Accounts" ADD COLUMN IF NOT EXISTS "ownerName" VARCHAR(150) NULL`,
+      `ALTER TABLE "Contacts" ADD COLUMN IF NOT EXISTS "ownerId" VARCHAR(50) NULL`,
+      `ALTER TABLE "Contacts" ADD COLUMN IF NOT EXISTS "ownerName" VARCHAR(150) NULL`,
+      `ALTER TABLE "Contacts" ADD COLUMN IF NOT EXISTS "birthday" VARCHAR(50) NULL`,
+      `ALTER TABLE "Interactions" ADD COLUMN IF NOT EXISTS "attachments" TEXT NULL`
+    ];
+    for (const migration of migrations) {
+      try {
+        await connection.query(migration);
+      } catch (migErr) {
+        console.warn('Migration warning (non-fatal):', migErr.message || migErr);
+      }
     }
     
     // Auto seed if users table is empty
-    const [usersCheck] = await connection.query('SELECT COUNT(*) as count FROM Users');
-    if (usersCheck[0].count === 0) {
-      console.log('🌱 Seeding database tables with initial CRM data...');
-      await seedMysqlData(connection);
-      console.log('✅ Database seeding complete.');
+    const usersCheck = await connection.query('SELECT COUNT(*) as count FROM "Users"');
+    const userCount = parseInt(usersCheck.rows[0].count, 10);
+    if (userCount === 0) {
+      console.log('\uD83C\uDF31 Seeding database tables with initial CRM data...');
+      await seedPostgresData(connection);
+      console.log('\u2705 Database seeding complete.');
+    } else {
+      console.log(`\uD83D\uDCC2 Database ready — ${userCount} existing user(s) found, skipping seed.`);
     }
   } catch (err) {
-    console.error('❌ Failed to initialize MySQL database:', err.message);
+    // AggregateError (pg pool errors) may have empty .message but store errors in .errors[]
+    const detail = err.message || (err.errors && err.errors.map(e => e.message).join('; ')) || String(err);
+    console.error('\u274C Failed to initialize PostgreSQL database:', detail);
+    if (err.errors) {
+      err.errors.forEach((e, i) => console.error(`  Sub-error [${i}]:`, e.message || e));
+    }
     throw err;
   }
 }
@@ -485,7 +520,7 @@ async function initializeDatabase() {
 /**
  * Seeds initial CRM dataset.
  */
-async function seedMysqlData(connection) {
+async function seedPostgresData(connection) {
   // 1. Users
   const users = [
     { uid: 'mock-admin-uid', email: 'admin@pulse.com', role: 'Admin', position: 'System Administrator', userType: 'Admin', name: 'Admin User', password: 'admin123' },
@@ -588,8 +623,8 @@ async function seedMysqlData(connection) {
   
   for (const u of users) {
     await connection.query(`
-      INSERT INTO Users (uid, email, name, role, position, userType, department, password, projects, employees)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO "Users" (uid, email, name, role, position, "userType", department, password, projects, employees)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
     `, [
       u.uid,
       u.email,
@@ -605,15 +640,21 @@ async function seedMysqlData(connection) {
   }
   
   // 2. Accounts
+  const abcAnniv = new Date();
+  abcAnniv.setFullYear(abcAnniv.getFullYear() - 5);
+  abcAnniv.setDate(abcAnniv.getDate() + 3);
+  const abcCreated = abcAnniv.toISOString();
+
   const accounts = [
-    { accountId: 'acc-1', companyName: 'Acme Corporation', industry: 'Technology', region: 'North America', healthScore: 88, status: 'Healthy', email: 'info@acme.com', phone: '+1 555-0199', ceoName: 'Sarah Jenkins', domain: 'acme.com' },
-    { accountId: 'acc-2', companyName: 'Global Logistics Inc', industry: 'Logistics', region: 'Europe', healthScore: 42, status: 'Critical', email: 'support@globallogistics.com', phone: '+44 20 7946 0958', ceoName: 'Robert Miller', domain: 'globallogistics.com' },
-    { accountId: 'acc-3', companyName: 'Apex Financial Services', industry: 'Finance', region: 'Asia Pacific', healthScore: 68, status: 'Warning', email: 'contact@apex.com', phone: '+65 6789 0123', ceoName: 'Alan Turing', domain: 'apex.com' }
+    { accountId: 'acc-1', companyName: 'Acme Corporation', industry: 'Technology', region: 'North America', healthScore: 88, status: 'Healthy', email: 'info@acme.com', phone: '+1 555-0199', ceoName: 'Sarah Jenkins', domain: 'acme.com', ownerId: 'mock-admin-uid', ownerName: 'Admin User', createdAt: new Date().toISOString() },
+    { accountId: 'acc-2', companyName: 'Global Logistics Inc', industry: 'Logistics', region: 'Europe', healthScore: 42, status: 'Critical', email: 'support@globallogistics.com', phone: '+44 20 7946 0958', ceoName: 'Robert Miller', domain: 'globallogistics.com', ownerId: 'mock-manager-uid', ownerName: 'Manager User', createdAt: new Date().toISOString() },
+    { accountId: 'acc-3', companyName: 'Apex Financial Services', industry: 'Finance', region: 'Asia Pacific', healthScore: 68, status: 'Warning', email: 'contact@apex.com', phone: '+65 6789 0123', ceoName: 'Alan Turing', domain: 'apex.com', ownerId: 'mock-employee-uid', ownerName: 'Employee User', createdAt: new Date().toISOString() },
+    { accountId: 'acc-abc', companyName: 'ABC Bank', industry: 'Finance', region: 'North America', healthScore: 78, status: 'Healthy', email: 'corporate@abcbank.com', phone: '+1 555-9876', ceoName: 'John Pierpont', domain: 'abcbank.com', ownerId: 'mock-admin-uid', ownerName: 'Admin User', createdAt: abcCreated }
   ];
   for (const a of accounts) {
     await connection.query(`
-      INSERT INTO Accounts (accountId, companyName, industry, region, healthScore, status, email, phone, ceoName, domain)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO "Accounts" ("accountId", "companyName", industry, region, "healthScore", status, email, phone, "ceoName", domain, "ownerId", "ownerName", "createdAt")
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
     `, [
       a.accountId,
       a.companyName,
@@ -624,19 +665,28 @@ async function seedMysqlData(connection) {
       a.email,
       a.phone,
       a.ceoName,
-      a.domain
+      a.domain,
+      a.ownerId,
+      a.ownerName,
+      a.createdAt
     ]);
   }
   
   // 3. Contacts
+  const bday = new Date();
+  bday.setDate(bday.getDate() + 7);
+  const bdayStr = bday.toISOString().split('T')[0];
+
   const contacts = [
-    { contactId: 'con-1', accountId: 'acc-1', name: 'Sarah Jenkins', email: 's.jenkins@acme.com', designation: 'VP of Engineering', hierarchyTag: 'VP', influenceTag: 'Decision Maker', phone: '+1 555-0199', department: 'Engineering', projectName: 'Acme Portal', projectIndustry: 'Technology' },
-    { contactId: 'con-2', accountId: 'acc-2', name: 'Robert Miller', email: 'r.miller@globallogistics.com', designation: 'IT Director', hierarchyTag: 'Director', influenceTag: 'Champion', phone: '+44 20 7946 0958', department: 'IT', projectName: 'Logistics Pipeline', projectIndustry: 'Logistics' }
+    { contactId: 'con-1', accountId: 'acc-1', name: 'Sarah Jenkins', email: 's.jenkins@acme.com', designation: 'VP of Engineering', hierarchyTag: 'VP', influenceTag: 'Decision Maker', phone: '+1 555-0199', department: 'Engineering', projectName: 'Acme Portal', projectIndustry: 'Technology', ownerId: 'mock-admin-uid', ownerName: 'Admin User', birthday: null, createdAt: new Date().toISOString() },
+    { contactId: 'con-2', accountId: 'acc-2', name: 'Robert Miller', email: 'r.miller@globallogistics.com', designation: 'IT Director', hierarchyTag: 'Director', influenceTag: 'Champion', phone: '+44 20 7946 0958', department: 'IT', projectName: 'Logistics Pipeline', projectIndustry: 'Logistics', ownerId: 'mock-manager-uid', ownerName: 'Manager User', birthday: null, createdAt: new Date().toISOString() },
+    { contactId: 'con-cio', accountId: 'acc-1', name: 'John Doe', email: 'j.doe@acme.com', designation: 'CIO', hierarchyTag: 'CXO', influenceTag: 'Decision Maker', phone: '+1 555-0155', department: 'IT', projectName: 'Acme Portal', projectIndustry: 'Technology', ownerId: 'mock-admin-uid', ownerName: 'Admin User', birthday: bdayStr, createdAt: new Date().toISOString() },
+    { contactId: 'con-abc-cio', accountId: 'acc-abc', name: 'David Vance', email: 'd.vance@abcbank.com', designation: 'Chief Information Officer', hierarchyTag: 'CXO', influenceTag: 'Decision Maker', phone: '+1 555-0255', department: 'IT', projectName: 'Banking App Core', projectIndustry: 'Finance', ownerId: 'mock-admin-uid', ownerName: 'Admin User', birthday: null, createdAt: new Date().toISOString() }
   ];
   for (const c of contacts) {
     await connection.query(`
-      INSERT INTO Contacts (contactId, accountId, name, email, phone, designation, department, projectName, projectIndustry, hierarchyTag, influenceTag)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO "Contacts" ("contactId", "accountId", name, email, phone, designation, department, "projectName", "projectIndustry", "hierarchyTag", "influenceTag", "ownerId", "ownerName", "birthday", "createdAt")
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
     `, [
       c.contactId,
       c.accountId,
@@ -648,7 +698,11 @@ async function seedMysqlData(connection) {
       c.projectName,
       c.projectIndustry,
       c.hierarchyTag,
-      c.influenceTag
+      c.influenceTag,
+      c.ownerId,
+      c.ownerName,
+      c.birthday,
+      c.createdAt
     ]);
   }
   
@@ -666,7 +720,7 @@ async function seedMysqlData(connection) {
       loggedByUid: 'mock-admin-uid',
       loggedByName: 'System Admin',
       sentiment: 'Positive',
-      riskDetected: 0,
+      riskDetected: false,
       riskCategory: '',
       actionMentions: '[]',
       timestamp: new Date(Date.now() - 1000 * 60 * 60 * 2)
@@ -683,7 +737,7 @@ async function seedMysqlData(connection) {
       loggedByUid: 'mock-admin-uid',
       loggedByName: 'System Admin',
       sentiment: 'Negative',
-      riskDetected: 1,
+      riskDetected: true,
       riskCategory: 'Competitor Mentions',
       actionMentions: '[]',
       timestamp: new Date(Date.now() - 1000 * 60 * 60 * 24)
@@ -691,8 +745,8 @@ async function seedMysqlData(connection) {
   ];
   for (const i of interactions) {
     await connection.query(`
-      INSERT INTO Interactions (interactionId, accountId, contactId, source, subject, messageText, date, time, loggedByUid, loggedByName, sentiment, riskDetected, riskCategory, actionMentions, timestamp)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO "Interactions" ("interactionId", "accountId", "contactId", source, subject, "messageText", date, time, "loggedByUid", "loggedByName", sentiment, "riskDetected", "riskCategory", "actionMentions", timestamp)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
     `, [
       i.interactionId,
       i.accountId,
@@ -718,8 +772,8 @@ async function seedMysqlData(connection) {
   ];
   for (const r of risks) {
     await connection.query(`
-      INSERT INTO Risks (riskId, accountId, category, severity, description, status)
-      VALUES (?, ?, ?, ?, ?, ?)
+      INSERT INTO "Risks" ("riskId", "accountId", category, severity, description, status)
+      VALUES ($1, $2, $3, $4, $5, $6)
     `, [
       r.riskId,
       r.accountId,
@@ -729,7 +783,7 @@ async function seedMysqlData(connection) {
       r.status
     ]);
   }
-
+  
   // 6. Seed default Notifications
   const notifications = [
     {
@@ -738,14 +792,14 @@ async function seedMysqlData(connection) {
       type: 'New Risk',
       message: 'New risk alert detected: [Competitor Mentions] - Client is actively reviewing competitor packages due to repeated downtime issues.',
       severity: 'High',
-      read: 0,
+      read: false,
       timestamp: new Date()
     }
   ];
   for (const n of notifications) {
     await connection.query(`
-      INSERT INTO Notifications (notificationId, accountId, type, message, severity, \`read\`, timestamp)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO "Notifications" ("notificationId", "accountId", type, message, severity, read, timestamp)
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
     `, [
       n.notificationId,
       n.accountId,

@@ -92,13 +92,13 @@ export default function WebhooksDemo() {
 
           {/* Presets List */}
           <div className="mb-6 space-y-2">
-            <span className="text-[10px] text-slate-500 uppercase tracking-wider font-bold">Select Webhook Preset</span>
+            <span className="text-xs text-slate-500 uppercase tracking-wider font-bold">Select Webhook Preset</span>
             <div className="flex flex-wrap gap-2.5">
               {presetMessages.map((p, idx) => (
                 <button
                   key={idx}
                   onClick={() => applyPreset(p)}
-                  className="bg-slate-900 border border-slate-800 hover:border-slate-700 rounded-lg text-[10px] font-semibold text-slate-300 px-3 py-1.5 transition-colors"
+                  className="bg-slate-900 border border-slate-800 hover:border-slate-700 rounded-lg text-xs font-semibold text-slate-300 px-3 py-1.5 transition-colors"
                 >
                   {p.title}
                 </button>
@@ -110,7 +110,7 @@ export default function WebhooksDemo() {
             
             {/* Event Selector Toggle */}
             <div className="space-y-1.5">
-              <label className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">Event Ingestion Channel</label>
+              <label className="text-xs text-slate-400 uppercase tracking-wider font-semibold">Event Ingestion Channel</label>
               <div className="flex bg-dark-900 border border-slate-800 rounded-xl p-1 text-xs">
                 <button
                   type="button"
@@ -137,7 +137,7 @@ export default function WebhooksDemo() {
 
             {/* Sender Email Address */}
             <div className="space-y-1.5">
-              <label className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">Sender Email Address</label>
+              <label className="text-xs text-slate-400 uppercase tracking-wider font-semibold">Sender Email Address</label>
               <input
                 type="email"
                 required
@@ -151,7 +151,7 @@ export default function WebhooksDemo() {
             {/* Outlook Subject (Only if Outlook toggle active) */}
             {webhookType === 'outlook' && (
               <div className="space-y-1.5">
-                <label className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">Email Subject Header</label>
+                <label className="text-xs text-slate-400 uppercase tracking-wider font-semibold">Email Subject Header</label>
                 <input
                   type="text"
                   required
@@ -165,7 +165,7 @@ export default function WebhooksDemo() {
 
             {/* Message Body Text */}
             <div className="space-y-1.5">
-              <label className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">Message/Communication text body</label>
+              <label className="text-xs text-slate-400 uppercase tracking-wider font-semibold">Message/Communication text body</label>
               <textarea
                 required
                 rows={5}
@@ -195,13 +195,13 @@ export default function WebhooksDemo() {
           <h2 className="text-base font-bold text-white tracking-wide">Ingestion Logs Console</h2>
         </div>
 
-        <div className="flex-1 bg-dark-950/80 border border-slate-800/80 rounded-2xl p-5 font-mono text-[11px] leading-relaxed overflow-y-auto max-h-[460px] text-slate-300">
+        <div className="flex-1 bg-dark-950/80 border border-slate-800/80 rounded-2xl p-5 font-mono text-xs leading-relaxed overflow-y-auto max-h-[460px] text-slate-300">
           {logResponse ? (
             <div className="space-y-5">
               {/* Http Status Code Header */}
               <div className="flex items-center justify-between border-b border-slate-800 pb-2.5">
                 <span className="text-slate-400">Response Status:</span>
-                <span className={`font-bold px-2 py-0.5 rounded text-[10px] ${
+                <span className={`font-bold px-2 py-0.5 rounded text-xs ${
                   logResponse.status === 201 ? 'bg-emerald-500/20 text-emerald-400' : 'bg-rose-500/20 text-rose-400'
                 }`}>
                   HTTP {logResponse.status || 'ERROR'} {logResponse.statusText}
@@ -250,7 +250,7 @@ export default function WebhooksDemo() {
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-1.5 text-slate-500 text-[10px] border-t border-slate-800/60 pt-3">
+                  <div className="flex items-center gap-1.5 text-slate-500 text-xs border-t border-slate-800/60 pt-3">
                     <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
                     <span>Real-time dashboard state updated and Toast notification triggers dispatched.</span>
                   </div>

@@ -1,15 +1,12 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import Navbar from '../components/Navbar.jsx';
-import Toast from '../components/Toast.jsx';
 import { useStore } from '../store/index.js';
 import { ArrowUp } from 'lucide-react';
 
 export default function AppLayout() {
-  const { user, notifications } = useStore();
+  const { user } = useStore();
   const location = useLocation();
-  const [activeToast, setActiveToast] = useState(null);
-  const [lastNotificationId, setLastNotificationId] = useState(null);
   const [showBackTop, setShowBackTop] = useState(false);
   const mainRef = useRef(null);
 
@@ -18,20 +15,7 @@ export default function AppLayout() {
     return <Navigate to="/login" replace state={{ from: location }} />;
   }
 
-  // Monitor notifications for new alerts to trigger global Toast popups
-  useEffect(() => {
-    if (notifications.length > 0) {
-      const latest = notifications[0];
-      // Trigger toast only if it's a new, unread notification that we haven't shown yet
-      if (!latest.read && latest.notificationId !== lastNotificationId) {
-        setActiveToast({
-          type: latest.type,
-          message: latest.message
-        });
-        setLastNotificationId(latest.notificationId);
-      }
-    }
-  }, [notifications, lastNotificationId]);
+
 
   // Show back-to-top button after scrolling down 400px
   useEffect(() => {
@@ -65,7 +49,7 @@ export default function AppLayout() {
       <Navbar />
 
       {/* Main Content Viewport */}
-      <main ref={mainRef} className="flex-1 overflow-y-auto p-8 bg-dark-950">
+      <main ref={mainRef} className="flex-1 overflow-y-auto p-4 md:p-8 bg-dark-950">
         <Outlet />
       </main>
 
@@ -80,14 +64,7 @@ export default function AppLayout() {
         </button>
       )}
 
-      {/* Global Realtime Toast Alerts */}
-      {activeToast && (
-        <Toast 
-          type={activeToast.type}
-          message={activeToast.message}
-          onClose={() => setActiveToast(null)}
-        />
-      )}
+
     </div>
   );
 }
