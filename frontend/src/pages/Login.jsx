@@ -143,7 +143,7 @@ export default function Login() {
               <select 
                 value={selectedPreset}
                 onChange={(e) => handlePresetSelect(e.target.value)}
-                className="w-full bg-slate-900 border border-slate-800 focus:border-primary/50 text-slate-350 rounded-lg py-2 px-3 text-[10px] font-bold focus:outline-none cursor-pointer"
+                className="w-full bg-slate-900 border border-slate-800 focus:border-primary/50 text-slate-350 rounded-lg py-2 px-3 text-xs font-bold focus:outline-none cursor-pointer"
               >
                 <option value="">-- Choose corporate head preset --</option>
                 <option value="admin">Admin</option>

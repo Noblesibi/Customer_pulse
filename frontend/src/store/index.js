@@ -4,7 +4,16 @@ const API_BASE = 'http://localhost:5000/api';
 
 export const useStore = create((set, get) => ({
   // Authentication State
-  user: JSON.parse(localStorage.getItem('cp_user')) || null,
+  user: (() => {
+    const raw = localStorage.getItem('cp_user');
+    if (!raw) return null;
+    try {
+      const u = JSON.parse(raw);
+      return u;
+    } catch (_) {
+      return null;
+    }
+  })(),
   token: localStorage.getItem('cp_token') || null,
   authError: null,
   authLoading: false,
@@ -186,6 +195,23 @@ export const useStore = create((set, get) => ({
     } catch (err) {
       console.error(err);
       return false;
+    }
+  },
+
+  fetchHealthExplanation: async (accountId) => {
+    const token = get().token;
+    if (!token) return null;
+    try {
+      const res = await fetch(`${API_BASE}/accounts/${accountId}/health-explanation`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        return await res.json();
+      }
+      return null;
+    } catch (err) {
+      console.error('Error fetching health explanation:', err);
+      return null;
     }
   },
 
@@ -662,6 +688,43 @@ export const useStore = create((set, get) => ({
     } catch (err) {
       console.error(err);
       return null;
+    }
+  },
+
+  updateTaskStatus: async (interactionId, mentionUid, status, completionNote = '', forwardToUid = '', forwardToName = '', completionDate = null) => {
+    const token = get().token;
+    if (!token) return false;
+    try {
+      const res = await fetch(`${API_BASE}/interactions/${interactionId}/task-status`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ mentionUid, status, completionNote, forwardToUid, forwardToName, completionDate })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        set(state => ({
+          interactions: state.interactions.map(i => {
+            if (i.interactionId === interactionId) {
+              return { ...i, actionMentions: data.actionMentions || i.actionMentions };
+            }
+            return i;
+          }),
+          myTasks: state.myTasks.map(t => {
+            if (t.interactionId === interactionId) {
+              return { ...t, actionMentions: data.actionMentions || t.actionMentions };
+            }
+            return t;
+          })
+        }));
+        return true;
+      }
+      return false;
+    } catch (err) {
+      console.error('Error updating task status in store:', err);
+      return false;
     }
   },
 

@@ -3,6 +3,8 @@ import { db, logActivity } from '../config/database.js';
 import { authenticateToken } from '../middleware/auth.middleware.js';
 import { analyzeCommunication } from '../services/ai.service.js';
 import { calculateAccountHealth } from '../services/health.service.js';
+import fs from 'fs';
+import path from 'path';
 
 const router = Router();
 
@@ -30,38 +32,29 @@ router.get('/', async (req, res) => {
     const userDoc = await db.collection('users').doc(req.user.uid).get();
     const userProfile = userDoc.exists ? userDoc.data() : null;
 
-    const isAdmin = req.user.role === 'Admin' || (userProfile && (userProfile.userType === 'Admin' || userProfile.role === 'Admin'));
-    const isCeo = userProfile && userProfile.userType === 'CEO';
+    const isTrueAdmin = userProfile && (userProfile.userType === 'Admin' || userProfile.role === 'Admin');
+    const isCeo = userProfile && (userProfile.userType === 'CEO' || userProfile.position === 'CEO' || userProfile.position === 'Chief Executive Officer');
 
-    if (!isAdmin && !isCeo) {
+    if (!isTrueAdmin && !isCeo) {
       const accountsSnap = await db.collection('accounts').get();
-      let accounts = accountsSnap.docs.map(doc => doc.data());
+      const accounts = accountsSnap.docs.map(doc => doc.data());
 
-      if (userProfile && userProfile.userType === 'BU Head') {
-        const targetBu = userProfile.bu || '';
-        const targetProjects = userProfile.projects || [];
-        accounts = accounts.filter(a => 
-          (targetBu && a.industry.toLowerCase() === targetBu.toLowerCase()) || 
-          (targetProjects.length > 0 && targetProjects.some(tp => {
-            const tpName = typeof tp === 'string' ? tp : tp.name;
-            return tpName && (a.companyName.toLowerCase().includes(tpName.toLowerCase()) || tpName.toLowerCase().includes(a.companyName.toLowerCase()));
-          }))
-        );
-      } else {
-        // Fallback filter for Functional Heads, Project Managers, Delivery Heads, Employees, etc.
-        const projectsList = userProfile ? (userProfile.projects || []) : [];
-        const targetProjects = projectsList.map(p => typeof p === 'string' ? p : p.name).filter(Boolean);
-        
-        accounts = accounts.filter(a => 
-          targetProjects.some(tp => 
-            a.companyName.toLowerCase().includes(tp.toLowerCase()) || 
-            tp.toLowerCase().includes(a.companyName.toLowerCase())
-          )
-        );
-      }
+      const ownedAccountIds = new Set(
+        accounts
+          .filter(a => a.ownerId === req.user.uid)
+          .map(a => a.accountId || a.id)
+      );
 
-      const allowedAccountIds = accounts.map(a => a.accountId || a.id);
-      interactions = interactions.filter(i => allowedAccountIds.includes(i.accountId));
+      const contactsSnap = await db.collection('contacts').get();
+      const stakeholderAccountIds = new Set(
+        contactsSnap.docs
+          .map(d => d.data())
+          .filter(c => c.ownerId === req.user.uid)
+          .map(c => c.accountId)
+      );
+
+      const allowedIds = new Set([...ownedAccountIds, ...stakeholderAccountIds]);
+      interactions = interactions.filter(i => allowedIds.has(i.accountId));
     }
 
     // Filter by source
@@ -158,6 +151,105 @@ router.get('/my-tasks', async (req, res) => {
 });
 
 /**
+ * PUT /api/interactions/:id/task-status
+ * Updates the status of an assigned task mention.
+ */
+router.put('/:id/task-status', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { mentionUid, status, forwardToUid, forwardToName, completionNote, completionDate } = req.body;
+
+    if (!mentionUid || !status) {
+      return res.status(400).json({ error: 'mentionUid and status are required.' });
+    }
+
+    const doc = await db.collection('interactions').doc(id).get();
+    if (!doc.exists) return res.status(404).json({ error: 'Interaction not found.' });
+
+    const interaction = doc.data();
+    let actionMentions = interaction.actionMentions || [];
+
+    let updated = false;
+    let targetMentionTask = '';
+    let originalDueDate = null;
+    let originalPriority = 'Medium';
+
+    actionMentions = actionMentions.map(m => {
+      if (m.uid === mentionUid) {
+        updated = true;
+        targetMentionTask = m.task;
+        originalDueDate = m.dueDate || null;
+        originalPriority = m.priority || 'Medium';
+        
+        const updatedMention = { ...m, status };
+        if (completionNote !== undefined) {
+          updatedMention.completionNote = completionNote;
+          updatedMention.comments = completionNote;
+        }
+        if (status === 'Completed') {
+          updatedMention.completionDate = completionDate || new Date().toISOString().split('T')[0];
+        }
+        if (status === 'Forwarded' && forwardToUid && forwardToName) {
+          updatedMention.forwardedToUid = forwardToUid;
+          updatedMention.forwardedToName = forwardToName;
+        }
+        return updatedMention;
+      }
+      return m;
+    });
+
+    if (!updated) {
+      return res.status(404).json({ error: 'Task mention not found for this user in this interaction.' });
+    }
+
+    if (status === 'Forwarded' && forwardToUid && forwardToName) {
+      // Append a new mention task for the forwarded user copying original details
+      actionMentions.push({
+        uid: forwardToUid,
+        name: forwardToName,
+        task: targetMentionTask,
+        status: 'Task Assigned',
+        dueDate: originalDueDate,
+        priority: originalPriority,
+        comments: '',
+        completionDate: null
+      });
+    }
+
+    await db.collection('interactions').doc(id).update({ actionMentions });
+
+    // Recalculate account health upon task status change
+    await calculateAccountHealth(interaction.accountId);
+
+    await logActivity(
+      req.user.uid,
+      req.user.name,
+      'Update Task Status',
+      `Updated task status to "${status}" in interaction "${interaction.subject || 'Interaction'}"`
+    );
+
+    if (status === 'Forwarded' && forwardToUid && forwardToName) {
+      const notifId = 'notif-' + Math.random().toString(36).substring(2, 11);
+      await db.collection('notifications').doc(notifId).set({
+        notificationId: notifId,
+        toUserId: forwardToUid,
+        accountId: interaction.accountId,
+        interactionId: id,
+        type: 'Task Assigned',
+        message: `${req.user.name} forwarded a task to you: "${targetMentionTask}"`,
+        read: false,
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    return res.json({ success: true, actionMentions });
+  } catch (error) {
+    console.error('Error updating task status:', error);
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+/**
  * GET /api/interactions/:id/replies
  * Returns all replies for a given interaction.
  */
@@ -232,11 +324,63 @@ router.post('/:id/reply', async (req, res) => {
 });
 
 /**
+ * POST /api/interactions/upload
+ * Accept base64 encoded file and save it locally to /uploads.
+ */
+router.post('/upload', async (req, res) => {
+  try {
+    const { name, type, base64 } = req.body;
+    if (!name || !base64) {
+      return res.status(400).json({ error: 'name and base64 string are required' });
+    }
+
+    // Ensure uploads directory exists
+    const uploadDir = path.join(process.cwd(), 'uploads');
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
+    }
+
+    // Clean filename and generate a unique suffix
+    const fileExt = path.extname(name);
+    const baseName = path.basename(name, fileExt).replace(/[^a-zA-Z0-9]/g, '_').slice(0, 50);
+    const uniqueName = `${baseName}-${Date.now()}${fileExt}`;
+    const filePath = path.join(uploadDir, uniqueName);
+
+    // Parse base64 string
+    const matches = base64.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
+    let dataBuffer;
+    if (matches && matches.length === 3) {
+      dataBuffer = Buffer.from(matches[2], 'base64');
+    } else {
+      dataBuffer = Buffer.from(base64, 'base64');
+    }
+
+    // Write file
+    fs.writeFileSync(filePath, dataBuffer);
+
+    // Form static URL
+    const host = req.get('host') || 'localhost:5000';
+    const protocol = req.protocol || 'http';
+    const fileUrl = `${protocol}://${host}/uploads/${uniqueName}`;
+
+    return res.status(200).json({
+      url: fileUrl,
+      name,
+      type: type || 'application/octet-stream',
+      size: dataBuffer.length
+    });
+  } catch (error) {
+    console.error('File upload error:', error);
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+/**
  * POST /api/interactions
  * Create manual interaction. Triggers AI Engine, saves risks/notifications, updates health.
  */
 router.post('/', async (req, res) => {
-  const { accountId, contactId, source, messageText, timestamp, subject, date, time, actionMentions } = req.body;
+  const { accountId, contactId, source, messageText, timestamp, subject, date, time, actionMentions, attachments } = req.body;
 
   if (!accountId || !contactId || !source || !messageText) {
     return res.status(400).json({ error: 'Missing accountId, contactId, source, or messageText' });
@@ -266,12 +410,20 @@ router.post('/', async (req, res) => {
       messageText,
       date: date || new Date().toISOString().split('T')[0],
       time: time || new Date().toTimeString().slice(0, 5),
-      actionMentions: actionMentions || [],
+      actionMentions: (actionMentions || []).map(m => ({
+        ...m,
+        status: m.status || 'Task Assigned',
+        dueDate: m.dueDate || null,
+        priority: m.priority || 'Medium',
+        comments: m.comments || '',
+        completionDate: m.completionDate || null
+      })),
       loggedByUid: req.user.uid,
       loggedByName,
       sentiment: analysis.sentiment,
       riskDetected: analysis.riskLevel === 'High' || analysis.riskLevel === 'Medium',
       riskCategory: analysis.riskCategory || '',
+      attachments: attachments || [],
       timestamp: timestamp || new Date().toISOString()
     };
 

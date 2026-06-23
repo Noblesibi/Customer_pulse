@@ -28,38 +28,29 @@ router.get('/', async (req, res) => {
     const userDoc = await db.collection('users').doc(req.user.uid).get();
     const userProfile = userDoc.exists ? userDoc.data() : null;
 
-    const isAdmin = req.user.role === 'Admin' || (userProfile && (userProfile.userType === 'Admin' || userProfile.role === 'Admin'));
-    const isCeo = userProfile && userProfile.userType === 'CEO';
+    const isTrueAdmin = userProfile && (userProfile.userType === 'Admin' || userProfile.role === 'Admin');
+    const isCeo = userProfile && (userProfile.userType === 'CEO' || userProfile.position === 'CEO' || userProfile.position === 'Chief Executive Officer');
 
-    if (!isAdmin && !isCeo) {
+    if (!isTrueAdmin && !isCeo) {
       const accountsSnap = await db.collection('accounts').get();
-      let accounts = accountsSnap.docs.map(doc => doc.data());
+      const accounts = accountsSnap.docs.map(doc => doc.data());
 
-      if (userProfile && userProfile.userType === 'BU Head') {
-        const targetBu = userProfile.bu || '';
-        const targetProjects = userProfile.projects || [];
-        accounts = accounts.filter(a => 
-          (targetBu && a.industry.toLowerCase() === targetBu.toLowerCase()) || 
-          (targetProjects.length > 0 && targetProjects.some(tp => {
-            const tpName = typeof tp === 'string' ? tp : tp.name;
-            return tpName && (a.companyName.toLowerCase().includes(tpName.toLowerCase()) || tpName.toLowerCase().includes(a.companyName.toLowerCase()));
-          }))
-        );
-      } else {
-        // Fallback filter for Functional Heads, Project Managers, Delivery Heads, Employees, etc.
-        const projectsList = userProfile ? (userProfile.projects || []) : [];
-        const targetProjects = projectsList.map(p => typeof p === 'string' ? p : p.name).filter(Boolean);
-        
-        accounts = accounts.filter(a => 
-          targetProjects.some(tp => 
-            a.companyName.toLowerCase().includes(tp.toLowerCase()) || 
-            tp.toLowerCase().includes(a.companyName.toLowerCase())
-          )
-        );
-      }
+      const ownedAccountIds = new Set(
+        accounts
+          .filter(a => a.ownerId === req.user.uid)
+          .map(a => a.accountId || a.id)
+      );
 
-      const allowedAccountIds = accounts.map(a => a.accountId || a.id);
-      risks = risks.filter(r => allowedAccountIds.includes(r.accountId));
+      const contactsSnap = await db.collection('contacts').get();
+      const stakeholderAccountIds = new Set(
+        contactsSnap.docs
+          .map(d => d.data())
+          .filter(c => c.ownerId === req.user.uid)
+          .map(c => c.accountId)
+      );
+
+      const allowedIds = new Set([...ownedAccountIds, ...stakeholderAccountIds]);
+      risks = risks.filter(r => allowedIds.has(r.accountId));
     }
 
     if (severity) {
@@ -90,7 +81,7 @@ router.get('/', async (req, res) => {
  * PUT /api/risks/:id
  * Update risk status (e.g. resolve it)
  */
-router.put('/:id', requireRole(['Admin', 'Sales Manager']), async (req, res) => {
+router.put('/:id', requireRole(['Admin', 'Sales Manager', 'Executive']), async (req, res) => {
   const { id } = req.params;
   const { status, description, severity } = req.body;
 

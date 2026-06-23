@@ -52,7 +52,7 @@ export default function Landing() {
           </div>
           <div className="border-l border-slate-600/40 pl-3">
             <span className="font-extrabold text-base text-white tracking-wide block">CustomerPulse</span>
-            <span className="text-[9px] text-primary font-bold tracking-wider uppercase">Relationship Intelligence</span>
+            <span className="text-xs text-primary font-bold tracking-wider uppercase">Relationship Intelligence</span>
           </div>
         </div>
 
@@ -114,26 +114,26 @@ export default function Landing() {
         <div className="lg:col-span-5 relative">
           <div className="glass rounded-3xl border-slate-800 p-6 shadow-2xl relative z-10 transform hover:scale-[1.01] transition-transform duration-300">
             <div className="flex items-center justify-between border-b border-slate-800/80 pb-4 mb-4">
-              <span className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">AI Insight Feed</span>
+              <span className="text-xs uppercase font-bold text-slate-500 tracking-wider">AI Insight Feed</span>
               <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping" />
             </div>
             
             <div className="space-y-4">
               <div className="bg-dark-900/60 border border-slate-800 p-4 rounded-xl space-y-2">
-                <div className="flex items-center justify-between text-[10px] font-bold">
+                <div className="flex items-center justify-between text-xs font-bold">
                   <span className="text-white">Acme Corp</span>
                   <span className="text-emerald-400">92% Excellent</span>
                 </div>
-                <p className="text-[11px] text-slate-300">"We renewals have been confirmed. Team is happy with recent rollouts."</p>
+                <p className="text-xs text-slate-300">"We renewals have been confirmed. Team is happy with recent rollouts."</p>
               </div>
 
               <div className="bg-dark-900/60 border border-slate-800/80 p-4 rounded-xl space-y-2 border-l-2 border-l-rose-500">
-                <div className="flex items-center justify-between text-[10px] font-bold">
+                <div className="flex items-center justify-between text-xs font-bold">
                   <span className="text-white">Global Logistics</span>
                   <span className="text-rose-500">42% Critical</span>
                 </div>
-                <p className="text-[11px] text-rose-300">"Experienced major system latency. Reviewing competitor solutions."</p>
-                <span className="text-[9px] bg-rose-500/10 text-rose-400 px-1.5 py-0.5 rounded font-bold uppercase inline-block">
+                <p className="text-xs text-rose-300">"Experienced major system latency. Reviewing competitor solutions."</p>
+                <span className="text-xs bg-rose-500/10 text-rose-400 px-1.5 py-0.5 rounded font-bold uppercase inline-block">
                   Risk: Competitor Mentions
                 </span>
               </div>
@@ -204,7 +204,7 @@ export default function Landing() {
       {/* INTERACTIVE FORMULA CALCULATOR */}
       <section id="calculator" className="max-w-7xl mx-auto px-6 md:px-12 py-20 border-t border-slate-900 grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
         <div className="space-y-6">
-          <div className="inline-block bg-emerald-500/10 border border-emerald-500/25 px-3 py-1 rounded-full text-[10px] text-emerald-400 font-bold uppercase tracking-wider">
+          <div className="inline-block bg-emerald-500/10 border border-emerald-500/25 px-3 py-1 rounded-full text-xs text-emerald-400 font-bold uppercase tracking-wider">
             Weighted Score Formula
           </div>
           <h2 className="text-2xl md:text-3xl font-bold text-white tracking-wide leading-tight">
@@ -239,7 +239,7 @@ export default function Landing() {
         <div className="glass rounded-3xl border-slate-800 p-6 md:p-8 space-y-6">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-slate-400 uppercase">Interactive Calculator</span>
-            <div className={`px-3 py-1 rounded-lg border text-[10px] font-bold uppercase ${statusInfo.color}`}>
+            <div className={`px-3 py-1 rounded-lg border text-xs font-bold uppercase ${statusInfo.color}`}>
               {calculatedScore}% - {statusInfo.label}
             </div>
           </div>
@@ -307,7 +307,7 @@ export default function Landing() {
       {/* ── FEATURES SECTION ── */}
       <section id="features" className="max-w-7xl mx-auto px-6 md:px-12 py-20 border-t border-slate-900">
         <div className="text-center max-w-2xl mx-auto space-y-4 mb-16">
-          <span className="inline-block bg-primary/10 border border-primary/20 text-primary text-[10px] font-bold uppercase tracking-wider px-3 py-1 rounded-full">Platform Features</span>
+          <span className="inline-block bg-primary/10 border border-primary/20 text-primary text-xs font-bold uppercase tracking-wider px-3 py-1 rounded-full">Platform Features</span>
           <h2 className="text-2xl md:text-4xl font-black text-white">Everything You Need to <br />Manage Relationships</h2>
           <p className="text-sm text-slate-400 leading-relaxed">CustomerPulse by NeST Digital provides a full-stack relationship intelligence layer for enterprise CRM teams.</p>
         </div>
@@ -333,7 +333,7 @@ export default function Landing() {
       <section id="about" className="border-t border-slate-900 py-20">
         <div className="max-w-7xl mx-auto px-6 md:px-12 grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
           <div className="space-y-6">
-            <span className="inline-block bg-[#1a3a8f]/10 border border-[#1a3a8f]/20 text-[#1a3a8f] text-[10px] font-bold uppercase tracking-wider px-3 py-1 rounded-full">About NeST Digital</span>
+            <span className="inline-block bg-[#1a3a8f]/10 border border-[#1a3a8f]/20 text-[#1a3a8f] text-xs font-bold uppercase tracking-wider px-3 py-1 rounded-full">About NeST Digital</span>
             <h2 className="text-2xl md:text-4xl font-black text-white leading-tight">Engineering Transformation <br />Through Technology</h2>
             <p className="text-sm text-slate-400 leading-relaxed">NeST Digital is a global technology company delivering enterprise-grade digital transformation solutions. With decades of experience across industries, we build intelligent platforms that help organizations make data-driven decisions, optimize operations, and accelerate growth.</p>
             <p className="text-sm text-slate-400 leading-relaxed">CustomerPulse is our flagship AI-powered CRM intelligence platform — built to give sales teams unprecedented visibility into the health and trajectory of every client relationship.</p>
@@ -341,7 +341,7 @@ export default function Landing() {
               {[['20+', 'Years Experience'], ['500+', 'Enterprise Clients'], ['50+', 'Countries Served']].map(([num, label]) => (
                 <div key={label} className="glass rounded-xl p-4 border border-slate-800/60 text-center">
                   <div className="text-2xl font-black" style={{color: '#cc1f27'}}>{num}</div>
-                  <div className="text-[10px] text-slate-400 font-semibold mt-1">{label}</div>
+                  <div className="text-xs text-slate-400 font-semibold mt-1">{label}</div>
                 </div>
               ))}
             </div>
@@ -365,7 +365,7 @@ export default function Landing() {
       <section id="contact" className="border-t border-slate-900 py-20">
         <div className="max-w-7xl mx-auto px-6 md:px-12">
           <div className="text-center max-w-2xl mx-auto space-y-4 mb-16">
-            <span className="inline-block bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[10px] font-bold uppercase tracking-wider px-3 py-1 rounded-full">Get In Touch</span>
+            <span className="inline-block bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-bold uppercase tracking-wider px-3 py-1 rounded-full">Get In Touch</span>
             <h2 className="text-2xl md:text-4xl font-black text-white">Let's Start a Conversation</h2>
             <p className="text-sm text-slate-400 leading-relaxed">Interested in CustomerPulse for your organization? Our team is ready to walk you through a personalized demo.</p>
           </div>
@@ -380,7 +380,7 @@ export default function Landing() {
                 <div key={c.label} className="glass rounded-2xl p-5 border border-slate-800/80 flex items-start gap-4">
                   <div className={`border p-3 rounded-xl flex items-center justify-center shrink-0 ${c.color}`}>{c.icon}</div>
                   <div>
-                    <p className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider">{c.label}</p>
+                    <p className="text-xs text-slate-500 font-semibold uppercase tracking-wider">{c.label}</p>
                     <p className="text-sm font-bold text-white mt-0.5">{c.value}</p>
                     <p className="text-xs text-slate-400 mt-0.5">{c.sub}</p>
                   </div>
@@ -392,24 +392,24 @@ export default function Landing() {
               <h3 className="text-sm font-bold text-white">Send Us a Message</h3>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="text-[10px] text-slate-400 font-semibold uppercase block mb-1.5">First Name</label>
+                  <label className="text-xs text-slate-400 font-semibold uppercase block mb-1.5">First Name</label>
                   <input type="text" placeholder="John" className="w-full bg-dark-900/60 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-primary/50" />
                 </div>
                 <div>
-                  <label className="text-[10px] text-slate-400 font-semibold uppercase block mb-1.5">Last Name</label>
+                  <label className="text-xs text-slate-400 font-semibold uppercase block mb-1.5">Last Name</label>
                   <input type="text" placeholder="Smith" className="w-full bg-dark-900/60 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-primary/50" />
                 </div>
               </div>
               <div>
-                <label className="text-[10px] text-slate-400 font-semibold uppercase block mb-1.5">Work Email</label>
+                <label className="text-xs text-slate-400 font-semibold uppercase block mb-1.5">Work Email</label>
                 <input type="email" placeholder="john@company.com" className="w-full bg-dark-900/60 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-primary/50" />
               </div>
               <div>
-                <label className="text-[10px] text-slate-400 font-semibold uppercase block mb-1.5">Company</label>
+                <label className="text-xs text-slate-400 font-semibold uppercase block mb-1.5">Company</label>
                 <input type="text" placeholder="Your company name" className="w-full bg-dark-900/60 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-primary/50" />
               </div>
               <div>
-                <label className="text-[10px] text-slate-400 font-semibold uppercase block mb-1.5">Message</label>
+                <label className="text-xs text-slate-400 font-semibold uppercase block mb-1.5">Message</label>
                 <textarea rows={4} placeholder="Tell us about your needs..." className="w-full bg-dark-900/60 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-primary/50 resize-none" />
               </div>
               <button className="w-full bg-primary text-white text-sm font-bold rounded-xl py-3 cursor-pointer">

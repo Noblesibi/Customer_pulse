@@ -2,13 +2,22 @@ import React, { useEffect, useState } from 'react';
 import { 
   Users as UsersIcon, Shield, Mail, Calendar, Key, Plus, X, Lock, 
   User, Briefcase, Trash2, ArrowLeft, PlusCircle, MinusCircle, Upload, CheckCircle2,
-  ChevronDown, ChevronRight, FolderOpen, Folder, UserCheck, Building2, GitBranch
+  ChevronDown, ChevronRight, FolderOpen, Folder, UserCheck, Building2, GitBranch,
+  Activity, Send, Eye, MessageSquare, CheckCheck
 } from 'lucide-react';
 import { useStore } from '../store/index.js';
 
 export default function Users() {
-  const { usersList, usersLoading, fetchUsersList, addUser, user, deleteUser } = useStore();
+  const { 
+    usersList, usersLoading, fetchUsersList, addUser, user, deleteUser,
+    accounts, accountsLoading, fetchAccounts,
+    contacts, contactsLoading, fetchContacts,
+    interactions, interactionsLoading, fetchInteractions
+  } = useStore();
 
+  const [activeTab, setActiveTab] = useState('clients'); // 'clients' or 'directory'
+  const [clientSearch, setClientSearch] = useState('');
+  const [expandedAccounts, setExpandedAccounts] = useState({});
   const [isAddUserOpen, setIsAddUserOpen] = useState(false);
   const [viewMode, setViewMode] = useState('list'); // 'list' or 'org'
   
@@ -49,6 +58,55 @@ export default function Users() {
   // Deletion modal state
   const [userToDelete, setUserToDelete] = useState(null);
 
+  // Client stakeholders expansion state
+  const [expandedUserStakeholders, setExpandedUserStakeholders] = useState({});
+  const toggleUserStakeholders = (uid) => {
+    setExpandedUserStakeholders(prev => ({ ...prev, [uid]: !prev[uid] }));
+  };
+
+  const getConnectedAccounts = (u) => {
+    // 1. Direct ownership via ownerId or ownerName
+    const owned = accounts.filter(a => 
+      a.ownerId === u.uid || 
+      (u.name && a.ownerName?.toLowerCase() === u.name.toLowerCase())
+    );
+    
+    // 2. Connection via projects array or project text
+    const connectedByProject = accounts.filter(a => {
+      if (owned.some(o => o.accountId === a.accountId)) return false;
+      
+      let projectsArr = [];
+      if (typeof u.projects === 'string') {
+        try { projectsArr = JSON.parse(u.projects); } catch (e) { projectsArr = []; }
+      } else if (Array.isArray(u.projects)) {
+        projectsArr = u.projects;
+      }
+      
+      if (projectsArr.length > 0) {
+        return projectsArr.some(p => {
+          const pName = typeof p === 'string' ? p : p.name;
+          return pName && (
+            a.companyName.toLowerCase().includes(pName.toLowerCase()) ||
+            pName.toLowerCase().includes(a.companyName.toLowerCase())
+          );
+        });
+      }
+      
+      if (u.project) {
+        return a.companyName.toLowerCase().includes(u.project.toLowerCase()) ||
+               u.project.toLowerCase().includes(a.companyName.toLowerCase());
+      }
+      
+      return false;
+    });
+    
+    return [...owned, ...connectedByProject];
+  };
+
+  const getAccountContacts = (accId) => {
+    return contacts.filter(c => c.accountId === accId);
+  };
+
   const handleAssignRole = (type, details = {}) => {
     setUserType(type);
     if (details.position) setPosition(details.position);
@@ -79,20 +137,84 @@ export default function Users() {
         <div className="flex flex-col gap-2">
           {matched.map(u => {
             const isCurrentUser = user && user.email?.toLowerCase() === u.email?.toLowerCase();
+            const connectedAccs = getConnectedAccounts(u);
+            const isExpanded = !!expandedUserStakeholders[u.uid || u.id];
+            
             return (
-              <div key={u.uid || u.id} className={`${bgClass} border ${isCurrentUser ? 'border-primary ring-2 ring-primary/45 shadow-primary/20' : borderClass} p-3 rounded-xl shadow-lg flex flex-col items-center justify-between w-44 text-center hover:border-primary/50 transition-all shrink-0 relative overflow-hidden`}>
+              <div key={u.uid || u.id} className={`${bgClass} border ${isCurrentUser ? 'border-primary ring-2 ring-primary/45 shadow-primary/20' : borderClass} p-3 rounded-xl shadow-lg flex flex-col items-center justify-between w-56 text-center hover:border-primary/50 transition-all shrink-0 relative overflow-hidden`}>
                 {isCurrentUser && (
-                  <div className="absolute top-0 right-0 bg-primary text-white text-[7px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded-bl-lg">
+                  <div className="absolute top-0 left-0 bg-primary text-white text-xs font-black uppercase tracking-wider px-1.5 py-0.5 rounded-br-lg z-10">
                     You
                   </div>
                 )}
-                <div className={`${accentBg} w-8 h-8 rounded-lg flex items-center justify-center font-bold text-xs mx-auto`}>
+                {user?.role === 'Admin' && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDeleteUser(u.uid || u.id, u.name);
+                    }}
+                    className="absolute top-1 right-2 text-slate-500 hover:text-rose-500 transition-colors p-1 rounded hover:bg-slate-800 z-10 cursor-pointer"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                )}
+                <div className={`${accentBg} w-10 h-10 rounded-lg flex items-center justify-center font-bold text-sm mx-auto mt-2`}>
                   {u.name ? u.name.substring(0, 2).toUpperCase() : 'US'}
                 </div>
-                <div className="mt-1.5 flex flex-col items-center">
-                  <span className={`font-extrabold ${textClass} text-xs block truncate max-w-[160px]`}>{u.name}</span>
-                  <span className="text-[9px] text-slate-500 mt-0.5 font-bold uppercase tracking-wider">{u.position || u.userType || u.role}</span>
-                  <span className="text-[8px] text-slate-400 mt-0.5 truncate max-w-[160px]">{u.email}</span>
+                <div className="mt-1.5 flex flex-col items-center w-full">
+                  <span className={`font-extrabold ${textClass} text-sm block truncate max-w-[200px]`}>{u.name}</span>
+                  <span className="text-xs text-slate-500 mt-0.5 font-bold uppercase tracking-wider">{u.position || u.userType || u.role}</span>
+                  <span className="text-xs text-slate-400 mt-0.5 truncate max-w-[200px]">{u.email}</span>
+                  
+                  {connectedAccs.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggleUserStakeholders(u.uid || u.id);
+                      }}
+                      className="mt-2 text-xs font-black uppercase tracking-wider text-primary hover:text-blue-400 bg-primary/10 border border-primary/20 px-2 py-1 rounded flex items-center gap-1.5 cursor-pointer w-full justify-center active:scale-98 transition-all"
+                    >
+                      <span>💼 {connectedAccs.length} Client{connectedAccs.length !== 1 ? 's' : ''}</span>
+                      <ChevronDown className={`w-3 h-3 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+                    </button>
+                  )}
+                  
+                  {isExpanded && connectedAccs.length > 0 && (
+                    <div className="mt-3 pt-3 border-t border-slate-700/60 w-full text-left space-y-2.5 select-text">
+                      {connectedAccs.map(acc => {
+                        const accContacts = getAccountContacts(acc.accountId || acc.id);
+                        return (
+                          <div key={acc.accountId || acc.id} className="bg-slate-900/80 border border-slate-800 p-2 rounded-lg space-y-1.5">
+                            <div className="flex items-center justify-between gap-1">
+                              <span className="text-xs font-extrabold text-white truncate max-w-[150px]">{acc.companyName}</span>
+                              <span className={`text-xs font-black uppercase px-1.5 py-0.5 rounded shrink-0 ${
+                                acc.healthScore >= 80 
+                                  ? 'bg-emerald-500/10 text-emerald-400' 
+                                  : acc.healthScore >= 50 
+                                    ? 'bg-amber-500/10 text-amber-400' 
+                                    : 'bg-rose-500/10 text-rose-400'
+                              }`}>
+                                {acc.healthScore}%
+                              </span>
+                            </div>
+                            {accContacts.length > 0 && (
+                              <div className="space-y-1 pl-1 border-l border-slate-800/80">
+                                <span className="text-xs text-slate-500 font-black uppercase tracking-widest block mb-0.5">Stakeholders</span>
+                                {accContacts.map(c => (
+                                  <div key={c.contactId || c.id} className="text-xs font-semibold text-slate-300 truncate flex items-center justify-between gap-1">
+                                    <span className="truncate">👤 {c.name}</span>
+                                    <span className="text-xs text-slate-500 italic shrink-0">({c.designation})</span>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               </div>
             );
@@ -104,10 +226,10 @@ export default function Users() {
     if (user?.role !== 'Admin') {
       return (
         <div 
-          className="border border-dashed border-slate-400 p-3 rounded-xl flex flex-col items-center justify-center w-44 h-[94px] text-center bg-slate-50/50 text-black transition-all shrink-0 select-none"
+          className="border border-dashed border-slate-700/60 p-3 rounded-xl flex flex-col items-center justify-center w-56 h-[116px] text-center bg-slate-900/10 text-slate-500 transition-all shrink-0 select-none"
         >
-          <span className="text-[10px] font-extrabold text-black uppercase tracking-wider block">{title}</span>
-          <span className="text-[10px] text-black mt-1.5 font-black italic">
+          <span className="text-xs font-extrabold uppercase tracking-wider block">{title}</span>
+          <span className="text-xs text-slate-600 mt-1.5 font-black italic">
             Vacant
           </span>
         </div>
@@ -117,11 +239,11 @@ export default function Users() {
     return (
       <div 
         onClick={() => handleAssignRole(matchType, details)}
-        className="border border-dashed border-slate-400 hover:border-primary/50 hover:bg-primary/5 p-3 rounded-xl flex flex-col items-center justify-center w-44 h-[94px] text-center bg-slate-50/50 text-black cursor-pointer transition-all shrink-0 select-none group"
+        className="border border-dashed border-slate-700/65 hover:border-primary/50 hover:bg-primary/5 p-3 rounded-xl flex flex-col items-center justify-center w-56 h-[116px] text-center bg-slate-900/20 text-slate-400 cursor-pointer transition-all shrink-0 select-none group"
       >
-        <span className="text-[10px] font-extrabold text-black uppercase tracking-wider block">{title}</span>
-        <span className="text-[10px] text-black mt-1 flex items-center gap-0.5 group-hover:text-primary transition-colors font-black">
-          <PlusCircle className="w-3.5 h-3.5 text-black group-hover:text-primary transition-colors" /> Assign
+        <span className="text-xs font-extrabold uppercase tracking-wider block">{title}</span>
+        <span className="text-xs text-slate-500 mt-1.5 flex items-center gap-1 group-hover:text-primary transition-colors font-black">
+          <PlusCircle className="w-4 h-4" /> Assign
         </span>
       </div>
     );
@@ -131,36 +253,103 @@ export default function Users() {
     const matched = usersList.filter(u => (u.userType || u.role) === matchType);
 
     return (
-      <div className="flex flex-col gap-2 bg-dark-900/40 p-4 rounded-2xl border border-slate-800/80 w-64 shadow-md shrink-0">
+      <div className="flex flex-col gap-2 bg-dark-900/40 p-4 rounded-2xl border border-slate-800/80 w-76 shadow-md shrink-0">
         <h4 className="text-xs font-bold text-center text-slate-400 uppercase tracking-wider mb-2 pb-1.5 border-b border-slate-800/50">{title}</h4>
-        <div className="flex flex-col gap-2 max-h-48 overflow-y-auto pr-1">
+        <div className="flex flex-col gap-2 pr-1">
           {matched.length > 0 ? (
             matched.map(u => {
               const isCurrentUser = user && user.email?.toLowerCase() === u.email?.toLowerCase();
+              const connectedAccs = getConnectedAccounts(u);
+              const isExpanded = !!expandedUserStakeholders[u.uid || u.id];
+              
               return (
-                <div key={u.uid || u.id} className={`glass border ${isCurrentUser ? 'border-primary' : 'border-slate-700/60'} p-2.5 rounded-xl flex items-center gap-2.5 relative`}>
+                <div key={u.uid || u.id} className={`glass border ${isCurrentUser ? 'border-primary' : 'border-slate-700/60'} p-3 rounded-xl flex flex-col gap-2 relative overflow-hidden`}>
                   {isCurrentUser && (
-                    <span className="absolute top-1 right-2 bg-primary text-white text-[7px] font-bold px-1 rounded uppercase">You</span>
+                    <span className="absolute top-0 left-0 bg-primary text-white text-xs font-bold px-1.5 py-0.5 rounded-br-lg z-10">You</span>
                   )}
-                  <div className="bg-primary/10 border border-primary/20 text-primary w-7 h-7 rounded-lg flex items-center justify-center font-bold text-xs shrink-0">
-                    {u.name ? u.name.substring(0, 2).toUpperCase() : 'US'}
+                  {user?.role === 'Admin' && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeleteUser(u.uid || u.id, u.name);
+                      }}
+                      className="absolute top-1 right-2 text-slate-500 hover:text-rose-500 transition-colors p-0.5 rounded hover:bg-slate-800 z-10 cursor-pointer"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  )}
+                  
+                  <div className="flex items-center gap-2.5 w-full mt-2">
+                    <div className="bg-primary/10 border border-primary/20 text-primary w-9 h-9 rounded-lg flex items-center justify-center font-bold text-sm shrink-0">
+                      {u.name ? u.name.substring(0, 2).toUpperCase() : 'US'}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <span className="font-extrabold text-white text-sm block truncate">{u.name}</span>
+                      <span className="text-xs text-slate-500 block truncate">{u.email}</span>
+                    </div>
                   </div>
-                  <div className="min-w-0">
-                    <span className="font-extrabold text-white text-xs block truncate">{u.name}</span>
-                    <span className="text-[8px] text-slate-500 block truncate">{u.email}</span>
-                  </div>
+                  
+                  {connectedAccs.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggleUserStakeholders(u.uid || u.id);
+                      }}
+                      className="mt-1 text-xs font-black uppercase tracking-wider text-primary hover:text-blue-400 bg-primary/10 border border-primary/20 px-2 py-1 rounded flex items-center gap-1.5 cursor-pointer w-full justify-center active:scale-98 transition-all"
+                    >
+                      <span>💼 {connectedAccs.length} Client{connectedAccs.length !== 1 ? 's' : ''}</span>
+                      <ChevronDown className={`w-3 h-3 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+                    </button>
+                  )}
+                  
+                  {isExpanded && connectedAccs.length > 0 && (
+                    <div className="mt-2 pt-2 border-t border-slate-700/60 w-full text-left space-y-2.5 select-text">
+                      {connectedAccs.map(acc => {
+                        const accContacts = getAccountContacts(acc.accountId || acc.id);
+                        return (
+                          <div key={acc.accountId || acc.id} className="bg-slate-900/80 border border-slate-800 p-2 rounded-lg space-y-1.5">
+                            <div className="flex items-center justify-between gap-1">
+                              <span className="text-xs font-extrabold text-white truncate max-w-[200px]">{acc.companyName}</span>
+                              <span className={`text-xs font-black uppercase px-1.5 py-0.5 rounded shrink-0 ${
+                                acc.healthScore >= 80 
+                                  ? 'bg-emerald-500/10 text-emerald-400' 
+                                  : acc.healthScore >= 50 
+                                    ? 'bg-amber-500/10 text-amber-400' 
+                                    : 'bg-rose-500/10 text-rose-400'
+                              }`}>
+                                {acc.healthScore}%
+                              </span>
+                            </div>
+                            {accContacts.length > 0 && (
+                              <div className="space-y-1 pl-1 border-l border-slate-800/80">
+                                <span className="text-xs text-slate-500 font-black uppercase tracking-widest block mb-0.5">Stakeholders</span>
+                                {accContacts.map(c => (
+                                  <div key={c.contactId || c.id} className="text-xs font-semibold text-slate-300 truncate flex items-center justify-between gap-1">
+                                    <span className="truncate font-semibold text-slate-355">👤 {c.name}</span>
+                                    <span className="text-xs text-slate-500 italic shrink-0">({c.designation})</span>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               );
             })
           ) : user?.role === 'Admin' ? (
             <button 
               onClick={() => handleAssignRole(matchType, details)}
-              className="border border-dashed border-slate-700/50 hover:border-primary/50 hover:bg-primary/5 p-2 rounded-xl flex items-center justify-center gap-1.5 text-xs text-slate-500 cursor-pointer transition-all w-full select-none font-semibold"
+              className="border border-dashed border-slate-700/50 hover:border-primary/50 hover:bg-primary/5 p-2.5 rounded-xl flex items-center justify-center gap-1.5 text-xs text-slate-500 cursor-pointer transition-all w-full select-none font-semibold"
             >
               <PlusCircle className="w-4 h-4 text-slate-500" /> Assign Manager
             </button>
           ) : (
-            <div className="p-2 text-center text-[10px] text-slate-650 italic">No managers assigned</div>
+            <div className="p-2 text-center text-xs text-slate-600 italic">No managers assigned</div>
           )}
         </div>
       </div>
@@ -169,7 +358,50 @@ export default function Users() {
 
   useEffect(() => {
     fetchUsersList();
+    fetchAccounts(1, '');
+    fetchContacts();
+    fetchInteractions();
   }, []);
+
+  const toggleAccountExpand = (accountId) => {
+    setExpandedAccounts(prev => ({ ...prev, [accountId]: !prev[accountId] }));
+  };
+
+  const getAccountInteractions = (accountId) => {
+    return interactions.filter(i => i.accountId === accountId);
+  };
+
+  const getInteractionTrackerState = (interaction) => {
+    const hasMentions = Array.isArray(interaction.actionMentions) && interaction.actionMentions.length > 0;
+    const isInitiated = true;
+    
+    const taskAssignedNotifications = Array.isArray(interaction.notifications) 
+      ? interaction.notifications.filter(n => n.type === 'Task Assigned') 
+      : [];
+    const isAssigned = !hasMentions || (taskAssignedNotifications.length > 0 && taskAssignedNotifications.some(n => n.read));
+    
+    const hasReplies = Array.isArray(interaction.replies) && interaction.replies.length > 0;
+    const isActioned = hasReplies;
+    
+    const taskReplyNotifications = Array.isArray(interaction.notifications) 
+      ? interaction.notifications.filter(n => n.type === 'Task Reply') 
+      : [];
+    const isCompleted = isActioned && (
+      (taskReplyNotifications.length > 0 && taskReplyNotifications.some(n => n.read)) || 
+      (Array.isArray(interaction.replies) && interaction.replies.some(r => r.authorUid === interaction.loggedByUid))
+    );
+
+    return { isInitiated, isAssigned, isActioned, isCompleted };
+  };
+
+  const filteredAccounts = accounts.filter(acc => {
+    const query = clientSearch.toLowerCase();
+    const companyMatches = (acc.companyName || '').toLowerCase().includes(query);
+    const projectMatches = (acc.projectName || '').toLowerCase().includes(query);
+    const regionMatches = (acc.region || '').toLowerCase().includes(query);
+    const industryMatches = (acc.industry || '').toLowerCase().includes(query);
+    return companyMatches || projectMatches || regionMatches || industryMatches;
+  });
 
   // Array handlers
   const handleArrayChange = (setter, index, val) => {
@@ -491,10 +723,7 @@ export default function Users() {
 
   return (
     <div className="space-y-6 select-none animate-soft-pulse duration-1000">
-      
-      {/* --------------------------------------------------------
-          VIEW 1: REGISTRATION DYNAMIC FORM
-          -------------------------------------------------------- */}
+
       {isAddUserOpen ? (
         <div className="glass p-6 md:p-8 rounded-2xl border border-slate-800/80 space-y-6">
           {/* Header */}
@@ -504,7 +733,7 @@ export default function Users() {
               className="text-xs font-bold text-slate-500 hover:text-slate-900 transition-colors flex items-center gap-1.5 cursor-pointer bg-slate-100 px-3.5 py-2 rounded-lg border border-slate-200"
             >
               <ArrowLeft className="w-4 h-4" />
-              Back to Directory
+              Back to Client Tree
             </button>
             <h2 className="text-base font-extrabold text-white tracking-wide">Register Platform User</h2>
           </div>
@@ -517,7 +746,7 @@ export default function Users() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {/* Full Name */}
                 <div className="space-y-1.5">
-                  <label className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">Full Name</label>
+                  <label className="text-xs text-slate-400 uppercase tracking-wider font-semibold">Full Name</label>
                   <div className="relative">
                     <User className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
                     <input 
@@ -530,7 +759,7 @@ export default function Users() {
 
                 {/* Email Address */}
                 <div className="space-y-1.5">
-                  <label className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">Corporate Email</label>
+                  <label className="text-xs text-slate-400 uppercase tracking-wider font-semibold">Corporate Email</label>
                   <div className="relative">
                     <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
                     <input 
@@ -543,7 +772,7 @@ export default function Users() {
 
                 {/* Corporate Password */}
                 <div className="space-y-1.5">
-                  <label className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">Account Password</label>
+                  <label className="text-xs text-slate-400 uppercase tracking-wider font-semibold">Account Password</label>
                   <div className="relative">
                     <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
                     <input 
@@ -556,7 +785,7 @@ export default function Users() {
 
                 {/* Department */}
                 <div className="space-y-1.5">
-                  <label className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">Department</label>
+                  <label className="text-xs text-slate-400 uppercase tracking-wider font-semibold">Department</label>
                   <input 
                     type="text" required value={department} onChange={(e) => setDepartment(e.target.value)}
                     placeholder="e.g. Engineering, Sales, Human Resources"
@@ -566,7 +795,7 @@ export default function Users() {
 
                 {/* Position */}
                 <div className="space-y-1.5">
-                  <label className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">Position</label>
+                  <label className="text-xs text-slate-400 uppercase tracking-wider font-semibold">Position</label>
                   <input 
                     type="text" required value={position} onChange={(e) => setPosition(e.target.value)}
                     placeholder="e.g. Lead Developer, BU Director, Executive Associate"
@@ -576,7 +805,7 @@ export default function Users() {
 
                 {/* User Type Select */}
                 <div className="space-y-1.5">
-                  <label className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">User Type (Access Level)</label>
+                  <label className="text-xs text-slate-400 uppercase tracking-wider font-semibold">User Type (Access Level)</label>
                   <div className="relative">
                     <Briefcase className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
                     <select 
@@ -600,7 +829,7 @@ export default function Users() {
                 {/* Reporting To (Global Field) */}
                 {userType !== 'CEO' && userType !== 'Admin' && (
                   <div className="space-y-1.5 md:col-span-2 relative">
-                    <label className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">Reporting To (Manager / Lead)</label>
+                    <label className="text-xs text-slate-400 uppercase tracking-wider font-semibold">Reporting To (Manager / Lead)</label>
                     <input 
                       type="text" required value={reportingTo} 
                       onChange={(e) => {
@@ -632,21 +861,21 @@ export default function Users() {
                               className="w-full text-left px-4 py-2.5 hover:bg-slate-800 flex items-center justify-between text-xs transition-colors cursor-pointer"
                             >
                               <div className="flex items-center gap-2">
-                                <div className="bg-primary/10 border border-primary/20 text-primary w-6 h-6 rounded flex items-center justify-center font-bold text-[10px] shrink-0">
+                                <div className="bg-primary/10 border border-primary/20 text-primary w-8 h-8 rounded flex items-center justify-center font-bold text-xs shrink-0">
                                   {u.name ? u.name.substring(0, 2).toUpperCase() : 'US'}
                                 </div>
                                 <div className="flex flex-col">
                                   <span className="font-bold text-slate-50">{u.name}</span>
-                                  <span className="text-[9px] text-slate-350 font-medium">{u.email}</span>
+                                  <span className="text-xs text-slate-355 font-medium">{u.email}</span>
                                 </div>
                               </div>
-                              <span className="text-[8px] bg-slate-700 border border-slate-600 px-2 py-0.5 rounded-full text-slate-200 font-bold uppercase tracking-wider">
+                              <span className="text-xs bg-slate-700 border border-slate-600 px-2 py-0.5 rounded-full text-slate-200 font-bold uppercase tracking-wider">
                                 {u.position || u.userType || u.role}
                               </span>
                             </button>
                           ))
                         ) : (
-                          <div className="p-3 text-center text-[10px] text-slate-400 font-medium">
+                          <div className="p-3 text-center text-xs text-slate-400 font-medium">
                             No matching users found in the hierarchy
                           </div>
                         )}
@@ -672,7 +901,7 @@ export default function Users() {
 
                   {/* BU Name */}
                   <div className="space-y-1.5 max-w-md">
-                    <label className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">
+                    <label className="text-xs text-slate-400 uppercase tracking-wider font-semibold">
                       {userType === 'Delivery Head' ? 'Delivery Division Name' : 'Business Unit (BU) Name'}
                     </label>
                     <input 
@@ -684,17 +913,17 @@ export default function Users() {
 
                   {/* Projects Configuration Toggle */}
                   <div className="flex items-center justify-between">
-                    <label className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">Projects Mode</label>
+                    <label className="text-xs text-slate-400 uppercase tracking-wider font-semibold">Projects Mode</label>
                     <div className="bg-dark-900/60 p-0.5 rounded-lg border border-slate-700 flex">
                       <button 
                         type="button" onClick={() => setBuProjectsMode('manual')}
-                        className={`px-3 py-1.5 rounded-md text-[10px] font-bold transition-all cursor-pointer ${buProjectsMode === 'manual' ? 'bg-primary text-white shadow-sm' : 'text-slate-400'}`}
+                        className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all cursor-pointer ${buProjectsMode === 'manual' ? 'bg-primary text-white shadow-sm' : 'text-slate-400'}`}
                       >
                         Manual Configuration
                       </button>
                       <button 
                         type="button" onClick={() => setBuProjectsMode('excel')}
-                        className={`px-3 py-1.5 rounded-md text-[10px] font-bold transition-all cursor-pointer ${buProjectsMode === 'excel' ? 'bg-primary text-white shadow-sm' : 'text-slate-400'}`}
+                        className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all cursor-pointer ${buProjectsMode === 'excel' ? 'bg-primary text-white shadow-sm' : 'text-slate-400'}`}
                       >
                         Excel Bulk Upload
                       </button>
@@ -712,13 +941,13 @@ export default function Users() {
                           <>
                             <CheckCircle2 className="w-8 h-8 text-success animate-bounce" />
                             <span className="text-xs font-bold text-white">Excel Projects File Loaded!</span>
-                            <span className="text-[10px] text-slate-500">{buProjectsExcelFile.name}</span>
+                            <span className="text-xs text-slate-500">{buProjectsExcelFile.name}</span>
                           </>
                         ) : (
                           <>
                             <Upload className="w-8 h-8 text-slate-400" />
                             <span className="text-xs font-bold text-slate-300">Drag & drop projects spreadsheet (.xlsx) here</span>
-                            <span className="text-[10px] text-slate-400">or click to browse local files</span>
+                            <span className="text-xs text-slate-400">or click to browse local files</span>
                           </>
                         )}
                       </div>
@@ -726,10 +955,10 @@ export default function Users() {
                   ) : (
                     <div className="space-y-6">
                       <div className="flex items-center justify-between">
-                        <label className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">Configure Projects & Teams under BU</label>
+                        <label className="text-xs text-slate-400 uppercase tracking-wider font-semibold">Configure Projects & Teams under BU</label>
                         <button 
                           type="button" onClick={handleAddBuProject}
-                          className="text-[10px] text-primary hover:underline flex items-center gap-1 font-semibold cursor-pointer"
+                          className="text-xs text-primary hover:underline flex items-center gap-1 font-semibold cursor-pointer"
                         >
                           <PlusCircle className="w-3.5 h-3.5" /> Add Project Section
                         </button>
@@ -740,7 +969,7 @@ export default function Users() {
                           {buProjects.length > 1 && (
                             <button 
                               type="button" onClick={() => handleRemoveBuProject(projIdx)}
-                              className="absolute top-4 right-4 text-rose-400 hover:text-rose-300 cursor-pointer flex items-center gap-1 text-[10px] font-bold bg-rose-500/10 px-2 py-1 rounded-md border border-rose-500/20"
+                              className="absolute top-4 right-4 text-rose-400 hover:text-rose-300 cursor-pointer flex items-center gap-1 text-xs font-bold bg-rose-500/10 px-2 py-1 rounded-md border border-rose-500/20"
                             >
                               <X className="w-3.5 h-3.5" /> Remove Project
                             </button>
@@ -748,7 +977,7 @@ export default function Users() {
 
                           {/* Project Name */}
                           <div className="space-y-1.5 max-w-md">
-                            <label className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">Project Name</label>
+                            <label className="text-xs text-slate-400 uppercase tracking-wider font-semibold">Project Name</label>
                             <input 
                               type="text" required value={proj.name} 
                               onChange={(e) => handleBuProjectFieldChange(projIdx, 'name', e.target.value)}
@@ -762,17 +991,17 @@ export default function Users() {
                             {/* Employees Subsection */}
                             <div className="space-y-3">
                               <div className="flex items-center justify-between">
-                                <label className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">Employees Working on this Project</label>
+                                <label className="text-xs text-slate-400 uppercase tracking-wider font-semibold">Employees Working on this Project</label>
                                 <div className="bg-dark-900/60 p-0.5 rounded-lg border border-slate-700 flex">
                                   <button 
                                     type="button" onClick={() => handleBuProjectFieldChange(projIdx, 'employeesMode', 'manual')}
-                                    className={`px-2 py-1 rounded-md text-[9px] font-bold cursor-pointer ${proj.employeesMode === 'manual' ? 'bg-primary text-white shadow-sm' : 'text-slate-400'}`}
+                                    className={`px-2 py-1 rounded-md text-xs font-bold cursor-pointer ${proj.employeesMode === 'manual' ? 'bg-primary text-white shadow-sm' : 'text-slate-400'}`}
                                   >
                                     Manual
                                   </button>
                                   <button 
                                     type="button" onClick={() => handleBuProjectFieldChange(projIdx, 'employeesMode', 'excel')}
-                                    className={`px-2 py-1 rounded-md text-[9px] font-bold cursor-pointer ${proj.employeesMode === 'excel' ? 'bg-primary text-white shadow-sm' : 'text-slate-400'}`}
+                                    className={`px-2 py-1 rounded-md text-xs font-bold cursor-pointer ${proj.employeesMode === 'excel' ? 'bg-primary text-white shadow-sm' : 'text-slate-400'}`}
                                   >
                                     Excel
                                   </button>
@@ -790,13 +1019,13 @@ export default function Users() {
                                     {proj.excelFileEmployees ? (
                                       <>
                                         <CheckCircle2 className="w-5 h-5 text-success" />
-                                        <span className="text-[10px] font-bold text-white">Employees File Loaded!</span>
-                                        <span className="text-[8px] text-slate-500">{proj.excelFileEmployees.name}</span>
+                                        <span className="text-xs font-bold text-white">Employees File Loaded!</span>
+                                        <span className="text-xs text-slate-500">{proj.excelFileEmployees.name}</span>
                                       </>
                                     ) : (
                                       <>
                                         <Upload className="w-5 h-5 text-slate-400" />
-                                        <span className="text-[10px] font-semibold text-slate-400">Upload Roster Excel list</span>
+                                        <span className="text-xs font-semibold text-slate-400">Upload Roster Excel list</span>
                                       </>
                                     )}
                                   </div>
@@ -806,7 +1035,7 @@ export default function Users() {
                                   <div className="flex justify-end">
                                     <button 
                                       type="button" onClick={() => handleAddBuProjectEmployee(projIdx)}
-                                      className="text-[9px] text-primary hover:underline flex items-center gap-0.5 font-bold cursor-pointer"
+                                      className="text-xs text-primary hover:underline flex items-center gap-0.5 font-bold cursor-pointer"
                                     >
                                       <PlusCircle className="w-3 h-3" /> Add Employee
                                     </button>
@@ -850,7 +1079,7 @@ export default function Users() {
 
                   {/* Under which BU */}
                   <div className="space-y-1.5 max-w-md">
-                    <label className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">Under Which Division / BU</label>
+                    <label className="text-xs text-slate-400 uppercase tracking-wider font-semibold">Under Which Division / BU</label>
                     <input 
                       type="text" required value={pmBu} onChange={(e) => setPmBu(e.target.value)}
                       placeholder="e.g. Insurance, Healthcare, BFS BU, Enterprise BU"
@@ -860,17 +1089,17 @@ export default function Users() {
 
                   {/* Projects Configuration Toggle */}
                   <div className="flex items-center justify-between pt-2">
-                    <label className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">Projects Managed Mode</label>
+                    <label className="text-xs text-slate-400 uppercase tracking-wider font-semibold">Projects Managed Mode</label>
                     <div className="bg-dark-900/60 p-0.5 rounded-lg border border-slate-700 flex">
                       <button 
                         type="button" onClick={() => setPmProjectsMode('manual')}
-                        className={`px-3 py-1.5 rounded-md text-[10px] font-bold transition-all cursor-pointer ${pmProjectsMode === 'manual' ? 'bg-primary text-white shadow-sm' : 'text-slate-400'}`}
+                        className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all cursor-pointer ${pmProjectsMode === 'manual' ? 'bg-primary text-white shadow-sm' : 'text-slate-400'}`}
                       >
                         Manual Configuration
                       </button>
                       <button 
                         type="button" onClick={() => setPmProjectsMode('excel')}
-                        className={`px-3 py-1.5 rounded-md text-[10px] font-bold transition-all cursor-pointer ${pmProjectsMode === 'excel' ? 'bg-primary text-white shadow-sm' : 'text-slate-400'}`}
+                        className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all cursor-pointer ${pmProjectsMode === 'excel' ? 'bg-primary text-white shadow-sm' : 'text-slate-400'}`}
                       >
                         Excel Bulk Upload
                       </button>
@@ -888,13 +1117,13 @@ export default function Users() {
                           <>
                             <CheckCircle2 className="w-8 h-8 text-success animate-bounce" />
                             <span className="text-xs font-bold text-white">Excel Projects File Loaded!</span>
-                            <span className="text-[10px] text-slate-500">{pmProjectsExcelFile.name}</span>
+                            <span className="text-xs text-slate-500">{pmProjectsExcelFile.name}</span>
                           </>
                         ) : (
                           <>
                             <Upload className="w-8 h-8 text-slate-400" />
                             <span className="text-xs font-bold text-slate-300">Drag & drop projects spreadsheet (.xlsx) here</span>
-                            <span className="text-[10px] text-slate-400">or click to browse local files</span>
+                            <span className="text-xs text-slate-400">or click to browse local files</span>
                           </>
                         )}
                       </div>
@@ -902,10 +1131,10 @@ export default function Users() {
                   ) : (
                     <div className="space-y-6">
                       <div className="flex items-center justify-between">
-                        <label className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">Configure Projects Managed</label>
+                        <label className="text-xs text-slate-400 uppercase tracking-wider font-semibold">Configure Projects Managed</label>
                         <button 
                           type="button" onClick={handleAddPmProject}
-                          className="text-[10px] text-primary hover:underline flex items-center gap-1 font-semibold cursor-pointer"
+                          className="text-xs text-primary hover:underline flex items-center gap-1 font-semibold cursor-pointer"
                         >
                           <PlusCircle className="w-3.5 h-3.5" /> Add Project Section
                         </button>
@@ -916,7 +1145,7 @@ export default function Users() {
                           {pmProjects.length > 1 && (
                             <button 
                               type="button" onClick={() => handleRemovePmProject(projIdx)}
-                              className="absolute top-4 right-4 text-rose-400 hover:text-rose-300 cursor-pointer flex items-center gap-1 text-[10px] font-bold bg-rose-500/10 px-2 py-1 rounded-md border border-rose-500/20"
+                              className="absolute top-4 right-4 text-rose-400 hover:text-rose-300 cursor-pointer flex items-center gap-1 text-xs font-bold bg-rose-500/10 px-2 py-1 rounded-md border border-rose-500/20"
                             >
                               <X className="w-3.5 h-3.5" /> Remove Project
                             </button>
@@ -924,7 +1153,7 @@ export default function Users() {
 
                           {/* Project Name */}
                           <div className="space-y-1.5 max-w-md">
-                            <label className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">Project Name</label>
+                            <label className="text-xs text-slate-400 uppercase tracking-wider font-semibold">Project Name</label>
                             <input 
                               type="text" required value={proj.name} 
                               onChange={(e) => handlePmProjectFieldChange(projIdx, 'name', e.target.value)}
@@ -938,17 +1167,17 @@ export default function Users() {
                             {/* Employees Subsection */}
                             <div className="space-y-3">
                               <div className="flex items-center justify-between">
-                                <label className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">Employees Working on this Project</label>
+                                <label className="text-xs text-slate-400 uppercase tracking-wider font-semibold">Employees Working on this Project</label>
                                 <div className="bg-dark-900/60 p-0.5 rounded-lg border border-slate-700 flex">
                                   <button 
                                     type="button" onClick={() => handlePmProjectFieldChange(projIdx, 'employeesMode', 'manual')}
-                                    className={`px-2 py-1 rounded-md text-[9px] font-bold cursor-pointer ${proj.employeesMode === 'manual' ? 'bg-primary text-white shadow-sm' : 'text-slate-400'}`}
+                                    className={`px-2 py-1 rounded-md text-xs font-bold cursor-pointer ${proj.employeesMode === 'manual' ? 'bg-primary text-white shadow-sm' : 'text-slate-400'}`}
                                   >
                                     Manual
                                   </button>
                                   <button 
                                     type="button" onClick={() => handlePmProjectFieldChange(projIdx, 'employeesMode', 'excel')}
-                                    className={`px-2 py-1 rounded-md text-[9px] font-bold cursor-pointer ${proj.employeesMode === 'excel' ? 'bg-primary text-white shadow-sm' : 'text-slate-400'}`}
+                                    className={`px-2 py-1 rounded-md text-xs font-bold cursor-pointer ${proj.employeesMode === 'excel' ? 'bg-primary text-white shadow-sm' : 'text-slate-400'}`}
                                   >
                                     Excel
                                   </button>
@@ -966,13 +1195,13 @@ export default function Users() {
                                     {proj.excelFileEmployees ? (
                                       <>
                                         <CheckCircle2 className="w-5 h-5 text-success" />
-                                        <span className="text-[10px] font-bold text-white">Employees File Loaded!</span>
-                                        <span className="text-[8px] text-slate-500">{proj.excelFileEmployees.name}</span>
+                                        <span className="text-xs font-bold text-white">Employees File Loaded!</span>
+                                        <span className="text-xs text-slate-500">{proj.excelFileEmployees.name}</span>
                                       </>
                                     ) : (
                                       <>
                                         <Upload className="w-5 h-5 text-slate-400" />
-                                        <span className="text-[10px] font-semibold text-slate-400">Upload Roster Excel list</span>
+                                        <span className="text-xs font-semibold text-slate-400">Upload Roster Excel list</span>
                                       </>
                                     )}
                                   </div>
@@ -982,7 +1211,7 @@ export default function Users() {
                                   <div className="flex justify-end">
                                     <button 
                                       type="button" onClick={() => handleAddPmProjectEmployee(projIdx)}
-                                      className="text-[9px] text-primary hover:underline flex items-center gap-0.5 font-bold cursor-pointer"
+                                      className="text-xs text-primary hover:underline flex items-center gap-0.5 font-bold cursor-pointer"
                                     >
                                       <PlusCircle className="w-3 h-3" /> Add Employee
                                     </button>
@@ -1027,7 +1256,7 @@ export default function Users() {
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     {/* Assigned BU */}
                     <div className="space-y-1.5">
-                      <label className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">Business Unit (BU)</label>
+                      <label className="text-xs text-slate-400 uppercase tracking-wider font-semibold">Business Unit (BU)</label>
                       <input 
                         type="text" required value={empBu} onChange={(e) => setEmpBu(e.target.value)}
                         placeholder="e.g. Enterprise Software BU"
@@ -1037,7 +1266,7 @@ export default function Users() {
 
                     {/* Assigned Project */}
                     <div className="space-y-1.5">
-                      <label className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">Assigned Project</label>
+                      <label className="text-xs text-slate-400 uppercase tracking-wider font-semibold">Assigned Project</label>
                       <input 
                         type="text" required value={empProject} onChange={(e) => setEmpProject(e.target.value)}
                         placeholder="e.g. Project Pulse"
@@ -1047,7 +1276,7 @@ export default function Users() {
 
                     {/* Project Manager */}
                     <div className="space-y-1.5">
-                      <label className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">Respected Project Manager</label>
+                      <label className="text-xs text-slate-400 uppercase tracking-wider font-semibold">Respected Project Manager</label>
                       <input 
                         type="text" required value={empManager} onChange={(e) => setEmpManager(e.target.value)}
                         placeholder="e.g. Arthur Pendragon"
@@ -1074,49 +1303,36 @@ export default function Users() {
                 Register User Profile
               </button>
             </div>
-
           </form>
         </div>
       ) : (
-        /* --------------------------------------------------------
-            VIEW 2: DIRECTORY LIST TABLE OR ORG CHART
-            -------------------------------------------------------- */
-        <>
+        <div className="space-y-6 animate-fade-in duration-300">
           {/* Page Header */}
-          <div className="glass p-6 rounded-2xl border border-slate-800/80 flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <div className="bg-primary/20 p-2.5 rounded-xl border border-primary/40 text-primary">
-                <UsersIcon className="w-5 h-5" />
-              </div>
-              <div>
-                <h2 className="text-lg font-bold text-white tracking-wide">User Management</h2>
-                <p className="text-xs text-slate-400 mt-0.5">Review registered team members and organizational roles</p>
-              </div>
+          <div className="glass p-5 rounded-2xl border border-slate-800/80 flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+              <h2 className="text-base font-extrabold text-white uppercase tracking-wider">Client Engagement Tree</h2>
+              <p className="text-xs text-slate-500 mt-1">Explore Nest Digital organization structure and connected client stakeholders.</p>
             </div>
-            
-            <div className="flex items-center gap-3 self-end md:self-auto">
-              {/* View Toggle */}
-              <div className="bg-slate-100 p-0.5 rounded-xl border border-slate-200 flex">
-                <button
-                  type="button"
-                  onClick={() => setViewMode('list')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${viewMode === 'list' ? 'bg-primary text-white shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
-                >
-                  Directory List
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setViewMode('org')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${viewMode === 'org' ? 'bg-primary text-white shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
-                >
-                  Org Chart
-                </button>
+            <div className="flex items-center gap-3 relative max-w-lg w-full md:justify-end">
+              <div className="relative w-full max-w-sm">
+                <input
+                  type="text"
+                  value={clientSearch}
+                  onChange={(e) => setClientSearch(e.target.value)}
+                  placeholder="Search company, project, or region..."
+                  className="w-full bg-dark-900/60 border border-slate-800 text-xs text-white rounded-xl py-2.5 pl-4 pr-10 focus:outline-none focus:border-primary/50 placeholder-slate-500 font-semibold"
+                />
               </div>
-
               {user?.role === 'Admin' && (
                 <button 
-                  onClick={() => setIsAddUserOpen(true)}
-                  className="bg-primary hover:bg-blue-600 px-4 py-2.5 rounded-xl text-xs font-semibold flex items-center gap-2 text-white active:scale-98 transition-all cursor-pointer"
+                  onClick={() => {
+                    setUserType('Employee');
+                    setPosition('');
+                    setDepartment('');
+                    setReportingTo('');
+                    setIsAddUserOpen(true);
+                  }}
+                  className="bg-primary hover:bg-blue-600 px-4 py-2.5 rounded-xl text-xs font-semibold flex items-center gap-2 text-white active:scale-98 transition-all cursor-pointer shrink-0"
                 >
                   <Plus className="w-4 h-4" />
                   Add User
@@ -1125,428 +1341,205 @@ export default function Users() {
             </div>
           </div>
 
-          {/* Directory Table or Org Chart */}
-          {viewMode === 'org' ? (
-            <div className="glass p-6 rounded-2xl border border-slate-800/80">
-              <h3 className="text-sm font-extrabold text-white mb-6 uppercase tracking-wider pb-2 border-b border-slate-800 flex items-center gap-2">
-                <GitBranch className="w-4 h-4 text-primary" /> Company Hierarchy Org Chart
-              </h3>
-              
-              <div className="overflow-x-auto pb-6 pt-4 w-full">
-                <div className="min-w-[1100px] flex flex-col items-center gap-8">
-                  
-                  {/* CEO Node */}
-                  <div className="flex flex-col items-center">
-                    {renderOrgNode('CEO', 'CEO', {}, null, { bg: 'bg-indigo-50/70', border: 'border-indigo-200', text: 'text-indigo-900', accentBg: 'bg-indigo-100 border-indigo-300 text-indigo-800' })}
-                    <div className="w-0.5 bg-slate-300 h-8"></div>
-                  </div>
-
-                  {/* Functional Heads */}
-                  <div className="w-full flex flex-col items-center">
-                    {/* Horizontal line across functional heads */}
-                    <div className="relative w-full max-w-5xl flex justify-between items-start">
-                      {/* The horizontal bar */}
-                      <div className="absolute top-0 left-20 right-20 h-0.5 bg-slate-300"></div>
-                      
-                      {/* Finance Head */}
-                      <div className="flex flex-col items-center pt-4 relative">
-                        <div className="absolute top-0 w-0.5 bg-slate-300 h-4"></div>
-                        {renderOrgNode('Finance Head', 'Functional Head', { position: 'Finance Head', department: 'Finance' }, u => u.position?.toLowerCase().includes('finance'), { bg: 'bg-slate-50/70', border: 'border-slate-200', text: 'text-slate-900', accentBg: 'bg-slate-100 border-slate-300 text-slate-700' })}
-                      </div>
-
-                      {/* Global HR Head */}
-                      <div className="flex flex-col items-center pt-4 relative">
-                        <div className="absolute top-0 w-0.5 bg-slate-300 h-4"></div>
-                        {renderOrgNode('Global HR Head', 'Functional Head', { position: 'Global HR Head', department: 'HR' }, u => u.position?.toLowerCase().includes('hr'), { bg: 'bg-slate-50/70', border: 'border-slate-200', text: 'text-slate-900', accentBg: 'bg-slate-100 border-slate-300 text-slate-700' })}
-                      </div>
-
-                      {/* ITG Head */}
-                      <div className="flex flex-col items-center pt-4 relative">
-                        <div className="absolute top-0 w-0.5 bg-slate-300 h-4"></div>
-                        {renderOrgNode('ITG Head', 'Functional Head', { position: 'ITG Head', department: 'ITG' }, u => u.position?.toLowerCase().includes('itg'), { bg: 'bg-slate-50/70', border: 'border-slate-200', text: 'text-slate-900', accentBg: 'bg-slate-100 border-slate-300 text-slate-700' })}
-                      </div>
-
-                      {/* NDA */}
-                      <div className="flex flex-col items-center pt-4 relative">
-                        <div className="absolute top-0 w-0.5 bg-slate-300 h-4"></div>
-                        {renderOrgNode('NDA', 'Functional Head', { position: 'NDA', department: 'Legal' }, u => u.position?.toLowerCase().includes('nda') || u.position?.toLowerCase().includes('legal'), { bg: 'bg-slate-50/70', border: 'border-slate-200', text: 'text-slate-900', accentBg: 'bg-slate-100 border-slate-300 text-slate-700' })}
-                      </div>
-
-                      {/* TC Head */}
-                      <div className="flex flex-col items-center pt-4 relative">
-                        <div className="absolute top-0 w-0.5 bg-slate-300 h-4"></div>
-                        {renderOrgNode('TC Head', 'Functional Head', { position: 'TC Head', department: 'TC' }, u => u.position?.toLowerCase().includes('tc'), { bg: 'bg-slate-50/70', border: 'border-slate-200', text: 'text-slate-900', accentBg: 'bg-slate-100 border-slate-300 text-slate-700' })}
-                      </div>
-
-                      {/* Quality Head */}
-                      <div className="flex flex-col items-center pt-4 relative">
-                        <div className="absolute top-0 w-0.5 bg-slate-300 h-4"></div>
-                        {renderOrgNode('Quality Head', 'Functional Head', { position: 'Quality Head', department: 'Quality' }, u => u.position?.toLowerCase().includes('quality'), { bg: 'bg-slate-50/70', border: 'border-slate-200', text: 'text-slate-900', accentBg: 'bg-slate-100 border-slate-300 text-slate-700' })}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="w-0.5 bg-slate-300 h-8"></div>
-
-                  {/* BU Structure Header Node */}
-                  <div className="flex flex-col items-center">
-                    <div className="bg-slate-100/90 border border-slate-300 text-slate-800 text-xs font-extrabold px-6 py-2.5 rounded-xl shadow-md uppercase tracking-wider">
-                      BU Structure
-                    </div>
-                    <div className="w-0.5 bg-slate-300 h-8"></div>
-                  </div>
-
-                  {/* BU Structure Branches: P&L vs Delivery */}
-                  <div className="w-full max-w-6xl flex gap-8 justify-center items-start">
-                    
-                    {/* Left: P&L (Hunting & Mining) */}
-                    <div className="flex-1 flex flex-col items-center border border-slate-200/60 rounded-2xl bg-purple-50/20 p-6 relative">
-                      <div className="absolute -top-3 bg-purple-650 text-white text-[10px] font-extrabold px-3 py-1 rounded-full uppercase tracking-wider">
-                        P&L (Hunting & Mining)
-                      </div>
-                      
-                      <div className="flex flex-col items-center gap-6 mt-4">
-                        {/* P&L BU Head */}
-                        {renderOrgNode('P&L Head', 'BU Head', { position: 'P&L Head', bu: 'P&L (Hunting & Mining)' }, u => u.bu?.toLowerCase().includes('p&l') || u.position?.toLowerCase().includes('p&l'), { bg: 'bg-purple-50/70', border: 'border-purple-200', text: 'text-purple-900', accentBg: 'bg-purple-100 border-purple-300 text-purple-800' })}
-                        
-                        <div className="w-0.5 bg-purple-300 h-6"></div>
-                        
-                        {/* BFS BU Consultant */}
-                        <div className="flex flex-col items-center">
-                          <span className="text-[10px] text-purple-400 font-bold uppercase tracking-wider mb-2">Consultant Roster</span>
-                          {renderOrgNode('BFS BU Consultant', 'Employee', { position: 'BFS BU Consultant', bu: 'P&L (Hunting & Mining)' }, u => u.position?.toLowerCase().includes('bfs') || u.position?.toLowerCase().includes('consultant'), { bg: 'bg-purple-50/70', border: 'border-purple-200', text: 'text-purple-900', accentBg: 'bg-purple-100 border-purple-300 text-purple-800' })}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Right: Delivery (Farming) */}
-                    <div className="flex-[2] flex flex-col items-center border border-slate-200/60 rounded-2xl bg-emerald-50/20 p-6 relative">
-                      <div className="absolute -top-3 bg-emerald-650 text-white text-[10px] font-extrabold px-3 py-1 rounded-full uppercase tracking-wider">
-                        Delivery (Farming)
-                      </div>
-
-                      <div className="flex flex-col items-center w-full mt-4">
-                        {/* Delivery Head */}
-                        {renderOrgNode('Delivery Head', 'Delivery Head', { position: 'Delivery Head', bu: 'Delivery (Farming)' }, u => (u.userType || u.role) === 'Delivery Head' && (!u.position || (!u.position.toLowerCase().includes('insurance') && !u.position.toLowerCase().includes('industrial') && !u.position.toLowerCase().includes('healthcare') && !u.position.toLowerCase().includes('mobility'))), { bg: 'bg-emerald-50/70', border: 'border-emerald-200', text: 'text-emerald-900', accentBg: 'bg-emerald-100 border-emerald-300 text-emerald-800' })}
-                        
-                        <div className="w-0.5 bg-emerald-300 h-6"></div>
-                        
-                        {/* Sub-Delivery Heads */}
-                        <div className="w-full flex justify-between gap-4 relative pt-6">
-                          {/* Horizontal connect line */}
-                          <div className="absolute top-0 left-12 right-12 h-0.5 bg-emerald-300"></div>
-
-                          {/* Insurance Delivery Head */}
-                          <div className="flex flex-col items-center relative">
-                            <div className="absolute top-0 w-0.5 bg-emerald-300 h-4"></div>
-                            <span className="text-[9px] text-emerald-600 font-bold mb-1.5 z-10">Insurance</span>
-                            {renderOrgNode('Insurance Delivery Head', 'Delivery Head', { position: 'Insurance Delivery Head', bu: 'Insurance' }, u => u.position?.toLowerCase().includes('insurance'), { bg: 'bg-emerald-50/70', border: 'border-emerald-200', text: 'text-emerald-900', accentBg: 'bg-emerald-100 border-emerald-300 text-emerald-800' })}
-                          </div>
-
-                          {/* Industrial Delivery Head */}
-                          <div className="flex flex-col items-center relative">
-                            <div className="absolute top-0 w-0.5 bg-emerald-300 h-4"></div>
-                            <span className="text-[9px] text-emerald-600 font-bold mb-1.5 z-10">Industrial</span>
-                            {renderOrgNode('Industrial Delivery Head', 'Delivery Head', { position: 'Industrial Delivery Head', bu: 'Industrial' }, u => u.position?.toLowerCase().includes('industrial'), { bg: 'bg-emerald-50/70', border: 'border-emerald-200', text: 'text-emerald-900', accentBg: 'bg-emerald-100 border-emerald-300 text-emerald-800' })}
-                          </div>
-
-                          {/* Healthcare & Mobility Delivery Head */}
-                          <div className="flex flex-col items-center relative">
-                            <div className="absolute top-0 w-0.5 bg-emerald-300 h-4"></div>
-                            <span className="text-[9px] text-emerald-600 font-bold mb-1.5 z-10">Healthcare & Mobility</span>
-                            {renderOrgNode('Healthcare & Mobility Delivery Head', 'Delivery Head', { position: 'Healthcare & Mobility Delivery Head', bu: 'Healthcare & Mobility' }, u => u.position?.toLowerCase().includes('healthcare & mobility') || u.position?.toLowerCase().includes('healthcare and mobility') || (u.position?.toLowerCase().includes('healthcare') && u.position?.toLowerCase().includes('mobility')), { bg: 'bg-emerald-50/70', border: 'border-emerald-200', text: 'text-emerald-900', accentBg: 'bg-emerald-100 border-emerald-300 text-emerald-800' })}
-                            
-                            <div className="w-0.5 bg-emerald-300 h-4"></div>
-                            
-                            {/* Healthcare & Mobility Nested Sub-levels */}
-                            <div className="border border-emerald-200/40 rounded-xl bg-emerald-50/10 p-3 flex flex-col items-center gap-3 mt-1">
-                              {/* Mobility Delivery Mgr */}
-                              <div className="flex flex-col items-center">
-                                <span className="text-[8px] text-emerald-500/80 uppercase font-bold tracking-wider mb-1">Mobility Mgr</span>
-                                {renderOrgNode('Mobility Delivery Mgr', 'Delivery Manager', { position: 'Mobility Delivery Mgr', bu: 'Healthcare & Mobility' }, u => u.position?.toLowerCase().includes('mobility') && u.position?.toLowerCase().includes('mgr'), { bg: 'bg-emerald-50/70', border: 'border-emerald-200', text: 'text-emerald-900', accentBg: 'bg-emerald-100 border-emerald-300 text-emerald-800' })}
-                              </div>
-
-                              {/* Healthcare Delivery Head */}
-                              <div className="flex flex-col items-center">
-                                <span className="text-[8px] text-emerald-500/80 uppercase font-bold tracking-wider mb-1">Healthcare Head</span>
-                                {renderOrgNode('Healthcare Delivery Head', 'Delivery Head', { position: 'Healthcare Delivery Head', bu: 'Healthcare & Mobility' }, u => u.position?.toLowerCase().includes('healthcare delivery head') || (u.position?.toLowerCase().includes('healthcare') && (u.userType || u.role) === 'Delivery Head' && !u.position?.toLowerCase().includes('mobility')), { bg: 'bg-emerald-50/70', border: 'border-emerald-200', text: 'text-emerald-900', accentBg: 'bg-emerald-100 border-emerald-300 text-emerald-800' })}
-                              </div>
-
-                              {/* Associate Delivery - HC */}
-                              <div className="flex flex-col items-center">
-                                <span className="text-[8px] text-emerald-500/80 uppercase font-bold tracking-wider mb-1">Associate HC</span>
-                                {renderOrgNode('Associate Delivery - HC', 'Employee', { position: 'Associate Delivery - HC', bu: 'Healthcare & Mobility' }, u => u.position?.toLowerCase().includes('associate') && u.position?.toLowerCase().includes('hc'), { bg: 'bg-emerald-50/70', border: 'border-emerald-200', text: 'text-emerald-900', accentBg: 'bg-emerald-100 border-emerald-300 text-emerald-800' })}
-                              </div>
-                            </div>
-
-                          </div>
-
-                        </div>
-                      </div>
-                    </div>
-
-                  </div>
-
-                  {/* Bottom Shared Managers Layer */}
-                  <div className="flex flex-col items-center w-full mt-6">
-                    {/* Connector lines from P&L and Delivery divisions to Bottom Managers */}
-                    <div className="w-1/2 flex justify-between relative h-6">
-                      <div className="absolute top-0 left-0 right-0 border-t-2 border-dashed border-slate-300 h-0.5"></div>
-                      <div className="absolute top-0 left-0 w-0.5 border-l-2 border-dashed border-slate-300 h-6"></div>
-                      <div className="absolute top-0 right-0 w-0.5 border-l-2 border-dashed border-slate-300 h-6"></div>
-                    </div>
-
-                    <div className="bg-amber-50/20 border border-amber-200/50 rounded-2xl p-6 w-full max-w-5xl relative">
-                      <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-amber-650 text-white text-[10px] font-extrabold px-3 py-1 rounded-full uppercase tracking-wider z-10">
-                        Sales, Account & Project Managers
-                      </div>
-                      
-                      <div className="flex justify-center gap-6 flex-wrap mt-4">
-                        {renderManagersList('Sales Managers', 'Sales Manager', { position: 'Sales Manager', department: 'Sales' })}
-                        {renderManagersList('Account Managers', 'Account Manager', { position: 'Account Manager', department: 'Accounts' })}
-                        {renderManagersList('Project Managers', 'Project Manager', { position: 'Project Manager', department: 'Operations' })}
-                      </div>
-                    </div>
-                  </div>
-
-                </div>
-              </div>
+          {/* Org Tree structure representing client connections */}
+          {usersLoading || accountsLoading || contactsLoading ? (
+            <div className="h-64 flex items-center justify-center">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
             </div>
           ) : (
-            <div className="glass p-6 rounded-2xl border border-slate-800/80">
-            {usersLoading ? (
-              <div className="h-32 flex items-center justify-center">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+            <div className="space-y-3">
+              {/* Swipe Helper for Mobile/Tablets */}
+              <div className="lg:hidden bg-primary/10 border border-primary/25 rounded-xl p-3 text-center text-xs font-semibold text-primary flex items-center justify-center gap-2">
+                <span>👈 Swipe horizontally to explore full client engagement architecture tree 👉</span>
               </div>
-            ) : usersList.length === 0 ? (
-              <div className="p-8 text-center text-xs text-slate-500">
-                No registered users found in the system
-              </div>
-            ) : (
-              <div className="overflow-x-auto border border-slate-800/60 rounded-xl">
-                <table className="w-full text-left text-xs border-collapse">
-                  <thead>
-                    <tr className="bg-dark-900/40 border-b border-slate-800 text-slate-400 font-semibold uppercase tracking-wider">
-                      <th className="p-4">Name</th>
-                      <th className="p-4">Email Address</th>
-                      <th className="p-4">User Type</th>
-                      <th className="p-4">Registered Date</th>
-                      <th className="p-4 text-right">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-800/40">
-                    {usersList.map(u => {
-                      const isExpanded = expandedUsers[u.uid || u.id];
-                      const expandable = hasExpandableContent(u);
-                      return (
-                        <React.Fragment key={u.uid || u.id}>
-                          <tr 
-                            className={`transition-colors ${expandable ? 'cursor-pointer' : ''} ${isExpanded ? 'bg-slate-800/30' : 'hover:bg-slate-800/20'}`}
-                            onClick={() => expandable && toggleUserExpand(u.uid || u.id)}
-                          >
-                            {/* User Name */}
-                            <td className="p-4">
-                              <div className="flex items-center gap-3">
-                                {expandable ? (
-                                  <div className={`text-slate-400 transition-transform duration-200 ${isExpanded ? 'rotate-0' : '-rotate-90'}`}>
-                                    <ChevronDown className="w-4 h-4" />
-                                  </div>
-                                ) : (
-                                  <div className="w-4" />
-                                )}
-                                <div className="bg-primary/10 border border-primary/20 text-primary w-8 h-8 rounded-lg flex items-center justify-center font-bold text-xs">
-                                  {u.name ? u.name.substring(0, 2).toUpperCase() : 'US'}
-                                </div>
-                                <div className="flex flex-col">
-                                  <span className="font-bold text-white text-sm">{u.name}</span>
-                                  {u.department && <span className="text-[10px] text-slate-500">{u.department}</span>}
-                                </div>
+              <div className="glass p-6 rounded-2xl border border-slate-800/80 overflow-x-auto select-none">
+              <div className="min-w-[1650px] flex flex-col items-center gap-8">
+                
+                {/* CEO Node */}
+                <div className="flex flex-col items-center">
+                  {renderOrgNode('CEO', 'CEO', {}, null, { bg: 'bg-indigo-550/10 border-indigo-500/20 text-indigo-200', accentBg: 'bg-indigo-500/20 border-indigo-500/30 text-indigo-400' })}
+                  <div className="w-0.5 bg-slate-850 h-8"></div>
+                </div>
+
+                {/* 7 Columns Row containing Functional Heads & BU Structure in the middle */}
+                <div className="w-full flex flex-col items-center">
+                  <div className="relative w-full flex justify-between items-start">
+                    {/* The horizontal bar connecting CEO to all 7 children */}
+                    <div className="absolute top-0 left-[7%] right-[7%] h-0.5 bg-slate-850"></div>
+                    
+                    {/* Column 1: Finance Head */}
+                    <div className="flex flex-col items-center pt-4 relative">
+                      <div className="absolute top-0 w-0.5 bg-slate-850 h-4"></div>
+                      {renderOrgNode('Finance Head', 'Functional Head', { position: 'Finance Head', department: 'Finance' }, u => u.position?.toLowerCase().includes('finance'), { bg: 'bg-slate-900/60 border-slate-800 text-slate-300' })}
+                    </div>
+
+                    {/* Column 2: Global HR Head */}
+                    <div className="flex flex-col items-center pt-4 relative">
+                      <div className="absolute top-0 w-0.5 bg-slate-850 h-4"></div>
+                      {renderOrgNode('Global HR Head', 'Functional Head', { position: 'Global HR Head', department: 'HR' }, u => u.position?.toLowerCase().includes('hr'), { bg: 'bg-slate-900/60 border-slate-800 text-slate-300' })}
+                    </div>
+
+                    {/* Column 3: ITG Head */}
+                    <div className="flex flex-col items-center pt-4 relative">
+                      <div className="absolute top-0 w-0.5 bg-slate-850 h-4"></div>
+                      {renderOrgNode('ITG Head', 'Functional Head', { position: 'ITG Head', department: 'ITG' }, u => u.position?.toLowerCase().includes('itg'), { bg: 'bg-slate-900/60 border-slate-800 text-slate-300' })}
+                    </div>
+
+                    {/* Column 4: BU Structure (Middle Sibling) */}
+                    <div className="flex flex-col items-center pt-4 relative">
+                      <div className="absolute top-0 w-0.5 bg-slate-850 h-4"></div>
+                      
+                      {/* BU Structure Node */}
+                      <div className="bg-slate-900/80 border border-slate-800 text-slate-400 text-xs font-extrabold px-6 py-2.5 rounded-xl shadow-md uppercase tracking-wider">
+                        BU Structure
+                      </div>
+                      
+                      <div className="w-0.5 bg-slate-850 h-8"></div>
+                      
+                      {/* BU Structure Branches: P&L vs Delivery */}
+                      <div className="flex gap-8 justify-center items-start relative pt-6">
+                        {/* Horizontal connector bar for BU Structure children */}
+                        <div className="absolute top-0 left-1/4 right-1/4 h-0.5 bg-slate-850"></div>
+                        
+                        {/* Left BU Branch: P&L (Hunting & Mining) */}
+                        <div className="flex flex-col items-center relative">
+                          <div className="absolute top-0 w-0.5 bg-slate-850 h-4"></div>
+                          <div className="bg-purple-500/10 border border-purple-500/20 text-purple-400 text-xs font-black px-2.5 py-1 rounded-full uppercase tracking-wider mb-2.5">
+                            P&L Hunting & Mining
+                          </div>
+                          
+                          <div className="flex flex-col items-center gap-6">
+                            {/* P&L BU Head */}
+                            {renderOrgNode('P&L Head', 'BU Head', { position: 'P&L Head', bu: 'P&L (Hunting & Mining)' }, u => u.bu?.toLowerCase().includes('p&l') || u.position?.toLowerCase().includes('p&l'), { bg: 'bg-purple-500/10 border-purple-500/20 text-purple-200', accentBg: 'bg-purple-500/20 border-purple-500/30 text-purple-400' })}
+                            
+                            <div className="w-0.5 bg-purple-500/30 h-6"></div>
+                            
+                            {/* BFS BU Consultant */}
+                            <div className="flex flex-col items-center">
+                              <span className="text-xs text-purple-500/80 font-black uppercase tracking-wider mb-1.5">Consultant Roster</span>
+                              {renderOrgNode('BFS BU Consultant', 'Employee', { position: 'BFS BU Consultant', bu: 'P&L (Hunting & Mining)' }, u => u.position?.toLowerCase().includes('bfs') || u.position?.toLowerCase().includes('consultant'), { bg: 'bg-purple-500/10 border-purple-500/20 text-purple-200', accentBg: 'bg-purple-500/20 border-purple-500/30 text-purple-400' })}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Right BU Branch: Delivery (Farming) */}
+                        <div className="flex flex-col items-center relative">
+                          <div className="absolute top-0 w-0.5 bg-slate-850 h-4"></div>
+                          <div className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-black px-2.5 py-1 rounded-full uppercase tracking-wider mb-2.5">
+                            Delivery Farming
+                          </div>
+
+                          <div className="flex flex-col items-center w-full">
+                            {/* Delivery Head */}
+                            {renderOrgNode('Delivery Head', 'Delivery Head', { position: 'Delivery Head', bu: 'Delivery (Farming)' }, u => (u.userType || u.role) === 'Delivery Head' && (!u.position || (!u.position.toLowerCase().includes('insurance') && !u.position.toLowerCase().includes('industrial') && !u.position.toLowerCase().includes('healthcare') && !u.position.toLowerCase().includes('mobility'))), { bg: 'bg-emerald-500/10 border-emerald-500/20 text-emerald-200', accentBg: 'bg-emerald-500/20 border-emerald-500/30 text-emerald-400' })}
+                            
+                            <div className="w-0.5 bg-emerald-500/30 h-6"></div>
+                            
+                            {/* Sub-Delivery Heads: Insurance, Industrial, Healthcare & Mobility */}
+                            <div className="w-full flex justify-between gap-4 relative pt-6">
+                              <div className="absolute top-0 left-12 right-12 h-0.5 bg-emerald-500/30"></div>
+
+                              {/* Insurance Delivery Head */}
+                              <div className="flex flex-col items-center relative">
+                                <div className="absolute top-0 w-0.5 bg-emerald-500/30 h-4"></div>
+                                <span className="text-xs text-emerald-500 font-bold mb-1.5 z-10">Insurance</span>
+                                {renderOrgNode('Insurance Delivery Head', 'Delivery Head', { position: 'Insurance Delivery Head', bu: 'Insurance' }, u => u.position?.toLowerCase().includes('insurance'), { bg: 'bg-emerald-500/10 border-emerald-500/20 text-emerald-200', accentBg: 'bg-emerald-500/20 border-emerald-500/30 text-emerald-400' })}
                               </div>
-                            </td>
 
-                            {/* Email */}
-                            <td className="p-4 text-slate-300">
-                              <div className="flex items-center gap-2">
-                                <Mail className="w-3.5 h-3.5 text-slate-500" />
-                                <span>{u.email}</span>
+                              {/* Industrial Delivery Head */}
+                              <div className="flex flex-col items-center relative">
+                                <div className="absolute top-0 w-0.5 bg-emerald-500/30 h-4"></div>
+                                <span className="text-xs text-emerald-500 font-bold mb-1.5 z-10">Industrial</span>
+                                {renderOrgNode('Industrial Delivery Head', 'Delivery Head', { position: 'Industrial Delivery Head', bu: 'Industrial' }, u => u.position?.toLowerCase().includes('industrial'), { bg: 'bg-emerald-500/10 border-emerald-500/20 text-emerald-200', accentBg: 'bg-emerald-500/20 border-emerald-500/30 text-emerald-400' })}
                               </div>
-                            </td>
 
-                            {/* Role / User Type */}
-                            <td className="p-4">
-                              <span className={`inline-flex items-center gap-1 px-2.5 py-1 text-[10px] font-bold rounded-full border ${getUserTypeBadgeColor(u.userType || u.role)}`}>
-                                <Shield className="w-3 h-3" />
-                                {u.userType || u.role}
-                              </span>
-                            </td>
-
-                            {/* Registered Date */}
-                            <td className="p-4 text-slate-400">
-                              <div className="flex items-center gap-2">
-                                <Calendar className="w-3.5 h-3.5 text-slate-600" />
-                                <span>{new Date(u.createdAt).toLocaleDateString([], { dateStyle: 'medium' })}</span>
-                              </div>
-                            </td>
-
-                            {/* Actions Column */}
-                            <td className="p-4 text-right">
-                              <div className="flex items-center justify-end gap-2" onClick={(e) => e.stopPropagation()}>
-                                {expandable && (
-                                  <span className="text-[10px] text-slate-500 font-medium mr-1">
-                                    {u.projects?.filter(p => p.name)?.length || (u.project ? 1 : 0)} project{(u.projects?.filter(p => p.name)?.length || (u.project ? 1 : 0)) !== 1 ? 's' : ''}
-                                  </span>
-                                )}
-                                {user?.role === 'Admin' && user.uid !== u.uid && (
-                                  <button
-                                    onClick={() => handleDeleteUser(u.uid, u.name)}
-                                    className="text-rose-555 hover:text-rose-400 p-1.5 rounded-lg hover:bg-rose-500/10 active:scale-95 transition-all cursor-pointer inline-flex items-center gap-1 font-semibold"
-                                    title="Delete User"
-                                  >
-                                    <Trash2 className="w-3.5 h-3.5" />
-                                    Delete
-                                  </button>
-                                )}
-                              </div>
-                            </td>
-                          </tr>
-
-                          {/* Expanded Row: Projects & Employees Hierarchy */}
-                          {isExpanded && expandable && (
-                            <tr className="bg-gradient-to-b from-slate-800/20 to-transparent">
-                              <td colSpan={5} className="p-0">
-                                <div className="px-6 py-4 ml-8 border-l-2 border-primary/30 space-y-3 animate-soft-pulse">
+                              {/* Healthcare & Mobility Delivery Head */}
+                              <div className="flex flex-col items-center relative">
+                                <div className="absolute top-0 w-0.5 bg-emerald-500/30 h-4"></div>
+                                <span className="text-xs text-emerald-500 font-bold mb-1.5 z-10">Healthcare & Mobility</span>
+                                {renderOrgNode('Healthcare & Mobility Delivery Head', 'Delivery Head', { position: 'Healthcare & Mobility Delivery Head', bu: 'Healthcare & Mobility' }, u => u.position?.toLowerCase().includes('healthcare & mobility') || u.position?.toLowerCase().includes('healthcare and mobility') || (u.position?.toLowerCase().includes('healthcare') && u.position?.toLowerCase().includes('mobility')), { bg: 'bg-emerald-500/10 border-emerald-500/20 text-emerald-200', accentBg: 'bg-emerald-500/20 border-emerald-500/30 text-emerald-400' })}
+                                
+                                <div className="w-0.5 bg-emerald-500/30 h-6"></div>
+                                
+                                {/* Healthcare & Mobility Nested Sub-levels */}
+                                <div className="flex gap-4 justify-center items-start relative pt-6">
+                                  <div className="absolute top-0 left-8 right-8 h-0.5 bg-emerald-500/20"></div>
                                   
-                                  {/* BU + Reporting Info Bar */}
-                                  {(u.bu || u.reportingTo) && (
-                                    <div className="flex items-center gap-4 text-[10px] text-slate-400 pb-2 border-b border-slate-800/50">
-                                      {u.bu && (
-                                        <span className="flex items-center gap-1.5">
-                                          <Building2 className="w-3.5 h-3.5 text-amber-500/70" />
-                                          <span className="text-slate-500 font-semibold">BU:</span>
-                                          <span className="text-slate-300 font-medium">{u.bu}</span>
-                                        </span>
-                                      )}
-                                      {u.reportingTo && (
-                                        <span className="flex items-center gap-1.5">
-                                          <GitBranch className="w-3.5 h-3.5 text-cyan-500/70" />
-                                          <span className="text-slate-500 font-semibold">Reports to:</span>
-                                          <span className="text-slate-300 font-medium">{u.reportingTo}</span>
-                                        </span>
-                                      )}
-                                    </div>
-                                  )}
+                                  {/* Mobility Delivery Mgr */}
+                                  <div className="flex flex-col items-center relative">
+                                    <div className="absolute top-0 w-0.5 bg-emerald-500/20 h-4"></div>
+                                    <span className="text-xs text-emerald-500/60 uppercase font-black tracking-wider mb-1 z-10">Mobility Mgr</span>
+                                    {renderOrgNode('Mobility Delivery Mgr', 'Delivery Manager', { position: 'Mobility Delivery Mgr', bu: 'Healthcare & Mobility' }, u => u.position?.toLowerCase().includes('mobility') && u.position?.toLowerCase().includes('mgr'), { bg: 'bg-emerald-500/10 border-emerald-500/20 text-emerald-200', accentBg: 'bg-emerald-500/20 border-emerald-500/30 text-emerald-400' })}
+                                  </div>
 
-                                  {/* For BU Head / Project Manager: multiple projects with employees */}
-                                  {u.projects && u.projects.length > 0 && u.projects.some(p => p.name) && (
-                                    <div className="space-y-3">
-                                      {u.projects.filter(p => p.name).map((proj, pIdx) => (
-                                        <div key={pIdx} className="bg-slate-900/40 border border-slate-800/60 rounded-xl p-4 space-y-3">
-                                          {/* Project Header */}
-                                          <div className="flex items-center gap-2.5">
-                                            <div className="bg-violet-500/10 border border-violet-500/20 p-1.5 rounded-lg">
-                                              <FolderOpen className="w-4 h-4 text-violet-400" />
-                                            </div>
-                                            <div>
-                                              <span className="text-xs font-bold text-white">{proj.name}</span>
-                                              <div className="flex items-center gap-3 mt-0.5">
-                                                {proj.projectManagers && proj.projectManagers.length > 0 && (
-                                                  <span className="text-[9px] text-slate-500">
-                                                    {proj.projectManagers.length} PM{proj.projectManagers.length !== 1 ? 's' : ''}
-                                                  </span>
-                                                )}
-                                                {proj.employees && proj.employees.length > 0 && (
-                                                  <span className="text-[9px] text-slate-500">
-                                                    {proj.employees.length} employee{proj.employees.length !== 1 ? 's' : ''}
-                                                  </span>
-                                                )}
-                                              </div>
-                                            </div>
-                                          </div>
+                                  {/* Healthcare Delivery Head */}
+                                  <div className="flex flex-col items-center relative">
+                                    <div className="absolute top-0 w-0.5 bg-emerald-500/20 h-4"></div>
+                                    <span className="text-xs text-emerald-500/60 uppercase font-black tracking-wider mb-1 z-10">Healthcare Head</span>
+                                    {renderOrgNode('Healthcare Delivery Head', 'Delivery Head', { position: 'Healthcare Delivery Head', bu: 'Healthcare & Mobility' }, u => u.position?.toLowerCase().includes('healthcare delivery head') || (u.position?.toLowerCase().includes('healthcare') && (u.userType || u.role) === 'Delivery Head' && !u.position?.toLowerCase().includes('mobility')), { bg: 'bg-emerald-500/10 border-emerald-500/20 text-emerald-200', accentBg: 'bg-emerald-500/20 border-emerald-500/30 text-emerald-400' })}
+                                  </div>
 
-                                          {/* Project Managers List */}
-                                          {proj.projectManagers && proj.projectManagers.length > 0 && proj.projectManagers.some(Boolean) && (
-                                            <div className="ml-4 space-y-1.5">
-                                              <span className="text-[9px] text-purple-400/80 uppercase tracking-wider font-bold">Project Managers</span>
-                                              <div className="flex flex-wrap gap-2">
-                                                {proj.projectManagers.filter(Boolean).map((pm, pmIdx) => (
-                                                  <div key={pmIdx} className="flex items-center gap-1.5 bg-purple-500/8 border border-purple-500/15 rounded-lg px-2.5 py-1.5">
-                                                    <div className="bg-purple-500/20 w-5 h-5 rounded-md flex items-center justify-center">
-                                                      <UserCheck className="w-3 h-3 text-purple-400" />
-                                                    </div>
-                                                    <span className="text-[11px] text-purple-200 font-medium">{pm}</span>
-                                                  </div>
-                                                ))}
-                                              </div>
-                                            </div>
-                                          )}
-
-                                          {/* Employees List */}
-                                          {proj.employees && proj.employees.length > 0 && proj.employees.some(Boolean) && (
-                                            <div className="ml-4 space-y-1.5">
-                                              <span className="text-[9px] text-blue-400/80 uppercase tracking-wider font-bold">Employees</span>
-                                              <div className="flex flex-wrap gap-2">
-                                                {proj.employees.filter(Boolean).map((emp, eIdx) => (
-                                                  <div key={eIdx} className="flex items-center gap-1.5 bg-blue-500/8 border border-blue-500/15 rounded-lg px-2.5 py-1.5">
-                                                    <div className="bg-blue-500/20 w-5 h-5 rounded-md flex items-center justify-center">
-                                                      <User className="w-3 h-3 text-blue-400" />
-                                                    </div>
-                                                    <span className="text-[11px] text-blue-200 font-medium">{emp}</span>
-                                                  </div>
-                                                ))}
-                                              </div>
-                                            </div>
-                                          )}
-                                        </div>
-                                      ))}
-                                    </div>
-                                  )}
-
-                                  {/* For Employee type: single project + PM assignment */}
-                                  {u.userType === 'Employee' && u.project && (
-                                    <div className="bg-slate-900/40 border border-slate-800/60 rounded-xl p-4 space-y-3">
-                                      <div className="flex items-center gap-2.5">
-                                        <div className="bg-blue-500/10 border border-blue-500/20 p-1.5 rounded-lg">
-                                          <Folder className="w-4 h-4 text-blue-400" />
-                                        </div>
-                                        <div>
-                                          <span className="text-xs font-bold text-white">{u.project}</span>
-                                          <span className="text-[9px] text-slate-500 ml-2">Assigned Project</span>
-                                        </div>
-                                      </div>
-                                      {u.projectManagers && u.projectManagers.length > 0 && u.projectManagers.some(Boolean) && (
-                                        <div className="ml-4 space-y-1.5">
-                                          <span className="text-[9px] text-purple-400/80 uppercase tracking-wider font-bold">Project Manager</span>
-                                          <div className="flex flex-wrap gap-2">
-                                            {u.projectManagers.filter(Boolean).map((pm, pmIdx) => (
-                                              <div key={pmIdx} className="flex items-center gap-1.5 bg-purple-500/8 border border-purple-500/15 rounded-lg px-2.5 py-1.5">
-                                                <div className="bg-purple-500/20 w-5 h-5 rounded-md flex items-center justify-center">
-                                                  <UserCheck className="w-3 h-3 text-purple-400" />
-                                                </div>
-                                                <span className="text-[11px] text-purple-200 font-medium">{pm}</span>
-                                              </div>
-                                            ))}
-                                          </div>
-                                        </div>
-                                      )}
-                                    </div>
-                                  )}
-
+                                  {/* Associate Delivery - HC */}
+                                  <div className="flex flex-col items-center relative">
+                                    <div className="absolute top-0 w-0.5 bg-emerald-500/20 h-4"></div>
+                                    <span className="text-xs text-emerald-500/60 uppercase font-black tracking-wider mb-1 z-10">Associate HC</span>
+                                    {renderOrgNode('Associate Delivery - HC', 'Employee', { position: 'Associate Delivery - HC', bu: 'Healthcare & Mobility' }, u => u.position?.toLowerCase().includes('associate') && u.position?.toLowerCase().includes('hc'), { bg: 'bg-emerald-500/10 border-emerald-500/20 text-emerald-200', accentBg: 'bg-emerald-500/20 border-emerald-500/30 text-emerald-400' })}
+                                  </div>
                                 </div>
-                              </td>
-                            </tr>
-                          )}
-                        </React.Fragment>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-          )}
-        </>
-      )}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
 
+                    {/* Column 5: NDA */}
+                    <div className="flex flex-col items-center pt-4 relative">
+                      <div className="absolute top-0 w-0.5 bg-slate-850 h-4"></div>
+                      {renderOrgNode('NDA', 'Functional Head', { position: 'NDA', department: 'Legal' }, u => u.position?.toLowerCase().includes('nda') || u.position?.toLowerCase().includes('legal'), { bg: 'bg-slate-900/60 border-slate-800 text-slate-300' })}
+                    </div>
+
+                    {/* Column 6: TC Head */}
+                    <div className="flex flex-col items-center pt-4 relative">
+                      <div className="absolute top-0 w-0.5 bg-slate-850 h-4"></div>
+                      {renderOrgNode('TC Head', 'Functional Head', { position: 'TC Head', department: 'TC' }, u => u.position?.toLowerCase().includes('tc'), { bg: 'bg-slate-900/60 border-slate-800 text-slate-300' })}
+                    </div>
+
+                    {/* Column 7: Quality Head */}
+                    <div className="flex flex-col items-center pt-4 relative">
+                      <div className="absolute top-0 w-0.5 bg-slate-850 h-4"></div>
+                      {renderOrgNode('Quality Head', 'Functional Head', { position: 'Quality Head', department: 'Quality' }, u => u.position?.toLowerCase().includes('quality'), { bg: 'bg-slate-900/60 border-slate-800 text-slate-300' })}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Shared Managers Layer */}
+                <div className="flex flex-col items-center w-full mt-6">
+                  <div className="w-1/2 flex justify-between relative h-6">
+                    <div className="absolute top-0 left-0 right-0 border-t border-dashed border-slate-800 h-0.5"></div>
+                    <div className="absolute top-0 left-0 w-0.5 border-l border-dashed border-slate-800 h-6"></div>
+                    <div className="absolute top-0 right-0 w-0.5 border-l border-dashed border-slate-800 h-6"></div>
+                  </div>
+
+                  <div className="bg-amber-955/5 border border-amber-500/15 rounded-2xl p-6 w-full max-w-5xl relative">
+                    <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-amber-500/10 border border-amber-500/25 text-amber-450 text-xs font-black px-3.5 py-1.5 rounded-full uppercase tracking-wider z-10">
+                      Sales, Account & Project Managers
+                    </div>
+                    
+                    <div className="flex justify-center gap-6 flex-wrap mt-4">
+                      {renderManagersList('Sales Managers', 'Sales Manager', { position: 'Sales Manager', department: 'Sales' })}
+                      {renderManagersList('Account Managers', 'Account Manager', { position: 'Account Manager', department: 'Accounts' })}
+                      {renderManagersList('Project Managers', 'Project Manager', { position: 'Project Manager', department: 'Operations' })}
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+            </div>
+            </div>
+          )}
+        </div>
+      )}
       {/* ========================================================
           DELETE USER CONFIRMATION MODAL
           ======================================================== */}

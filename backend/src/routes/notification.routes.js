@@ -18,10 +18,49 @@ router.get('/', async (req, res) => {
     const snapshot = await db.collection('notifications').get();
     let notifications = snapshot.docs.map(doc => doc.data());
 
-    // Filter: show system-wide (no toUserId) OR personal (toUserId matches)
-    notifications = notifications.filter(n =>
-      !n.toUserId || n.toUserId === uid
-    );
+    // Get user profile for true role check
+    const userDoc = await db.collection('users').doc(uid).get();
+    const userProfile = userDoc.exists ? userDoc.data() : null;
+
+    const isTrueAdmin = userProfile && (userProfile.userType === 'Admin' || userProfile.role === 'Admin');
+    const isCeo = userProfile && (userProfile.userType === 'CEO' || userProfile.position === 'CEO' || userProfile.position === 'Chief Executive Officer');
+
+    if (!isTrueAdmin && !isCeo) {
+      // Get all accounts this user has ownership/contact-ownership of
+      const accountsSnap = await db.collection('accounts').get();
+      const accounts = accountsSnap.docs.map(doc => doc.data());
+
+      const ownedAccountIds = new Set(
+        accounts
+          .filter(a => a.ownerId === uid)
+          .map(a => a.accountId || a.id)
+      );
+
+      const contactsSnap = await db.collection('contacts').get();
+      const stakeholderAccountIds = new Set(
+        contactsSnap.docs
+          .map(d => d.data())
+          .filter(c => c.ownerId === uid)
+          .map(c => c.accountId)
+      );
+
+      const allowedIds = new Set([...ownedAccountIds, ...stakeholderAccountIds]);
+
+      // Filter:
+      // 1. toUserId must match uid (if toUserId is set)
+      // 2. accountId must be in allowedIds (if accountId is set)
+      notifications = notifications.filter(n => {
+        const isToMe = !n.toUserId || n.toUserId === uid;
+        const isAllowedAcc = !n.accountId || allowedIds.has(n.accountId);
+        return isToMe && isAllowedAcc;
+      });
+    } else {
+      // For Admin or CEO:
+      // Just filter by toUserId (if toUserId is set, it must be for them)
+      notifications = notifications.filter(n =>
+        !n.toUserId || n.toUserId === uid
+      );
+    }
 
     // Sort descending by timestamp
     notifications.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
@@ -70,10 +109,43 @@ router.put('/read-all', async (req, res) => {
     const uid = req.user.uid;
     const snapshot = await db.collection('notifications').get();
 
+    // Get user profile for true role check
+    const userDoc = await db.collection('users').doc(uid).get();
+    const userProfile = userDoc.exists ? userDoc.data() : null;
+
+    const isTrueAdmin = userProfile && (userProfile.userType === 'Admin' || userProfile.role === 'Admin');
+    const isCeo = userProfile && (userProfile.userType === 'CEO' || userProfile.position === 'CEO' || userProfile.position === 'Chief Executive Officer');
+
+    let allowedIds = null;
+    if (!isTrueAdmin && !isCeo) {
+      const accountsSnap = await db.collection('accounts').get();
+      const accounts = accountsSnap.docs.map(doc => doc.data());
+
+      const ownedAccountIds = new Set(
+        accounts
+          .filter(a => a.ownerId === uid)
+          .map(a => a.accountId || a.id)
+      );
+
+      const contactsSnap = await db.collection('contacts').get();
+      const stakeholderAccountIds = new Set(
+        contactsSnap.docs
+          .map(d => d.data())
+          .filter(c => c.ownerId === uid)
+          .map(c => c.accountId)
+      );
+
+      allowedIds = new Set([...ownedAccountIds, ...stakeholderAccountIds]);
+    }
+
     const batchPromises = snapshot.docs
       .filter(doc => {
         const n = doc.data();
-        return !n.read && (!n.toUserId || n.toUserId === uid);
+        if (n.read) return false;
+        
+        const isToMe = !n.toUserId || n.toUserId === uid;
+        const isAllowedAcc = !allowedIds || !n.accountId || allowedIds.has(n.accountId);
+        return isToMe && isAllowedAcc;
       })
       .map(doc => doc.ref.update({ read: true, readAt: new Date().toISOString() }));
 

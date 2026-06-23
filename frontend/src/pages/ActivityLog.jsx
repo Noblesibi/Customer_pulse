@@ -1,7 +1,9 @@
 import React, { useEffect, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { 
   ClipboardList, Search, RefreshCw, ChevronLeft, ChevronRight, User, ShieldAlert, X, Eye,
-  Plus, CheckSquare, Building2, Users, Calendar, Clock, AtSign, Square, Send, Mail, Video, Phone, MessageSquare
+  Plus, CheckSquare, Building2, Users, Send, Mail, Video, Phone, MessageSquare, Calendar,
+  Paperclip, FileText, Download
 } from 'lucide-react';
 import { useStore } from '../store/index.js';
 
@@ -22,195 +24,185 @@ export default function ActivityLog() {
     user,
     accounts,
     fetchAccounts,
-    contacts,
-    fetchContacts,
     staffList,
     fetchStaff,
-    addInteraction
+    interactions,
+    fetchInteractions,
+    updateTaskStatus,
+    replyToInteraction
   } = useStore();
   
+  const location = useLocation();
+  const navigate = useNavigate();
+  const [activeTab, setActiveTab] = useState('all-tasks'); // 'all-tasks' | 'my-tasks'
   const [search, setSearch] = useState('');
   const [actionFilter, setActionFilter] = useState('All');
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedLog, setSelectedLog] = useState(null);
   const itemsPerPage = 10;
 
-  // Log Activity Modal Form States
-  const [isLogInteractionOpen, setIsLogInteractionOpen] = useState(false);
-  const [interactionSource, setInteractionSource] = useState('Outlook Mail');
-  const [interactionText, setInteractionText] = useState('');
-  const [interactionDate, setInteractionDate] = useState(new Date().toISOString().split('T')[0]);
-  const [interactionTime, setInteractionTime] = useState(new Date().toTimeString().slice(0, 5));
-  const [interactionContactId, setInteractionContactId] = useState('');
-  const [interactionAccountId, setInteractionAccountId] = useState('');
-  const [selectedMentions, setSelectedMentions] = useState([]);
-  const [mentionSearch, setMentionSearch] = useState('');
-  const [showMentionDropdown, setShowMentionDropdown] = useState(false);
+  // Completion Note Modal State
+  const [completionModalState, setCompletionModalState] = useState({ isOpen: false, task: null, newStatus: '' });
+  const [completionNote, setCompletionNote] = useState('');
+  const [completionFile, setCompletionFile] = useState(null);
+  const [taskStatuses, setTaskStatuses] = useState({});
+
+  // Forward Task Modal State
+  const [forwardModalState, setForwardModalState] = useState({ isOpen: false, task: null, newStatus: 'Forwarded' });
+  const [forwardToUid, setForwardToUid] = useState('');
+
+  const handleForwardSubmit = async (e) => {
+    e.preventDefault();
+    const { task, newStatus } = forwardModalState;
+    if (!forwardToUid) return;
+    const selectedUser = (staffList || []).find(s => s.uid === forwardToUid);
+    if (!selectedUser) return;
+
+    const ok = await updateTaskStatus(task.interactionId, task.uid, newStatus, '', selectedUser.uid, selectedUser.name);
+    if (ok) {
+      fetchActivityLogs();
+      fetchInteractions();
+    }
+    setTaskStatuses(prev => ({ 
+      ...prev, 
+      [`${task.interactionId}-${task.uid}`]: newStatus,
+      [`${task.interactionId}-${task.uid}-forwardedToName`]: selectedUser.name 
+    }));
+
+    // Update details drawer selectedLog state if open and matching
+    if (selectedLog && selectedLog.interactionId === task.interactionId) {
+      setSelectedLog(prev => {
+        const originalMention = (prev.actionMentions || []).find(m => m.uid === task.uid);
+        const updatedMentions = (prev.actionMentions || []).map(m =>
+          m.uid === task.uid ? { ...m, status: 'Forwarded', forwardedToName: selectedUser.name, forwardedToUid: selectedUser.uid } : m
+        );
+        const alreadyExists = (prev.actionMentions || []).some(m => m.uid === selectedUser.uid && m.status === 'Task Assigned');
+        if (!alreadyExists && originalMention) {
+          updatedMentions.push({
+            uid: selectedUser.uid,
+            name: selectedUser.name,
+            task: originalMention.task,
+            status: 'Task Assigned'
+          });
+        }
+        return { ...prev, actionMentions: updatedMentions };
+      });
+    }
+
+    setForwardModalState({ isOpen: false, task: null, newStatus: 'Forwarded' });
+    setForwardToUid('');
+  };
 
   useEffect(() => {
     fetchActivityLogs();
     fetchAccounts();
     fetchStaff();
+    fetchInteractions();
   }, []);
+
+  useEffect(() => {
+    if (location.state?.selectedInteractionId && interactions.length > 0) {
+      const match = interactions.find(i => i.interactionId === location.state.selectedInteractionId);
+      if (match) {
+        setSelectedLog(match);
+      }
+    }
+  }, [location, interactions]);
 
   const handleRefresh = () => {
     fetchActivityLogs();
   };
 
-  const channels = [
-    { id: 'Outlook Mail', label: 'Outlook Mail', icon: Mail, color: 'text-blue-400' },
-    { id: 'Teams Chat', label: 'Teams Chat', icon: MessageSquare, color: 'text-purple-400' },
-    { id: 'Phone', label: 'Phone', icon: Phone, color: 'text-emerald-400' },
-    { id: 'Face to Face', label: 'Face to Face', icon: Users, color: 'text-amber-400' },
-    { id: 'Teams Meeting', label: 'Teams Meeting', icon: Video, color: 'text-rose-400' },
-  ];
+  // Helper to lookup user position instead of showing raw UID
+  const getUserPosition = (userId) => {
+    const staff = staffList.find(s => s.uid === userId);
+    if (staff && staff.position) return staff.position;
+    if (userId === 'mock-admin-uid') return 'System Administrator';
+    if (userId === 'mock-employee-uid') return 'Account Owner';
+    return 'Platform Member';
+  };
 
-  const handleLogInteraction = async (e) => {
-    e.preventDefault();
 
-    const targetAccountId = interactionAccountId;
-    const targetContactId = interactionContactId || (contacts[0]?.contactId);
 
-    if (!targetAccountId) {
-      alert('Please select an account.');
-      return;
+
+
+  // Extract all task assignments from interactions
+  const realTasks = [];
+  interactions.forEach(item => {
+    if (Array.isArray(item.actionMentions) && item.actionMentions.length > 0) {
+      item.actionMentions.forEach(mention => {
+        realTasks.push({
+          ...mention,
+          interactionId: item.interactionId,
+          accountId: item.accountId,
+          contactId: item.contactId,
+          companyName: item.companyName || 'External Account',
+          loggedByName: item.loggedByName || 'System Admin',
+          loggedByUid: item.loggedByUid,
+          date: item.date,
+          time: item.time,
+          timestamp: item.timestamp,
+          originalInteraction: item
+        });
+      });
     }
-    if (!targetContactId) {
-      alert('Please add at least one contact to this account before logging an interaction.');
-      return;
-    }
-    if (!interactionText.trim()) {
-      alert('Please enter the interaction notes/message text.');
-      return;
-    }
-
-    let taskText = mentionSearch.trim();
-    selectedMentions.forEach(m => {
-      taskText = taskText.replace(`@${m.name}`, '');
-    });
-    taskText = taskText.replace(/\s+/g, ' ').trim();
-
-    const derivedSubject = interactionText.trim().split('\n')[0].slice(0, 50) || 'Interaction Note';
-    const res = await addInteraction({
-      accountId: targetAccountId,
-      contactId: targetContactId,
-      source: interactionSource,
-      subject: derivedSubject,
-      messageText: interactionText,
-      date: interactionDate,
-      time: interactionTime,
-      actionMentions: selectedMentions.map(m => ({ uid: m.uid, name: m.name, task: taskText }))
-    });
-
-    if (res) {
-      setIsLogInteractionOpen(false);
-      resetInteractionForm();
-      fetchActivityLogs();
-    }
-  };
-
-  const resetInteractionForm = () => {
-    setInteractionText('');
-    setInteractionSource('Outlook Mail');
-    setInteractionDate(new Date().toISOString().split('T')[0]);
-    setInteractionTime(new Date().toTimeString().slice(0, 5));
-    setInteractionContactId('');
-    setInteractionAccountId('');
-    setSelectedMentions([]);
-    setMentionSearch('');
-  };
-
-  const getMentionSearchQuery = (text) => {
-    const lastAtIndex = text.lastIndexOf('@');
-    if (lastAtIndex === -1) return '';
-    const partAfterAt = text.slice(lastAtIndex + 1);
-    return partAfterAt;
-  };
-
-  const insertMention = (staffMember) => {
-    const lastAtIndex = mentionSearch.lastIndexOf('@');
-    if (lastAtIndex === -1) return;
-    const beforeAt = mentionSearch.slice(0, lastAtIndex);
-    const newText = beforeAt + `@${staffMember.name} `;
-    setMentionSearch(newText);
-    
-    const parsed = [];
-    staffList.forEach(s => {
-      if (newText.includes(`@${s.name}`)) {
-        parsed.push({ uid: s.uid, name: s.name });
-      }
-    });
-    setSelectedMentions(parsed);
-    setShowMentionDropdown(false);
-  };
-
-  const handleMentionSearchChange = (val) => {
-    setMentionSearch(val);
-    const parsed = [];
-    staffList.forEach(s => {
-      if (val.includes(`@${s.name}`)) {
-        parsed.push({ uid: s.uid, name: s.name });
-      }
-    });
-    setSelectedMentions(parsed);
-  };
-
-  const toggleMention = (staffMember) => {
-    setSelectedMentions(prev => {
-      const exists = prev.find(m => m.uid === staffMember.uid);
-      let updated;
-      if (exists) {
-        updated = prev.filter(m => m.uid !== staffMember.uid);
-      } else {
-        updated = [...prev, { uid: staffMember.uid, name: staffMember.name }];
-      }
-      
-      let text = mentionSearch;
-      if (exists) {
-        text = text.replace(`@${staffMember.name}`, '').replace(/\s+/g, ' ').trim();
-      } else {
-        text = `@${staffMember.name} ${text}`.replace(/\s+/g, ' ').trim();
-      }
-      setMentionSearch(text);
-      return updated;
-    });
-  };
-
-  // Get unique action types for filtering dropdown
-  const actionTypes = ['All', ...new Set(activityLogs.map(log => log.action))];
-
-  // Filter logs based on search and action dropdown selection
-  const filteredLogs = activityLogs.filter(log => {
-    // Role-based visibility check: non-global users only see logs explicitly assigned to them
-    if (user) {
-      const isGlobalUser = user.role === 'Admin' || user.userType === 'Admin' || user.userType === 'CEO';
-      if (!isGlobalUser) {
-        const { assignee } = parseLogDetails(log.details);
-        if (!assignee) return false;
-        const assigneeNames = assignee.split(',').map(name => name.trim().toLowerCase());
-        const currentUserName = (user.name || '').toLowerCase();
-        if (!assigneeNames.includes(currentUserName)) {
-          return false;
-        }
-      }
-    }
-
-    const matchesSearch = 
-      (log.userName && log.userName.toLowerCase().includes(search.toLowerCase())) ||
-      (log.userId && log.userId.toLowerCase().includes(search.toLowerCase())) ||
-      (log.details && log.details.toLowerCase().includes(search.toLowerCase())) ||
-      (log.action && log.action.toLowerCase().includes(search.toLowerCase()));
-      
-    const matchesAction = actionFilter === 'All' || log.action === actionFilter;
-
-    return matchesSearch && matchesAction;
   });
 
+
+  const currentUserStaff = staffList.find(s => s.uid === user?.uid);
+  const isTrueAdmin = currentUserStaff
+    ? (currentUserStaff.role === 'Admin' || currentUserStaff.position?.toLowerCase().includes('admin'))
+    : false;
+  const isTrueCeo = currentUserStaff
+    ? (currentUserStaff.position === 'CEO' || currentUserStaff.position === 'Chief Executive Officer')
+    : false;
+
+  const showAllTasks = isTrueAdmin || isTrueCeo;
+
+  // Use only real tasks from interactions (no dummy fallback)
+  // If user is Admin or CEO, show all tasks. Otherwise, show only tasks assigned BY them.
+  const allTasks = showAllTasks
+    ? realTasks
+    : realTasks.filter(task => task.loggedByUid === user?.uid);
+
+  // Filter tasks based on search
+  const filteredTasks = allTasks.filter(task => {
+    const query = search.toLowerCase();
+    return (
+      (task.name && task.name.toLowerCase().includes(query)) ||
+      (task.task && task.task.toLowerCase().includes(query)) ||
+      (task.companyName && task.companyName.toLowerCase().includes(query)) ||
+      (task.loggedByName && task.loggedByName.toLowerCase().includes(query))
+    );
+  });
+
+  // Filter tasks assigned to current user only — no dummy fallback
+  // MUST filter from realTasks, not from allTasks, so non-Admin/non-CEO users see all tasks assigned to them
+  const realMyTasks = realTasks.filter(task => task.uid === user?.uid);
+  const filteredMyTasks = realMyTasks.filter(task => {
+    const query = search.toLowerCase();
+    return (
+      (task.name && task.name.toLowerCase().includes(query)) ||
+      (task.task && task.task.toLowerCase().includes(query)) ||
+      (task.companyName && task.companyName.toLowerCase().includes(query)) ||
+      (task.loggedByName && task.loggedByName.toLowerCase().includes(query))
+    );
+  });
+
+
+  // Unified items display based on activeTab
+  let displayItems = [];
+  if (activeTab === 'all-tasks') {
+    displayItems = filteredTasks;
+  } else if (activeTab === 'my-tasks') {
+    displayItems = filteredMyTasks;
+  }
+
   // Pagination calculations
-  const totalItems = filteredLogs.length;
-  const totalPages = Math.ceil(totalItems / itemsPerPage);
+  const totalItems = displayItems.length;
+  const totalPages = Math.ceil(totalItems / itemsPerPage) || 1;
   const startIndex = (currentPage - 1) * itemsPerPage;
-  const paginatedLogs = filteredLogs.slice(startIndex, startIndex + itemsPerPage);
+  const paginatedItems = displayItems.slice(startIndex, startIndex + itemsPerPage);
 
   const getActionBadgeClass = (action) => {
     const act = action.toLowerCase();
@@ -228,19 +220,16 @@ export default function ActivityLog() {
       {/* Header Block */}
       <div className="glass p-5 rounded-2xl border border-slate-800/80 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div className="space-y-1">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 text-white">
             <ClipboardList className="w-5 h-5 text-primary" />
-            <span className="bg-primary/20 border border-primary/40 text-primary text-[10px] uppercase font-black tracking-wider px-2 py-0.5 rounded-full">
-              Audit Logs
-            </span>
+            <h1 className="text-xl font-bold text-white">Task Management</h1>
           </div>
-          <h1 className="text-xl font-bold text-white mt-1">System Activity Audit Trail</h1>
           <p className="text-xs text-slate-400">
-            Real-time monitoring and event tracking of all system interactions, account edits, and admin changes.
+            Real-time monitoring and updates for assigned tasks.
           </p>
         </div>
         <button
-          onClick={() => setIsLogInteractionOpen(true)}
+          onClick={() => navigate('/log-activity')}
           className="bg-primary hover:bg-blue-600 px-4 py-2.5 rounded-xl text-xs font-semibold flex items-center gap-2 text-white transition-all cursor-pointer shadow-lg shadow-primary/25"
         >
           <Plus className="w-4 h-4 text-white" />
@@ -248,14 +237,39 @@ export default function ActivityLog() {
         </button>
       </div>
 
+      {/* Navigation Tabs */}
+      <div className="flex border-b border-slate-200 gap-1">
+
+        <button
+          onClick={() => { setActiveTab('all-tasks'); setCurrentPage(1); }}
+          className={`px-5 py-3 text-xs font-bold transition-colors border-b-2 cursor-pointer ${
+            activeTab === 'all-tasks'
+              ? 'border-primary text-primary'
+              : 'border-transparent text-slate-400 hover:text-slate-700'
+          }`}
+        >
+          All Assigned Tasks
+        </button>
+        <button
+          onClick={() => { setActiveTab('my-tasks'); setCurrentPage(1); }}
+          className={`px-5 py-3 text-xs font-bold transition-colors border-b-2 cursor-pointer ${
+            activeTab === 'my-tasks'
+              ? 'border-primary text-primary'
+              : 'border-transparent text-slate-400 hover:text-slate-700'
+          }`}
+        >
+          Tasks Assigned to Me
+        </button>
+      </div>
+
       {/* Filters and Search Panel */}
       <div className="glass p-4 rounded-xl border border-slate-800/80 grid grid-cols-1 md:grid-cols-3 gap-3">
         {/* Search */}
-        <div className="relative">
+        <div className="relative md:col-span-2">
           <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
           <input
             type="text"
-            placeholder="Search by actor, details, action..."
+            placeholder="Search tasks by assignee, description, company..."
             value={search}
             onChange={(e) => {
               setSearch(e.target.value);
@@ -265,116 +279,158 @@ export default function ActivityLog() {
           />
         </div>
 
-        {/* Action Type Dropdown */}
-        <div className="flex items-center gap-2">
-          <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap">
-            Filter Action:
-          </label>
-          <select
-            value={actionFilter}
-            onChange={(e) => {
-              setActionFilter(e.target.value);
-              setCurrentPage(1);
-            }}
-            className="w-full bg-dark-700/50 border border-slate-350 focus:border-primary/50 outline-none text-xs rounded-xl px-3 py-2.5 text-black"
-          >
-            {actionTypes.map(act => (
-              <option key={act} value={act}>{act}</option>
-            ))}
-          </select>
-        </div>
+
 
         {/* Counter */}
         <div className="flex items-center justify-end text-xs font-semibold text-slate-450 pr-2">
-          Showing {totalItems} activity record{totalItems !== 1 ? 's' : ''}
+          Showing {totalItems} task assignment{totalItems !== 1 ? 's' : ''}
         </div>
       </div>
 
       {/* Logs Table Area */}
       <div className="glass rounded-xl border border-slate-800/80 overflow-hidden">
-        {activityLogsLoading && paginatedLogs.length === 0 ? (
-          <div className="p-12 flex flex-col items-center justify-center gap-3 text-slate-500">
-            <RefreshCw className="w-8 h-8 animate-spin text-primary" />
-            <span className="text-xs font-semibold">Loading system audit trail...</span>
-          </div>
-        ) : paginatedLogs.length === 0 ? (
+        {paginatedItems.length === 0 ? (
           <div className="p-12 text-center text-xs text-slate-500 flex flex-col items-center justify-center gap-2">
             <User className="w-8 h-8 text-slate-400" />
-            <span className="font-semibold">No activity log entries found matching the filter criteria.</span>
+            <span className="font-semibold">No records found matching the filter criteria.</span>
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse text-xs">
               <thead>
                 <tr className="bg-dark-900/60 border-b border-slate-800/60 text-slate-400 font-bold uppercase tracking-wider">
-                  <th className="p-4 w-44">Timestamp</th>
-                  <th className="p-4 w-48">Actor</th>
-                  <th className="p-4 w-44">Action Event</th>
-                  <th className="p-4">Detailed Description</th>
-                  <th className="p-4 w-20 text-right">Actions</th>
+                  <th className="p-4 w-40">Date & Time</th>
+                  <th className="p-4 w-44">Account / Company</th>
+                  {activeTab !== 'my-tasks' && <th className="p-4 w-40">Assigned To</th>}
+                  <th className="p-4">Task Description</th>
+                  <th className="p-4 w-40">Assigned By</th>
+                  <th className="p-4 w-44">Status</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/40">
-                {paginatedLogs.map((log) => (
-                  <tr 
-                    key={log.logId} 
-                    onClick={() => setSelectedLog(log)}
-                    className="hover:bg-slate-800/10 cursor-pointer transition-colors"
-                  >
-                    <td className="p-4 text-slate-450 font-medium whitespace-nowrap">
-                      {new Date(log.timestamp).toLocaleString([], {
-                        dateStyle: 'short',
-                        timeStyle: 'medium'
-                      })}
-                    </td>
-                    <td className="p-4">
-                      <div className="flex items-center gap-2">
-                        <div className="bg-primary/10 border border-primary/20 text-primary w-6 h-6 rounded-md flex items-center justify-center font-bold text-[10px] shrink-0">
-                          {log.userName ? log.userName.substring(0, 2).toUpperCase() : 'US'}
-                        </div>
-                        <div className="min-w-0">
-                          <span className="font-bold text-slate-200 block truncate">{log.userName || 'System/SSO User'}</span>
-                          <span className="text-[9px] text-slate-500 block truncate">{log.userId}</span>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="p-4 whitespace-nowrap">
-                      <span className={`inline-block px-2.5 py-1 rounded-lg border text-[9px] font-black uppercase tracking-wider ${getActionBadgeClass(log.action)}`}>
-                        {log.action}
-                      </span>
-                    </td>
-                    <td className="p-4 text-slate-350 leading-relaxed max-w-md break-words font-semibold">
-                      {(() => {
-                        const { mainText, assignee } = parseLogDetails(log.details);
-                        return (
-                          <div className="flex flex-col gap-1.5">
-                            <span>{mainText}</span>
-                            {assignee && (
-                              <div className="flex">
-                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/10 border border-amber-500/20 text-amber-500">
-                                  <User className="w-3 h-3" />
-                                  Assigned: {assignee}
-                                </span>
-                              </div>
-                            )}
+                {paginatedItems.map((task, idx) => {
+                    const currentStatus = taskStatuses[`${task.interactionId}-${task.uid}`] || task.status || 'Pending';
+                    return (
+                    <tr 
+                      key={`${task.interactionId}-${task.uid}-${idx}`} 
+                      onClick={() => setSelectedLog(task.originalInteraction)}
+                      className="hover:bg-slate-800/10 cursor-pointer transition-colors"
+                    >
+                      <td className="p-4 text-slate-450 font-medium whitespace-nowrap">
+                        {new Date(task.timestamp).toLocaleString([], {
+                          dateStyle: 'short',
+                          timeStyle: 'short'
+                        })}
+                      </td>
+                      <td className="p-4">
+                        <div className="font-bold text-slate-200">{task.companyName}</div>
+                        <div className="text-xs text-slate-400 truncate max-w-[155px] font-medium">{task.originalInteraction.subject || 'No Subject'}</div>
+                      </td>
+                      {activeTab !== 'my-tasks' && (
+                        <td className="p-4">
+                          <div className="flex items-center gap-2">
+                            <div className="bg-primary/10 border border-primary/20 text-primary w-6 h-6 rounded-md flex items-center justify-center font-bold text-xs shrink-0">
+                              {task.name ? task.name.substring(0, 2).toUpperCase() : 'US'}
+                            </div>
+                            <span className="font-bold text-slate-200 truncate block max-w-[120px]">{task.name}</span>
                           </div>
-                        );
-                      })()}
-                    </td>
-                    <td className="p-4 text-right">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setSelectedLog(log);
-                        }}
-                        className="p-1.5 bg-primary/10 hover:bg-primary/20 border border-primary/25 rounded-lg text-primary font-bold cursor-pointer inline-flex items-center justify-center"
-                        title="View Details"
-                      >
-                        <Eye className="w-3.5 h-3.5" />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                        </td>
+                      )}
+                      <td className="p-4 text-slate-350 leading-relaxed font-semibold max-w-xs break-words">
+                        <div>{task.task}</div>
+                        {(task.priority || task.dueDate) && (
+                          <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                            {task.priority && (
+                              <span className={`text-xs font-bold px-1.5 py-0.5 rounded border ${
+                                task.priority === 'High' ? 'bg-rose-500/10 border-rose-500/20 text-rose-400' :
+                                task.priority === 'Medium' ? 'bg-amber-500/10 border-amber-500/20 text-amber-400' :
+                                'bg-slate-800 border-slate-700 text-slate-450'
+                              }`}>
+                                {task.priority === 'High' ? '🔥 High' : task.priority === 'Medium' ? '⚡ Medium' : 'Low'}
+                              </span>
+                            )}
+                            {task.dueDate && (() => {
+                              const today = new Date();
+                              today.setHours(0,0,0,0);
+                              const taskDue = new Date(task.dueDate);
+                              taskDue.setHours(0,0,0,0);
+                              const isOverdueObj = taskDue < today && currentStatus !== 'Completed';
+                              return (
+                                <span className={`text-xs font-bold px-1.5 py-0.5 rounded border ${
+                                  isOverdueObj 
+                                    ? 'bg-rose-600 border-rose-500 text-white animate-pulse' 
+                                    : 'bg-slate-800 border-slate-700 text-slate-300'
+                                }`}>
+                                  📅 Due: {new Date(task.dueDate).toLocaleDateString()} {isOverdueObj && ' (OVERDUE)'}
+                                </span>
+                              );
+                            })()}
+                          </div>
+                        )}
+                      </td>
+                      <td className="p-4 text-slate-450 font-semibold whitespace-nowrap">
+                        {task.loggedByName}
+                      </td>
+                      <td className="p-4 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                        {(() => {
+                          const showButtons = activeTab === 'my-tasks';
+                          let displayStatus = currentStatus === 'Pending' ? 'Task Assigned' : currentStatus;
+                          if (displayStatus === 'Accept/Decline') displayStatus = 'Accept';
+                          if (displayStatus === 'Completed/Forwarded') displayStatus = 'Completed';
+                          const forwardedTo = taskStatuses[`${task.interactionId}-${task.uid}-forwardedToName`] || task.forwardedToName;
+                          if (showButtons) {
+                            return (
+                              <div className="flex flex-col gap-1">
+                                <select 
+                                  value={displayStatus}
+                                  onChange={(e) => {
+                                    e.stopPropagation();
+                                    const st = e.target.value;
+                                    if (st === 'Completed') {
+                                      setCompletionModalState({ isOpen: true, task, newStatus: st });
+                                    } else if (st === 'Forwarded') {
+                                      setForwardModalState({ isOpen: true, task, newStatus: st });
+                                    } else {
+                                      updateTaskStatus(task.interactionId, task.uid, st).then(ok => { if (ok) fetchInteractions(); });
+                                      setTaskStatuses(prev => ({ ...prev, [`${task.interactionId}-${task.uid}`]: st }));
+                                    }
+                                  }}
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="px-2 py-1 rounded-lg border border-slate-700 bg-slate-800 text-xs text-slate-300 font-bold outline-none cursor-pointer focus:border-indigo-500 w-fit"
+                                >
+                                  <option value="Task Assigned">Task Assigned</option>
+                                  <option value="Accept">Accept</option>
+                                  <option value="Decline">Decline</option>
+                                  <option value="Completed">Completed</option>
+                                  <option value="Forwarded">Forwarded</option>
+                                </select>
+                                {displayStatus === 'Forwarded' && forwardedTo && (
+                                  <span className="text-xs text-indigo-400 font-bold">
+                                    to @{forwardedTo}
+                                  </span>
+                                )}
+                              </div>
+                            );
+                          }
+                          return (
+                            <div className="flex flex-col gap-1">
+                              <span className={`inline-block px-2.5 py-1 rounded-lg border text-xs font-black uppercase tracking-wider w-fit ${
+                                displayStatus.toLowerCase() === 'completed' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600' :
+                                displayStatus.toLowerCase() === 'forwarded' ? 'bg-sky-500/10 border-sky-500/20 text-sky-600' :
+                                displayStatus.toLowerCase() === 'accept' ? 'bg-amber-500/10 border-amber-500/20 text-amber-600' :
+                                displayStatus.toLowerCase() === 'decline' ? 'bg-rose-500/10 border-rose-500/20 text-rose-600' :
+                                'bg-slate-400/10 border-slate-400/20 text-slate-500'
+                              }`}>
+                                {displayStatus === 'Forwarded' && forwardedTo ? `Forwarded to @${forwardedTo}` : displayStatus}
+                              </span>
+                            </div>
+                          );
+                        })()}
+                      </td>
+                    </tr>
+                    );
+                  })}
+                
               </tbody>
             </table>
           </div>
@@ -408,319 +464,437 @@ export default function ActivityLog() {
 
       {/* Activity Log Details Modal */}
       {selectedLog && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="glass w-full max-w-2xl rounded-2xl border border-slate-800/80 shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
-            {/* Header */}
-            <div className="p-5 border-b border-slate-800/80 flex items-center justify-between bg-dark-900/80">
-              <div className="flex items-center gap-2">
-                <ClipboardList className="w-5 h-5 text-primary" />
-                <span className="text-sm font-bold text-slate-200">Activity Log Details</span>
-              </div>
-              <button
-                onClick={() => setSelectedLog(null)}
-                className="p-1.5 hover:bg-slate-800/20 border border-slate-800/40 rounded-xl text-slate-400 hover:text-white transition-all cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in">
+          <div className="glass w-full max-w-xl rounded-2xl border border-slate-800/80 shadow-2xl overflow-hidden flex flex-col max-h-[85vh] animate-scale-up">
+            {(() => {
+              const isInteraction = !!selectedLog.interactionId;
+              const userName = isInteraction ? selectedLog.loggedByName : selectedLog.userName;
+              const action = isInteraction ? selectedLog.source : selectedLog.action;
+              const timestamp = selectedLog.timestamp;
+              
+              let mainText = '';
+              let legacyAssignee = null;
+              let mentions = [];
+              
+              if (isInteraction) {
+                mainText = selectedLog.messageText;
+                mentions = selectedLog.actionMentions || [];
+              } else {
+                const parsed = parseLogDetails(selectedLog.details);
+                mainText = parsed.mainText;
+                legacyAssignee = parsed.assignee;
+              }
+              
+              const getStatusColorClass = (st) => {
+                const s = (st || 'Pending').toLowerCase();
+                if (s.includes('complete') || s.includes('forward')) return 'bg-emerald-500/10 border-emerald-500/25 text-emerald-400';
+                if (s.includes('progress') || s.includes('accept') || s.includes('decline')) return 'bg-amber-500/10 border-amber-500/25 text-amber-400';
+                return 'bg-slate-800 border-slate-700 text-slate-400';
+              };
 
-            {/* Content */}
-            <div className="p-6 overflow-y-auto space-y-5">
-              {/* Top Meta info */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* Actor */}
-                <div className="bg-dark-700/50 p-4 rounded-xl border border-slate-800/60">
-                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Actor / User</span>
-                  <div className="flex items-center gap-3 mt-2">
-                    <div className="bg-primary/10 border border-primary/20 text-primary w-9 h-9 rounded-xl flex items-center justify-center font-bold text-sm">
-                      {selectedLog.userName ? selectedLog.userName.substring(0, 2).toUpperCase() : 'US'}
-                    </div>
-                    <div>
-                      <span className="font-bold text-slate-200 block text-sm">{selectedLog.userName || 'System/SSO User'}</span>
-                      <span className="text-[10px] text-slate-500 block">{selectedLog.userId}</span>
-                    </div>
-                  </div>
-                </div>
+              const getCategoryBadgeClass = (src) => {
+                const s = (src || '').toLowerCase();
+                if (s.includes('mail') || s.includes('email')) return 'bg-blue-500/10 border-blue-500/25 text-blue-400';
+                if (s.includes('chat') || s.includes('teams')) return 'bg-purple-500/10 border-purple-500/25 text-purple-400';
+                if (s.includes('phone') || s.includes('call')) return 'bg-emerald-500/10 border-emerald-500/25 text-emerald-400';
+                if (s.includes('meeting') || s.includes('video')) return 'bg-rose-500/10 border-rose-500/25 text-rose-400';
+                return 'bg-amber-500/10 border-amber-500/25 text-amber-400';
+              };
 
-                {/* Event Metadata */}
-                <div className="bg-dark-700/50 p-4 rounded-xl border border-slate-800/60 flex flex-col justify-between">
-                  <div>
-                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Event Action</span>
-                    <div className="mt-2">
-                      <span className={`inline-block px-2.5 py-1 rounded-lg border text-[9px] font-black uppercase tracking-wider ${getActionBadgeClass(selectedLog.action)}`}>
-                        {selectedLog.action}
-                      </span>
+              return (
+                <>
+                  {/* Header */}
+                  <div className="px-6 py-5 border-b border-slate-800/80 flex items-center justify-between bg-dark-900/40">
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center">
+                        <ClipboardList className="w-5 h-5 text-primary" />
+                      </div>
+                      <div>
+                        <h3 className="font-bold text-white text-sm">Activity Details</h3>
+                        <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider mt-0.5">Review the system logs and task assignments</p>
+                      </div>
                     </div>
+                    <button
+                      onClick={() => setSelectedLog(null)}
+                      className="p-1.5 hover:bg-slate-800/50 rounded-xl text-slate-400 hover:text-white transition-colors cursor-pointer"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
                   </div>
-                  <div className="mt-2 text-[10px] text-slate-500 font-semibold">
-                    Timestamp: {new Date(selectedLog.timestamp).toLocaleString([], { dateStyle: 'long', timeStyle: 'medium' })}
-                  </div>
-                </div>
-              </div>
 
-              {/* Action Details */}
-              <div className="space-y-2">
-                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Detailed Parameters & Logs</span>
-                <div className="bg-dark-700/50 p-4 rounded-xl border border-slate-800/60 text-xs text-slate-350 leading-relaxed font-semibold font-mono whitespace-pre-wrap max-h-60 overflow-y-auto">
-                  {(() => {
-                    const { mainText, assignee } = parseLogDetails(selectedLog.details);
-                    return (
-                      <div className="space-y-2">
-                        <div>{mainText}</div>
-                        {assignee && (
-                          <div className="pt-2 flex">
-                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-500/15 border border-amber-500/30 text-amber-500 font-sans">
-                              <User className="w-3 h-3" />
-                              Assigned: {assignee}
+                  {/* Content */}
+                  <div className="p-6 overflow-y-auto space-y-5 bg-dark-950/20">
+                    {/* Hero Message Box */}
+                    <div className="bg-slate-900/40 border border-slate-800/60 rounded-2xl p-5 shadow-inner space-y-2.5">
+                      <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest block">Log Message</span>
+                      <p className="text-xs font-semibold text-slate-200 leading-relaxed font-sans whitespace-pre-wrap">
+                        {mainText}
+                      </p>
+                    </div>
+
+                    {/* Attachments Section */}
+                    {selectedLog && selectedLog.attachments && selectedLog.attachments.length > 0 && (
+                      <div className="bg-slate-900/40 border border-slate-800/60 rounded-2xl p-5 shadow-inner space-y-3">
+                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest block flex items-center gap-1.5">
+                          <Paperclip className="w-3.5 h-3.5 text-slate-400" /> Attachments ({selectedLog.attachments.length})
+                        </span>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-2">
+                          {selectedLog.attachments.map((file, idx) => (
+                            <div key={idx} className="relative group bg-slate-950/40 border border-slate-800/60 rounded-xl p-3 flex items-center gap-3 overflow-hidden hover:border-primary/50 transition-all duration-200">
+                              <div className="shrink-0 w-12 h-12 rounded-lg bg-dark-800 border border-slate-800/80 flex items-center justify-center overflow-hidden">
+                                {file.type && file.type.startsWith('image/') ? (
+                                  <img src={file.url} alt={file.name} className="w-full h-full object-cover" />
+                                ) : file.type && file.type.startsWith('video/') ? (
+                                  <Video className="w-5 h-5 text-indigo-500" />
+                                ) : (
+                                  <FileText className="w-5 h-5 text-amber-500" />
+                                )}
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <p className="text-xs font-bold text-slate-200 truncate pr-6">{file.name}</p>
+                                <p className="text-[10px] text-slate-400 font-bold mt-0.5">
+                                  {file.size ? `${(file.size / 1024).toFixed(1)} KB` : '0 KB'} · {file.type ? file.type.split('/')[1]?.toUpperCase() : 'FILE'}
+                                </p>
+                              </div>
+                              <a
+                                href={file.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 bg-slate-900 hover:bg-slate-800 border border-slate-800 rounded-lg text-slate-400 hover:text-white transition-all cursor-pointer"
+                                title="Open or Download file"
+                              >
+                                <Download className="w-4 h-4" />
+                              </a>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Meta Info Grid */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {/* Logged By User Card */}
+                      <div className="bg-slate-900/40 border border-slate-800/60 p-4 rounded-2xl shadow-inner flex flex-col justify-between">
+                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest block">Assigned By</span>
+                        <div className="flex items-center gap-3 mt-3">
+                          <div className="bg-primary/20 border border-primary/30 text-primary w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm shrink-0">
+                            {userName ? userName.substring(0, 2).toUpperCase() : 'US'}
+                          </div>
+                          <div className="min-w-0">
+                            <span className="font-bold text-slate-200 block text-xs truncate">{userName || 'System/SSO User'}</span>
+                            <span className="text-[10px] text-slate-500 font-bold block mt-0.5">
+                              {isInteraction ? 'Staff Member' : getUserPosition(selectedLog.userId)}
                             </span>
                           </div>
-                        )}
+                        </div>
                       </div>
-                    );
-                  })()}
-                </div>
-              </div>
-            </div>
 
-            {/* Footer */}
-            <div className="p-4 border-t border-slate-800/80 flex justify-end bg-dark-900/60">
-              <button
-                onClick={() => setSelectedLog(null)}
-                className="bg-primary text-white hover:bg-blue-600 px-5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-lg shadow-primary/20"
-              >
-                Close View
-              </button>
-            </div>
+                      {/* Event Metadata Card */}
+                      <div className="bg-slate-900/40 border border-slate-800/60 p-4 rounded-2xl shadow-inner flex flex-col justify-between gap-3">
+                        <div>
+                          <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest block">Activity Category</span>
+                          <div className="mt-2.5">
+                            <span className={`inline-block px-2.5 py-1 rounded-lg border text-[10px] font-black uppercase tracking-wider ${getCategoryBadgeClass(action)}`}>
+                              {action}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="text-[10px] text-slate-500 font-bold flex items-center gap-1.5 border-t border-slate-800/50 pt-2">
+                          <Calendar className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                          <span>{new Date(timestamp).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Mentions / Sub-tasks List */}
+                    {isInteraction && mentions.length > 0 && (
+                      <div className="space-y-2.5">
+                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest block">Assigned To ({mentions.length})</span>
+                        <div className="space-y-2.5">
+                          {mentions.map((mention, idx) => {
+                            const isAssignee = mention.uid === user?.uid;
+                            const currentStatus = taskStatuses[`${selectedLog.interactionId}-${mention.uid}`] || mention.status || 'Pending';
+                            const forwardedTo = taskStatuses[`${selectedLog.interactionId}-${mention.uid}-forwardedToName`] || mention.forwardedToName;
+                            let displayStatus = currentStatus === 'Pending' ? 'Task Assigned' : currentStatus;
+                            if (displayStatus === 'Accept/Decline') displayStatus = 'Accept';
+                            if (displayStatus === 'Completed/Forwarded') displayStatus = 'Completed';
+                            
+                            return (
+                              <div 
+                                key={`${mention.uid}-${idx}`} 
+                                className="bg-slate-900/40 border border-slate-800/60 p-4 rounded-2xl shadow-inner space-y-3"
+                              >
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center gap-2">
+                                    <div className="bg-amber-500/10 border border-amber-500/20 text-amber-400 w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs shrink-0">
+                                      {mention.name ? mention.name.substring(0, 2).toUpperCase() : 'US'}
+                                    </div>
+                                    <div>
+                                      <span className="font-bold text-slate-205 text-xs block">@{mention.name}</span>
+                                      <span className="text-[10px] text-slate-500 font-bold block">Task Assignee</span>
+                                    </div>
+                                  </div>
+                                  <span className={`inline-block px-2 py-0.5 rounded-lg border text-[10px] font-black uppercase tracking-wider ${getStatusColorClass(displayStatus)}`}>
+                                    {displayStatus === 'Forwarded' && forwardedTo ? `Forwarded to @${forwardedTo}` : displayStatus}
+                                  </span>
+                                </div>
+                                
+                                <p className="text-xs text-slate-300 leading-relaxed font-semibold pl-1">
+                                  {mention.task}
+                                </p>
+                                {(mention.priority || mention.dueDate) && (
+                                  <div className="flex items-center gap-2 pl-1 mt-1.5 flex-wrap">
+                                    {mention.priority && (
+                                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${
+                                        mention.priority === 'High' ? 'bg-rose-500/10 border-rose-500/20 text-rose-400' :
+                                        mention.priority === 'Medium' ? 'bg-amber-500/10 border-amber-500/20 text-amber-400' :
+                                        'bg-slate-800 border-slate-700 text-slate-450'
+                                      }`}>
+                                        {mention.priority === 'High' ? '🔥 High' : mention.priority === 'Medium' ? '⚡ Medium' : 'Low'}
+                                      </span>
+                                    )}
+                                    {mention.dueDate && (() => {
+                                      const today = new Date();
+                                      today.setHours(0,0,0,0);
+                                      const taskDue = new Date(mention.dueDate);
+                                      taskDue.setHours(0,0,0,0);
+                                      const isOverdueObj = taskDue < today && displayStatus !== 'Completed';
+                                      return (
+                                        <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${
+                                          isOverdueObj 
+                                            ? 'bg-rose-600 border-rose-500 text-white animate-pulse' 
+                                            : 'bg-slate-800 border-slate-700 text-slate-300'
+                                        }`}>
+                                          📅 Due: {new Date(mention.dueDate).toLocaleDateString()} {isOverdueObj && ' (OVERDUE)'}
+                                        </span>
+                                      );
+                                    })()}
+                                  </div>
+                                )}
+                                
+                                {isAssignee && (
+                                  <div className="pt-2 border-t border-slate-800/40 border-dashed space-y-1.5 flex items-center justify-between gap-2">
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Change Status:</span>
+                                      <select
+                                        value={displayStatus}
+                                        onChange={async (e) => {
+                                          const st = e.target.value;
+                                          if (st === 'Completed') {
+                                            setCompletionModalState({ isOpen: true, task: { ...mention, interactionId: selectedLog.interactionId }, newStatus: st });
+                                          } else if (st === 'Forwarded') {
+                                            setForwardModalState({ isOpen: true, task: { ...mention, interactionId: selectedLog.interactionId }, newStatus: st });
+                                          } else {
+                                            const ok = await updateTaskStatus(selectedLog.interactionId, mention.uid, st);
+                                            if (ok) {
+                                              fetchActivityLogs();
+                                              fetchInteractions();
+                                              setSelectedLog(prev => {
+                                                const updatedMentions = (prev.actionMentions || []).map(m =>
+                                                  m.uid === mention.uid ? { ...m, status: st } : m
+                                                );
+                                                return { ...prev, actionMentions: updatedMentions };
+                                              });
+                                            }
+                                            setTaskStatuses(prev => ({ ...prev, [`${selectedLog.interactionId}-${mention.uid}`]: st }));
+                                          }
+                                        }}
+                                        className="px-2.5 py-1 rounded-lg border border-slate-700 bg-slate-800 text-xs text-slate-300 font-bold outline-none cursor-pointer focus:border-primary"
+                                      >
+                                        <option value="Task Assigned">Task Assigned</option>
+                                        <option value="Accept">Accept</option>
+                                        <option value="Decline">Decline</option>
+                                        <option value="Completed">Completed</option>
+                                        <option value="Forwarded">Forwarded</option>
+                                      </select>
+                                    </div>
+                                    {currentStatus === 'Forwarded' && forwardedTo && (
+                                      <span className="text-xs text-indigo-400 font-bold">
+                                        to @{forwardedTo}
+                                      </span>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Legacy Log Assignee */}
+                    {legacyAssignee && (
+                      <div className="bg-amber-500/5 border border-amber-500/15 rounded-2xl p-4 flex items-start gap-3">
+                        <div className="bg-amber-500/10 p-2 rounded-xl shrink-0 mt-0.5">
+                          <User className="w-4 h-4 text-amber-500" />
+                        </div>
+                        <div className="space-y-1">
+                          <span className="text-[10px] font-bold text-amber-500/80 uppercase tracking-widest block">Assigned Task</span>
+                          <p className="text-xs font-semibold text-slate-300">
+                            Follow-up required:
+                          </p>
+                          <div className="flex mt-1.5">
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-amber-500/10 border border-amber-500/25 text-amber-400">
+                              @{legacyAssignee}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Footer */}
+                  <div className="px-6 py-4 border-t border-slate-800/85 flex justify-end bg-dark-900/40">
+                    <button
+                      onClick={() => setSelectedLog(null)}
+                      className="bg-slate-800 hover:bg-slate-700 text-slate-205 hover:text-white px-6 py-2.5 rounded-xl text-xs font-bold border border-slate-750 transition-all cursor-pointer shadow-md active:scale-98"
+                    >
+                      Close Details
+                    </button>
+                  </div>
+                </>
+              );
+            })()}
           </div>
         </div>
       )}
 
-      {/* Log Interaction Modal */}
-      {isLogInteractionOpen && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="glass w-full max-w-2xl rounded-2xl border border-slate-800/80 flex flex-col shadow-2xl max-h-[92vh] overflow-hidden">
-            
-            {/* Header */}
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center">
-                  <CheckSquare className="w-4 h-4 text-primary" />
-                </div>
-                <div>
-                  <h3 className="font-bold text-slate-200 text-sm">Log Activity</h3>
-                  <p className="text-[10px] text-slate-500 font-semibold">Record a client interaction for AI analysis & tracking</p>
-                </div>
+      {/* Completion Note Modal */}
+      {completionModalState.isOpen && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
+          <div className="bg-dark-900 border border-slate-800 w-full max-w-md rounded-2xl p-6 shadow-2xl relative">
+            <button 
+              onClick={() => {
+                setCompletionModalState({ isOpen: false, task: null, newStatus: '' });
+                setCompletionNote('');
+                setCompletionFile(null);
+              }}
+              className="absolute top-4 right-4 p-1.5 rounded-lg bg-slate-800 text-slate-400 hover:text-slate-200"
+            >
+              <X className="w-4 h-4" />
+            </button>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-full bg-emerald-500/20 flex items-center justify-center">
+                <CheckSquare className="w-5 h-5 text-emerald-400" />
               </div>
-              <button onClick={() => { setIsLogInteractionOpen(false); resetInteractionForm(); }} className="text-slate-400 hover:text-white transition-colors cursor-pointer">
-                <X className="w-5 h-5" />
-              </button>
+              <div>
+                <h3 className="text-lg font-bold text-white">Complete Task</h3>
+                <p className="text-xs text-slate-400">Send a note back to {completionModalState.task?.loggedByName}</p>
+              </div>
             </div>
-
-            <form onSubmit={handleLogInteraction} className="overflow-y-auto flex-1">
-              <div className="p-6 space-y-5">
-
-                {/* Section 1: Channel Type */}
-                <div className="space-y-2">
-                  <label className="text-[10px] text-slate-500 uppercase font-bold tracking-wider flex items-center gap-1.5">
-                    <MessageSquare className="w-3 h-3 text-slate-400" /> Channel / Interaction Type
-                  </label>
-                  <div className="flex gap-2 flex-wrap">
-                    {channels.map(ch => {
-                      const Icon = ch.icon;
-                      const isActive = interactionSource === ch.id;
-                      return (
-                        <button
-                          key={ch.id}
-                          type="button"
-                          onClick={() => setInteractionSource(ch.id)}
-                          className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold border transition-all duration-150 cursor-pointer ${
-                            isActive
-                              ? 'bg-primary border-primary text-white shadow-lg shadow-primary/20'
-                              : 'bg-dark-900/60 border-slate-800/80 text-slate-300 hover:border-slate-500'
-                          }`}
-                        >
-                          <Icon className={`w-3.5 h-3.5 ${isActive ? 'text-white' : ch.color}`} />
-                          {ch.label}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {/* Section 2: Company & Contact */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-1.5">
-                    <label className="text-[10px] text-slate-500 uppercase font-bold tracking-wider flex items-center gap-1.5">
-                      <Building2 className="w-3 h-3 text-slate-400" /> Company Account
-                    </label>
-                    <select
-                      value={interactionAccountId}
-                      onChange={(e) => {
-                        setInteractionAccountId(e.target.value);
-                        setInteractionContactId('');
-                        fetchContacts(e.target.value);
-                      }}
-                      className="w-full bg-dark-700/50 border border-slate-350 text-xs rounded-xl p-2.5 focus:outline-none focus:border-primary/50 cursor-pointer"
-                    >
-                      <option value="">Select Company</option>
-                      {accounts.map(acc => (
-                        <option key={acc.accountId || acc.id} value={acc.accountId || acc.id}>
-                          {acc.companyName}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="space-y-1.5">
-                    <label className="text-[10px] text-slate-500 uppercase font-bold tracking-wider flex items-center gap-1.5">
-                      <Users className="w-3 h-3 text-slate-400" /> Client Contact / Staff
-                    </label>
-                    <select
-                      value={interactionContactId}
-                      onChange={(e) => setInteractionContactId(e.target.value)}
-                      className="w-full bg-dark-700/50 border border-slate-350 text-xs rounded-xl p-2.5 focus:outline-none focus:border-primary/50 cursor-pointer"
-                    >
-                      <option value="">{contacts.length === 0 ? 'No contacts found' : 'Select Contact'}</option>
-                      {contacts
-                        .filter(c => !interactionAccountId || c.accountId === interactionAccountId)
-                        .map(c => (
-                          <option key={c.contactId} value={c.contactId}>
-                            {c.name} — {c.designation || c.hierarchyTag}
-                          </option>
-                        ))}
-                    </select>
-                  </div>
-                </div>
-
-                {/* Section 3: Date & Time */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-1.5">
-                    <label className="text-[10px] text-slate-500 uppercase font-bold tracking-wider flex items-center gap-1.5">
-                      <Calendar className="w-3 h-3 text-slate-400" /> Date
-                    </label>
-                    <input
-                      type="date"
-                      value={interactionDate}
-                      onChange={(e) => setInteractionDate(e.target.value)}
-                      className="w-full bg-dark-700/50 border border-slate-350 text-xs rounded-xl p-2.5 focus:outline-none focus:border-primary/50 cursor-pointer"
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <label className="text-[10px] text-slate-500 uppercase font-bold tracking-wider flex items-center gap-1.5">
-                      <Clock className="w-3 h-3 text-slate-400" /> Time
-                    </label>
-                    <input
-                      type="time"
-                      value={interactionTime}
-                      onChange={(e) => setInteractionTime(e.target.value)}
-                      className="w-full bg-dark-700/50 border border-slate-350 text-xs rounded-xl p-2.5 focus:outline-none focus:border-primary/50 cursor-pointer"
-                    />
-                  </div>
-                </div>
-
-                {/* Section 4: Notes / Message */}
-                <div className="space-y-1.5">
-                  <label className="text-[10px] text-slate-500 uppercase font-bold tracking-wider">Notes / Message Content *</label>
-                  <textarea
-                    value={interactionText}
-                    onChange={(e) => setInteractionText(e.target.value)}
-                    rows={5}
-                    className="w-full bg-dark-700/50 border border-slate-350 text-xs rounded-xl p-3 focus:outline-none focus:border-primary/50 resize-none leading-relaxed font-semibold"
-                    placeholder="Paste email content, meeting notes, Teams chat log, call summary... Gemini AI will automatically parse sentiment, detect risks, and update the account health score."
-                  />
-                </div>
-
-                {/* Section 5: Action Tracking / Internal Mentions */}
-                <div className="space-y-2">
-                  <label className="text-[10px] text-slate-500 uppercase font-bold tracking-wider flex items-center gap-1.5">
-                    <AtSign className="w-3 h-3 text-slate-400" /> Assign Task
-                  </label>
-
-                  {/* Mention Search & Dropdown */}
-                  <div className="relative">
-                    <input
-                      type="text"
-                      value={mentionSearch}
-                      onFocus={() => setShowMentionDropdown(true)}
-                      onChange={(e) => handleMentionSearchChange(e.target.value)}
-                      onBlur={() => setTimeout(() => setShowMentionDropdown(false), 150)}
-                      placeholder="Type @name to assign task (e.g. @NDA Head take a look)..."
-                      className="w-full bg-dark-700/50 border border-slate-350 text-xs rounded-xl p-2.5 focus:outline-none focus:border-primary/50 text-black placeholder-slate-450"
-                    />
-                    {showMentionDropdown && (() => {
-                      const query = getMentionSearchQuery(mentionSearch);
-                      const filteredStaff = staffList.filter(s => 
-                        s.name.toLowerCase().includes(query.toLowerCase()) || 
-                        s.email.toLowerCase().includes(query.toLowerCase())
-                      );
-                      if (filteredStaff.length === 0 || !mentionSearch.includes('@')) return null;
-                      return (
-                        <div className="absolute z-55 w-full top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-2xl overflow-hidden max-h-36 overflow-y-auto">
-                          {filteredStaff.map(s => {
-                            const isSelected = selectedMentions.some(m => m.uid === s.uid);
-                            return (
-                              <button
-                                key={s.uid}
-                                type="button"
-                                onMouseDown={() => insertMention(s)}
-                                className={`w-full flex items-center justify-between px-3 py-2 text-xs hover:bg-slate-100 transition-colors text-slate-700 ${
-                                  isSelected ? 'bg-primary/5 text-primary' : ''
-                                }`}
-                              >
-                                <div className="flex flex-col items-start text-left">
-                                  <span className="font-bold text-black">{s.name}</span>
-                                  <span className="text-[10px] text-slate-500 font-semibold">{s.role}{s.department ? ` · ${s.department}` : ''}</span>
-                                </div>
-                                {isSelected ? <CheckSquare className="w-3.5 h-3.5 text-primary" /> : <Square className="w-3.5 h-3.5 text-slate-400" />}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      );
-                    })()}
-                  </div>
-
-                  {/* Selected Tags Confirmation */}
-                  {selectedMentions.length > 0 && (
-                    <div className="flex flex-wrap gap-1.5 mt-2">
-                      <span className="text-[10px] text-slate-500 font-bold self-center">Assigned to:</span>
-                      {selectedMentions.map(m => (
-                        <span
-                          key={m.uid}
-                          className="flex items-center gap-1 bg-primary/10 border border-primary/30 text-primary text-[10px] font-semibold rounded-full px-2 py-0.5"
-                        >
-                          @{m.name}
-                          <button type="button" onClick={() => toggleMention(m)} className="hover:text-red-500 ml-0.5 cursor-pointer">
-                            <X className="w-2.5 h-2.5" />
-                          </button>
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
+            
+            <form onSubmit={async (e) => {
+              e.preventDefault();
+              const { task, newStatus } = completionModalState;
+              const ok = await updateTaskStatus(task.interactionId, task.uid, newStatus);
+              if (ok) {
+                if (completionNote.trim()) {
+                  await replyToInteraction(task.interactionId, `Task Completion Note: ${completionNote}`);
+                }
+                fetchInteractions();
+              }
+              setTaskStatuses(prev => ({ ...prev, [`${task.interactionId}-${task.uid}`]: newStatus }));
+              // Update details panel selectedLog state as well
+              if (selectedLog && selectedLog.interactionId === task.interactionId) {
+                setSelectedLog(prev => {
+                  const updatedMentions = (prev.actionMentions || []).map(m =>
+                    m.uid === task.uid ? { ...m, status: newStatus } : m
+                  );
+                  return { ...prev, actionMentions: updatedMentions };
+                });
+              }
+              setCompletionModalState({ isOpen: false, task: null, newStatus: '' });
+              setCompletionNote('');
+              setCompletionFile(null);
+            }} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1.5">Completion Note</label>
+                <textarea
+                  value={completionNote}
+                  onChange={(e) => setCompletionNote(e.target.value)}
+                  className="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-sm text-slate-200 outline-none focus:border-indigo-500 min-h-[100px]"
+                  placeholder="E.g., Task completed successfully. Attached the required files."
+                  required
+                />
               </div>
-
-              {/* Footer Actions */}
-              <div className="px-6 py-4 border-t border-slate-800 flex items-center justify-end gap-3 bg-dark-900/60">
-                <button
-                  type="button"
-                  onClick={() => { setIsLogInteractionOpen(false); resetInteractionForm(); }}
-                  className="px-4 py-2 text-xs font-semibold text-slate-500 hover:text-black cursor-pointer transition-colors"
-                >
-                  Cancel
-                </button>
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1.5">Attachments (Optional)</label>
+                <input
+                  type="file"
+                  onChange={(e) => setCompletionFile(e.target.files[0])}
+                  className="w-full text-sm text-slate-400 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-bold file:bg-slate-800 file:text-slate-300 hover:file:bg-slate-700"
+                />
+              </div>
+              <div className="flex justify-end pt-2">
                 <button
                   type="submit"
-                  className="bg-primary hover:bg-blue-600 text-xs text-white font-semibold rounded-xl px-5 py-2.5 flex items-center gap-2 transition-all cursor-pointer shadow-lg shadow-primary/20"
+                  className="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl transition-all"
                 >
-                  <Send className="w-3.5 h-3.5 text-white" />
-                  Save & Assign
+                  Mark Completed
                 </button>
               </div>
             </form>
           </div>
         </div>
       )}
+
+      {/* Forward Task Modal */}
+      {forwardModalState.isOpen && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
+          <div className="bg-dark-900 border border-slate-800 w-full max-w-md rounded-2xl p-6 shadow-2xl relative">
+            <button 
+              onClick={() => {
+                setForwardModalState({ isOpen: false, task: null, newStatus: 'Forwarded' });
+                setForwardToUid('');
+              }}
+              className="absolute top-4 right-4 p-1.5 rounded-lg bg-slate-800 text-slate-400 hover:text-slate-200"
+            >
+              <X className="w-4 h-4" />
+            </button>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-full bg-blue-500/20 flex items-center justify-center">
+                <Send className="w-5 h-5 text-blue-400" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-white">Forward Task</h3>
+                <p className="text-xs text-slate-400">Select a team member to forward this task to</p>
+              </div>
+            </div>
+            
+            <form onSubmit={handleForwardSubmit} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1.5">Forward To</label>
+                <select
+                  value={forwardToUid}
+                  onChange={(e) => setForwardToUid(e.target.value)}
+                  className="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-sm text-slate-200 outline-none focus:border-indigo-500 cursor-pointer"
+                  required
+                >
+                  <option value="">Select Team Member</option>
+                  {(staffList || [])
+                    .filter(s => s.uid !== user?.uid)
+                    .map(s => (
+                      <option key={s.uid} value={s.uid}>
+                        {s.name} ({s.role || s.position || 'Team Member'})
+                      </option>
+                    ))}
+                </select>
+              </div>
+              <div className="flex justify-end pt-2">
+                <button
+                  type="submit"
+                  disabled={!forwardToUid}
+                  className="px-5 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-bold rounded-xl transition-all"
+                >
+                  Forward Task
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
+
