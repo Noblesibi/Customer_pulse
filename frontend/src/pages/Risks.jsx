@@ -112,17 +112,17 @@ export default function Risks() {
               
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${getSeverityColor(risk.severity)}`}>
+                  <span className={`text-xs font-bold px-2 py-0.5 rounded-full border ${getSeverityColor(risk.severity)}`}>
                     {risk.severity} Alert
                   </span>
                   
                   {risk.status === 'Open' ? (
-                    <span className="flex items-center gap-1 text-[10px] text-rose-400 font-bold uppercase animate-pulse">
+                    <span className="flex items-center gap-1 text-xs text-rose-400 font-bold uppercase animate-pulse">
                       <ShieldAlert className="w-3.5 h-3.5" />
                       Active
                     </span>
                   ) : (
-                    <span className="flex items-center gap-1 text-[10px] text-emerald-400 font-bold uppercase">
+                    <span className="flex items-center gap-1 text-xs text-emerald-400 font-bold uppercase">
                       <ShieldCheck className="w-3.5 h-3.5" />
                       Mitigated
                     </span>
@@ -142,7 +142,7 @@ export default function Risks() {
               </div>
 
               {risk.status === 'Open' ? (
-                ['Admin', 'Sales Manager'].includes(user?.role) ? (
+                ['Admin', 'Sales Manager', 'Executive'].includes(user?.role) ? (
                   <button 
                     onClick={() => setSelectedRisk(risk)}
                     className="w-full bg-slate-800 hover:bg-slate-700 active:scale-98 border border-slate-700/60 rounded-xl py-2.5 text-xs text-white font-semibold flex items-center justify-center gap-1.5 transition-all"
@@ -151,12 +151,12 @@ export default function Risks() {
                     Resolve Alarm
                   </button>
                 ) : (
-                  <div className="text-[10px] text-slate-500 italic text-center">
+                  <div className="text-xs text-slate-500 italic text-center">
                     Requires Admin/Manager role to resolve
                   </div>
                 )
               ) : (
-                <div className="border-t border-slate-800/40 pt-3 flex items-start gap-1.5 text-[10px] text-slate-500 italic leading-relaxed">
+                <div className="border-t border-slate-800/40 pt-3 flex items-start gap-1.5 text-xs text-slate-500 italic leading-relaxed">
                   <Clock className="w-3.5 h-3.5 shrink-0 mt-0.5" />
                   <span>Mitigated by corporate managers</span>
                 </div>
@@ -191,7 +191,7 @@ export default function Risks() {
 
             <form onSubmit={handleResolveRisk} className="space-y-4">
               <div className="space-y-1.5">
-                <label className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">Mitigation Resolution comments</label>
+                <label className="text-xs text-slate-400 uppercase tracking-wider font-semibold">Mitigation Resolution comments</label>
                 <textarea 
                   value={resolutionComments}
                   onChange={(e) => setResolutionComments(e.target.value)}

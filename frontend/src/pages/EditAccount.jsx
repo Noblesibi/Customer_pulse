@@ -220,7 +220,7 @@ export default function EditAccount() {
   }
 
   return (
-    <div className="max-w-4xl mx-auto py-8 px-4 h-[calc(100vh-10rem)] overflow-y-auto animate-soft-pulse duration-1000">
+    <div className="max-w-4xl mx-auto py-8 px-4 h-auto lg:h-[calc(100vh-10rem)] overflow-y-auto animate-soft-pulse duration-1000">
       
       {/* Header */}
       <div className="flex items-center gap-4 mb-8">
@@ -251,7 +251,7 @@ export default function EditAccount() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-2">
-              <label className="text-[10px] text-slate-400 uppercase font-semibold">Company Name *</label>
+              <label className="text-xs text-slate-400 uppercase font-semibold">Company Name *</label>
               <input 
                 type="text" 
                 required
@@ -263,7 +263,7 @@ export default function EditAccount() {
             </div>
 
             <div className="space-y-2">
-              <label className="text-[10px] text-slate-400 uppercase font-semibold">CEO Name</label>
+              <label className="text-xs text-slate-400 uppercase font-semibold">CEO Name</label>
               <input 
                 type="text" 
                 value={ceoName}
@@ -274,7 +274,7 @@ export default function EditAccount() {
             </div>
 
             <div className="space-y-2">
-              <label className="text-[10px] text-slate-400 uppercase font-semibold">General Email</label>
+              <label className="text-xs text-slate-400 uppercase font-semibold">General Email</label>
               <input 
                 type="email" 
                 value={email}
@@ -285,7 +285,7 @@ export default function EditAccount() {
             </div>
 
             <div className="space-y-2">
-              <label className="text-[10px] text-slate-400 uppercase font-semibold">Corporate Phone</label>
+              <label className="text-xs text-slate-400 uppercase font-semibold">Corporate Phone</label>
               <input 
                 type="text" 
                 value={phone}
@@ -296,7 +296,7 @@ export default function EditAccount() {
             </div>
 
             <div className="space-y-2">
-              <label className="text-[10px] text-slate-400 uppercase font-semibold">Industry</label>
+              <label className="text-xs text-slate-400 uppercase font-semibold">Industry</label>
               <select 
                 value={industry}
                 onChange={e => setIndustry(e.target.value)}
@@ -307,7 +307,7 @@ export default function EditAccount() {
             </div>
 
             <div className="space-y-2">
-              <label className="text-[10px] text-slate-400 uppercase font-semibold">Region</label>
+              <label className="text-xs text-slate-400 uppercase font-semibold">Region</label>
               <select 
                 value={region}
                 onChange={e => setRegion(e.target.value)}
@@ -318,7 +318,7 @@ export default function EditAccount() {
             </div>
 
             <div className="space-y-2">
-              <label className="text-[10px] text-slate-400 uppercase font-semibold">Domain</label>
+              <label className="text-xs text-slate-400 uppercase font-semibold">Domain</label>
               <input 
                 type="text" 
                 value={domain}
@@ -372,7 +372,7 @@ export default function EditAccount() {
                 {/* Project level inputs */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pb-4 border-b border-slate-800/40">
                   <div className="space-y-2">
-                    <label className="text-[10px] text-slate-400 uppercase font-semibold">Project Name Details *</label>
+                    <label className="text-xs text-slate-400 uppercase font-semibold">Project Name Details *</label>
                     <input 
                       type="text" 
                       required
@@ -384,7 +384,7 @@ export default function EditAccount() {
                   </div>
 
                   <div className="space-y-2">
-                    <label className="text-[10px] text-slate-400 uppercase font-semibold">Project Industry</label>
+                    <label className="text-xs text-slate-400 uppercase font-semibold">Project Industry</label>
                     <select 
                       value={project.projectIndustry}
                       onChange={e => updateProjectField(pIndex, 'projectIndustry', e.target.value)}
@@ -398,11 +398,11 @@ export default function EditAccount() {
                 {/* Employees sub-section */}
                 <div className="space-y-4">
                   <div className="flex justify-between items-center">
-                    <h4 className="text-[11px] font-bold text-blue-400/80 uppercase tracking-wide">Project Employees ({project.employees.length})</h4>
+                    <h4 className="text-xs font-bold text-blue-400/80 uppercase tracking-wide">Project Employees ({project.employees.length})</h4>
                     <button 
                       type="button"
                       onClick={() => addEmployee(pIndex)}
-                      className="px-3 py-1.5 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 rounded-lg text-[10px] font-bold transition-all border border-blue-500/20 hover:border-blue-500/50 flex items-center gap-1"
+                      className="px-3 py-1.5 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 rounded-lg text-xs font-bold transition-all border border-blue-500/20 hover:border-blue-500/50 flex items-center gap-1"
                     >
                       <UserPlus className="w-3.5 h-3.5" />
                       Add Employee
@@ -418,17 +418,17 @@ export default function EditAccount() {
                           <button 
                             type="button" 
                             onClick={() => removeEmployee(pIndex, eIndex)}
-                            className="absolute top-3 right-3 text-slate-655 hover:text-red-400 transition-colors text-[10px] font-bold uppercase"
+                            className="absolute top-3 right-3 text-slate-655 hover:text-red-400 transition-colors text-xs font-bold uppercase"
                           >
                             Remove Employee
                           </button>
                         )}
 
-                        <span className="text-[10px] font-bold text-slate-500">Employee {eIndex + 1}</span>
+                        <span className="text-xs font-bold text-slate-500">Employee {eIndex + 1}</span>
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           <div className="space-y-1">
-                            <label className="text-[9px] text-slate-400 uppercase font-semibold">Employee Name</label>
+                            <label className="text-xs text-slate-400 uppercase font-semibold">Employee Name</label>
                             <input 
                               type="text" 
                               required
@@ -440,7 +440,7 @@ export default function EditAccount() {
                           </div>
 
                           <div className="space-y-1">
-                            <label className="text-[9px] text-slate-400 uppercase font-semibold">Position / Role</label>
+                            <label className="text-xs text-slate-400 uppercase font-semibold">Position / Role</label>
                             <input 
                               type="text" 
                               value={employee.position}
@@ -451,7 +451,7 @@ export default function EditAccount() {
                           </div>
 
                           <div className="space-y-1">
-                            <label className="text-[9px] text-slate-400 uppercase font-semibold">Direct Email</label>
+                            <label className="text-xs text-slate-400 uppercase font-semibold">Direct Email</label>
                             <input 
                               type="email" 
                               value={employee.email}
@@ -462,7 +462,7 @@ export default function EditAccount() {
                           </div>
 
                           <div className="space-y-1">
-                            <label className="text-[9px] text-slate-400 uppercase font-semibold">Direct Phone</label>
+                            <label className="text-xs text-slate-400 uppercase font-semibold">Direct Phone</label>
                             <input 
                               type="text" 
                               value={employee.phone}
@@ -473,7 +473,7 @@ export default function EditAccount() {
                           </div>
 
                           <div className="space-y-1">
-                            <label className="text-[9px] text-slate-400 uppercase font-semibold">Department</label>
+                            <label className="text-xs text-slate-400 uppercase font-semibold">Department</label>
                             <input 
                               type="text" 
                               value={employee.department}
@@ -484,7 +484,7 @@ export default function EditAccount() {
                           </div>
 
                           <div className="space-y-1">
-                            <label className="text-[9px] text-slate-400 uppercase font-semibold">Hierarchy Tag</label>
+                            <label className="text-xs text-slate-400 uppercase font-semibold">Hierarchy Tag</label>
                             <select
                               value={employee.hierarchyTag || 'Staff'}
                               onChange={e => updateEmployeeField(pIndex, eIndex, 'hierarchyTag', e.target.value)}
@@ -499,7 +499,7 @@ export default function EditAccount() {
                           </div>
 
                           <div className="space-y-1 md:col-span-2">
-                            <label className="text-[9px] text-slate-400 uppercase font-semibold">Influence Tag</label>
+                            <label className="text-xs text-slate-400 uppercase font-semibold">Influence Tag</label>
                             <select
                               value={employee.influenceTag || 'Observer'}
                               onChange={e => updateEmployeeField(pIndex, eIndex, 'influenceTag', e.target.value)}
@@ -528,24 +528,24 @@ export default function EditAccount() {
             <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Stakeholder Influence Tags Guide</h4>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
               <div className="bg-dark-950/30 p-3 rounded-xl border border-slate-850 space-y-1">
-                <span className="text-[10px] font-black uppercase text-primary tracking-wide">Decision Maker</span>
-                <p className="text-[10px] text-slate-400 leading-normal">Final sign-off authority for budget, contracts, and renewals.</p>
+                <span className="text-xs font-black uppercase text-primary tracking-wide">Decision Maker</span>
+                <p className="text-xs text-slate-400 leading-normal">Final sign-off authority for budget, contracts, and renewals.</p>
               </div>
               <div className="bg-dark-950/30 p-3 rounded-xl border border-slate-850 space-y-1">
-                <span className="text-[10px] font-black uppercase text-indigo-400 tracking-wide">Influencer</span>
-                <p className="text-[10px] text-slate-400 leading-normal">Shapes technical standards and vendor evaluations.</p>
+                <span className="text-xs font-black uppercase text-indigo-400 tracking-wide">Influencer</span>
+                <p className="text-xs text-slate-400 leading-normal">Shapes technical standards and vendor evaluations.</p>
               </div>
               <div className="bg-dark-950/30 p-3 rounded-xl border border-slate-850 space-y-1">
-                <span className="text-[10px] font-black uppercase text-emerald-400 tracking-wide">Champion</span>
-                <p className="text-[10px] text-slate-400 leading-normal">Advocates for our platform and drives internal adoption.</p>
+                <span className="text-xs font-black uppercase text-emerald-400 tracking-wide">Champion</span>
+                <p className="text-xs text-slate-400 leading-normal">Advocates for our platform and drives internal adoption.</p>
               </div>
               <div className="bg-dark-950/30 p-3 rounded-xl border border-slate-850 space-y-1">
-                <span className="text-[10px] font-black uppercase text-amber-400 tracking-wide">Gatekeeper</span>
-                <p className="text-[10px] text-slate-400 leading-normal">Controls access to decision makers and critical data.</p>
+                <span className="text-xs font-black uppercase text-amber-400 tracking-wide">Gatekeeper</span>
+                <p className="text-xs text-slate-400 leading-normal">Controls access to decision makers and critical data.</p>
               </div>
               <div className="bg-dark-950/30 p-3 rounded-xl border border-slate-850 space-y-1">
-                <span className="text-[10px] font-black uppercase text-slate-400 tracking-wide">Observer</span>
-                <p className="text-[10px] text-slate-400 leading-normal">Monitors relationship with minimal transaction influence.</p>
+                <span className="text-xs font-black uppercase text-slate-400 tracking-wide">Observer</span>
+                <p className="text-xs text-slate-400 leading-normal">Monitors relationship with minimal transaction influence.</p>
               </div>
             </div>
           </div>

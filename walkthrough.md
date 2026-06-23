@@ -33,12 +33,49 @@ To configure local SQL Server connectivity, follow these configuration steps:
 1. Open **SQL Server Management Studio (SSMS)** and connect to your database instance.
 2. Right-click the server instance name in the Object Explorer and select **Properties**.
 3. Go to the **Security** page.
-4. Under **Server authentication**, select **SQL Server and Windows Authentication mode** (Mixed Mode).
-5. Click **OK**.
-6. Expand **Security** -> **Logins**, right-click the `sa` user, select **Properties**, set a strong password, and ensure the login status is set to **Enabled** under the **Status** page.
+4. **Client Log Progress Stepper Update**: Renamed the widget to **Client Engagement Pulse** and redesigned the horizontal pipeline with custom Lucide status icons (`Send`, `Eye`, `MessageSquare`, `CheckCheck`), active HSL/emerald-gradient connection lines, hover scale animations, and soft box-shadow glowing nodes. It is positioned at the top of the Dashboard, directly below the greeting welcome header.
+- **Removed Activity Feed Card**: Completely removed the redundant **Recent System Activity Feed** card from the Dashboard per user feedback to keep the interface focused.
+- **Navbar Tab Rename**: Renamed the **Org Hierarchy** navigation link in [Navbar.jsx](file:///c:/Users/amina.rashad/Downloads/customer_pulse/frontend/src/components/Navbar.jsx) to **Client History** per user request.
 
-### 5. Update backend `.env`
-Open [backend/.env](file:///c:/Users/amina.rashad/Downloads/customer_pulse/backend/.env) and update your configuration:
+### Client Accounts Page Actions & Add Account Permissions
+
+- **[Accounts.jsx](file:///c:/Users/amina.rashad/Downloads/customer_pulse/frontend/src/pages/Accounts.jsx)**:
+  - Updated role guards on the "Add Account" button to allow `Executive`.
+  - Updated role guards in the "Actions" column to allow `Executive` for both the Edit and Delete button views.
+  - Allowed `Executive` to assign/update the Account Owner.
+  - Allowed `Executive` to delete Key Contacts and select/update the Stakeholder Owner dropdown.
+- **[Risks.jsx](file:///c:/Users/amina.rashad/Downloads/customer_pulse/frontend/src/pages/Risks.jsx)**:
+  - Updated role guards on the "Resolve Alarm" button to allow `Executive`.
+- **[account.routes.js](file:///c:/Users/amina.rashad/Downloads/customer_pulse/backend/src/routes/account.routes.js)**:
+  - Updated the backend validation on `POST /api/accounts` and `PUT /api/accounts/:id` to accept `Executive` role requests in `requireRole`.
+  - Updated `DELETE /api/accounts/:id` to allow both `Admin` and `Executive` roles.
+- **[contact.routes.js](file:///c:/Users/amina.rashad/Downloads/customer_pulse/backend/src/routes/contact.routes.js)**:
+  - Updated the contact management endpoints (`POST`, `PUT`, `DELETE` contacts) to allow `Executive` users in `requireRole` checks.
+- **[risk.routes.js](file:///c:/Users/amina.rashad/Downloads/customer_pulse/backend/src/routes/risk.routes.js)**:
+  - Updated `PUT /api/risks/:id` (mitigate/resolve risk status) to authorize `Executive` role requests in `requireRole` check.
+
+---
+
+## Verification & Manual Testing Results
+
+You can manually verify the changes with the following steps:
+1. Open the Customer Pulse CRM dashboard (`http://localhost:5173`).
+2. Log in with the **ITG Head** credentials preset from the dropdown (or use `itghead@gmail.com` / `itghead123`).
+3. Click the **Accounts** page in the top navigation.
+4. Verify that:
+   - The **Add Account** button is visible in the top right of the Client Portfolio panel.
+   - The individual row **Actions** column displays both the **Edit (pencil)** and **Delete (trash bin)** buttons for `Acme Corporation` and `XYZ` accounts.
+   - Clicking **Edit** opens the edit page successfully.
+   - Clicking an account row opens the drawer panel where the **Account Owner** dropdown and key contact **Stakeholder Owner** dropdown are fully interactive.
+5. Navigate to the **Risks** page in the navigation.
+6. Verify that the **Resolve Alarm** button is visible and interactive for open alarms.
+7. Log in as an Administrator (`admin@pulse.com` / `admin123`) or CEO (`nj@gmail.com` / `nj123`) and verify that under the **All Assigned Tasks** tab in **Activity Log**, all tasks from all users are visible.
+8. Verify role-based task filtering for ITG Head (non-Admin/non-CEO): under **All Assigned Tasks**, they see only their created tasks, and under **Tasks Assigned to Me**, they see tasks assigned to them.
+9. Verify files uploads and attachments in **Log Activity** page and details views.
+
+---
+
+## 🧪 Verification & Results:
 ```ini
 DB_TYPE=mssql
 DB_SERVER=localhost
