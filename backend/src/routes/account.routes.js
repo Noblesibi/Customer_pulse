@@ -114,7 +114,14 @@ router.get('/:id', async (req, res) => {
  * POST /api/accounts
  * Add Account (Admin or Sales Manager only).
  */
-router.post('/', requireRole(['Admin', 'Sales Manager', 'Executive']), async (req, res) => {
+router.post('/', (req, res, next) => {
+  const isTrueAdmin = req.user.role === 'Admin';
+  const isCeoNazneen = req.user.email?.toLowerCase() === 'nj@gmail.com';
+  if (!isTrueAdmin && !isCeoNazneen) {
+    return res.status(403).json({ error: 'Forbidden: Only Admin and CEO Nazneen are allowed to add accounts' });
+  }
+  next();
+}, async (req, res) => {
   const { 
     companyName, industry, region,
     email, phone, ceoName, domain, projectName,
@@ -127,6 +134,35 @@ router.post('/', requireRole(['Admin', 'Sales Manager', 'Executive']), async (re
   }
 
   try {
+    const existingSnap = await db.collection('accounts').get();
+    const nameExists = existingSnap.docs.some(doc => {
+      const data = doc.data();
+      return data.companyName && data.companyName.toLowerCase().trim() === companyName.toLowerCase().trim();
+    });
+    if (nameExists) {
+      return res.status(400).json({ error: `Account with company name "${companyName}" already exists.` });
+    }
+
+    // Check if any incoming employee already exists in another company
+    const contactsSnap = await db.collection('contacts').get();
+    const existingContacts = contactsSnap.docs.map(doc => doc.data());
+    
+    const incomingContactNames = [];
+    if (contacts && Array.isArray(contacts)) {
+      contacts.forEach(c => { if (c.name) incomingContactNames.push(c.name); });
+    } else if (contactName) {
+      incomingContactNames.push(contactName);
+    }
+    
+    for (const name of incomingContactNames) {
+      const duplicate = existingContacts.find(c => c.name && c.name.toLowerCase().trim() === name.toLowerCase().trim());
+      if (duplicate) {
+        const otherAccountDoc = await db.collection('accounts').doc(duplicate.accountId).get();
+        const otherCompName = otherAccountDoc.exists ? otherAccountDoc.data().companyName : 'another company';
+        return res.status(400).json({ error: `Employee "${name}" already exists in ${otherCompName}.` });
+      }
+    }
+
     let finalOwnerId = ownerId || req.user.uid;
     let finalOwnerName = ownerName;
     if (ownerId && !ownerName) {
@@ -185,7 +221,8 @@ router.post('/', requireRole(['Admin', 'Sales Manager', 'Executive']), async (re
             designation: contact.position || '',
             department: contact.department || '',
             projectName: contact.projectName || '',
-            projectIndustry: contact.projectIndustry || 'Technology',
+            projectIndustry: contact.projectIndustry || '',
+            projectType: contact.projectType || '',
             hierarchyTag: contact.hierarchyTag || 'Staff',
             influenceTag: contact.influenceTag || 'Observer',
             ownerId: cOwnerId,
@@ -257,8 +294,40 @@ router.put('/:id', requireRole(['Admin', 'Sales Manager', 'Executive']), async (
       return res.status(404).json({ error: 'Account not found' });
     }
 
+    // Check if any incoming employee already exists in another company (excluding the current account)
+    if (contacts && Array.isArray(contacts)) {
+      const contactsSnap = await db.collection('contacts').get();
+      const existingContacts = contactsSnap.docs.map(doc => doc.data());
+      
+      for (const contact of contacts) {
+        if (contact.name) {
+          const duplicate = existingContacts.find(c => 
+            c.name && c.name.toLowerCase().trim() === contact.name.toLowerCase().trim() &&
+            c.accountId !== id
+          );
+          if (duplicate) {
+            const accountDoc = await db.collection('accounts').doc(duplicate.accountId).get();
+            const otherCompName = accountDoc.exists ? accountDoc.data().companyName : 'another company';
+            return res.status(400).json({ error: `Employee "${contact.name}" already exists in ${otherCompName}.` });
+          }
+        }
+      }
+    }
+
     const updates = {};
-    if (companyName) updates.companyName = companyName;
+    if (companyName) {
+      const existingSnap = await db.collection('accounts').get();
+      const nameExists = existingSnap.docs.some(doc => {
+        const data = doc.data();
+        return (data.accountId !== id && data.id !== id) && 
+               data.companyName && 
+               data.companyName.toLowerCase().trim() === companyName.toLowerCase().trim();
+      });
+      if (nameExists) {
+        return res.status(400).json({ error: `Account with company name "${companyName}" already exists.` });
+      }
+      updates.companyName = companyName;
+    }
     if (industry) updates.industry = industry;
     if (region) updates.region = region;
     if (email !== undefined) updates.email = email;
@@ -308,7 +377,8 @@ router.put('/:id', requireRole(['Admin', 'Sales Manager', 'Executive']), async (
             designation: contact.position || contact.designation || '',
             department: contact.department || '',
             projectName: contact.projectName || '',
-            projectIndustry: contact.projectIndustry || 'Technology',
+            projectIndustry: contact.projectIndustry || '',
+            projectType: contact.projectType || '',
             hierarchyTag: contact.hierarchyTag || 'Staff',
             influenceTag: contact.influenceTag || 'Observer'
           };
@@ -347,7 +417,8 @@ router.put('/:id', requireRole(['Admin', 'Sales Manager', 'Executive']), async (
             designation: contact.position || contact.designation || '',
             department: contact.department || '',
             projectName: contact.projectName || '',
-            projectIndustry: contact.projectIndustry || 'Technology',
+            projectIndustry: contact.projectIndustry || '',
+            projectType: contact.projectType || '',
             hierarchyTag: contact.hierarchyTag || 'Staff',
             influenceTag: contact.influenceTag || 'Observer',
             ownerId: cOwnerId,

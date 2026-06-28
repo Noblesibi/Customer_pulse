@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { NavLink, useNavigate } from 'react-router-dom';
+import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { Bell, Check, MailOpen, AlertCircle, LogOut, Shield, ChevronDown, Activity, Menu, X } from 'lucide-react';
 import { useStore } from '../store/index.js';
 
@@ -15,12 +15,17 @@ export default function Navbar() {
   } = useStore();
 
   const navigate = useNavigate();
+  const location = useLocation();
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isAccountsOpen, setIsAccountsOpen] = useState(false);
+  const [isRisksOpen, setIsRisksOpen] = useState(false);
 
   const notifDropdownRef = useRef(null);
   const profileDropdownRef = useRef(null);
+  const accountsDropdownRef = useRef(null);
+  const risksDropdownRef = useRef(null);
 
   // Periodically fetch notifications to simulate Firestore push listeners
   useEffect(() => {
@@ -39,6 +44,12 @@ export default function Navbar() {
       }
       if (profileDropdownRef.current && !profileDropdownRef.current.contains(event.target)) {
         setIsProfileOpen(false);
+      }
+      if (accountsDropdownRef.current && !accountsDropdownRef.current.contains(event.target)) {
+        setIsAccountsOpen(false);
+      }
+      if (risksDropdownRef.current && !risksDropdownRef.current.contains(event.target)) {
+        setIsRisksOpen(false);
       }
     }
     document.addEventListener('mousedown', handleClickOutside);
@@ -85,21 +96,167 @@ export default function Navbar() {
 
       {/* Horizontal Links Navigation */}
       <nav className="hidden lg:flex items-center gap-2 shrink-0">
-        {getLinks().map(link => (
+        {/* Dashboard */}
+        <NavLink
+          to="/dashboard"
+          className={({ isActive }) => 
+            `px-3 py-1.5 rounded-lg text-sm font-semibold border whitespace-nowrap transition-colors ${
+              isActive 
+                ? 'bg-primary/10 border-primary/25 text-primary' 
+                : 'bg-transparent border-transparent text-primary/70 hover:text-primary'
+            }`
+          }
+        >
+          Dashboard
+        </NavLink>
+
+        {/* Accounts Dropdown */}
+        <div 
+          className={`relative flex items-center rounded-lg border whitespace-nowrap transition-colors ${
+            ['/accounts', '/contacts'].includes(location.pathname)
+              ? 'bg-primary/10 border-primary/25 text-primary'
+              : 'bg-transparent border-transparent text-primary/70 hover:text-primary'
+          }`}
+          ref={accountsDropdownRef}
+        >
           <NavLink
-            key={link.path}
-            to={link.path}
-            className={({ isActive }) => 
-              `px-3 py-1.5 rounded-lg text-sm font-semibold border whitespace-nowrap ${
-                isActive 
-                  ? 'bg-primary/10 border-primary/25 text-primary' 
-                  : 'bg-transparent border-transparent text-primary/70 hover:text-primary hover:bg-primary/5'
-              }`
-            }
+            to="/accounts"
+            className="px-3 py-1.5 text-sm font-semibold transition-colors"
+            onClick={() => setIsAccountsOpen(false)}
           >
-            {link.label}
+            Accounts
           </NavLink>
-        ))}
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setIsAccountsOpen(!isAccountsOpen);
+              setIsRisksOpen(false);
+            }}
+            className="pr-2.5 pl-1 py-1.5 cursor-pointer flex items-center justify-center hover:text-primary border-l border-transparent transition-colors"
+          >
+            <ChevronDown className="w-3.5 h-3.5 opacity-60" />
+          </button>
+          
+          {isAccountsOpen && (
+            <div className="absolute left-0 mt-2 top-full w-48 glass border border-slate-800 rounded-xl shadow-2xl p-1.5 z-50 animate-soft-pulse duration-300">
+              <NavLink
+                to="/accounts"
+                onClick={() => setIsAccountsOpen(false)}
+                className={({ isActive }) =>
+                  `flex items-center px-3 py-2.5 rounded-lg text-xs font-bold transition-all ${
+                    isActive
+                      ? 'bg-primary/10 text-primary'
+                      : 'text-slate-300 hover:text-primary'
+                  }`
+                }
+              >
+                Accounts Portfolio
+              </NavLink>
+              <NavLink
+                to="/contacts"
+                onClick={() => setIsAccountsOpen(false)}
+                className={({ isActive }) =>
+                  `flex items-center px-3 py-2.5 rounded-lg text-xs font-bold transition-all mt-0.5 ${
+                    isActive
+                      ? 'bg-primary/10 text-primary'
+                      : 'text-slate-300 hover:text-primary'
+                  }`
+                }
+              >
+                Contacts Directory
+              </NavLink>
+            </div>
+          )}
+        </div>
+
+        {/* Risks Dropdown */}
+        {['Admin', 'Executive', 'Sales Manager'].includes(user?.role) && (
+          <div 
+            className={`relative flex items-center rounded-lg border whitespace-nowrap transition-colors ${
+              ['/risks', '/webhooks-demo'].includes(location.pathname)
+                ? 'bg-primary/10 border-primary/25 text-primary'
+                : 'bg-transparent border-transparent text-primary/70 hover:text-primary'
+            }`}
+            ref={risksDropdownRef}
+          >
+            <NavLink
+              to="/risks"
+              className="px-3 py-1.5 text-sm font-semibold transition-colors"
+              onClick={() => setIsRisksOpen(false)}
+            >
+              Risks
+            </NavLink>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setIsRisksOpen(!isRisksOpen);
+                setIsAccountsOpen(false);
+              }}
+              className="pr-2.5 pl-1 py-1.5 cursor-pointer flex items-center justify-center hover:text-primary border-l border-transparent transition-colors"
+            >
+              <ChevronDown className="w-3.5 h-3.5 opacity-60" />
+            </button>
+            
+            {isRisksOpen && (
+              <div className="absolute left-0 mt-2 top-full w-48 glass border border-slate-800 rounded-xl shadow-2xl p-1.5 z-50 animate-soft-pulse duration-300">
+                <NavLink
+                  to="/risks"
+                  onClick={() => setIsRisksOpen(false)}
+                  className={({ isActive }) =>
+                    `flex items-center px-3 py-2.5 rounded-lg text-xs font-bold transition-all ${
+                      isActive
+                        ? 'bg-primary/10 text-primary'
+                        : 'text-slate-300 hover:text-primary'
+                    }`
+                  }
+                >
+                  Risks Center
+                </NavLink>
+                <NavLink
+                  to="/webhooks-demo"
+                  onClick={() => setIsRisksOpen(false)}
+                  className={({ isActive }) =>
+                    `flex items-center px-3 py-2.5 rounded-lg text-xs font-bold transition-all mt-0.5 ${
+                      isActive
+                        ? 'bg-primary/10 text-primary'
+                        : 'text-slate-300 hover:text-primary'
+                    }`
+                  }
+                >
+                  Email Ingestion
+                </NavLink>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* User Directory */}
+        <NavLink
+          to="/users"
+          className={({ isActive }) => 
+            `px-3 py-1.5 rounded-lg text-sm font-semibold border whitespace-nowrap transition-colors ${
+              isActive 
+                ? 'bg-primary/10 border-primary/25 text-primary' 
+                : 'bg-transparent border-transparent text-primary/70 hover:text-primary'
+            }`
+          }
+        >
+          User Directory
+        </NavLink>
+
+        {/* Activity Log */}
+        <NavLink
+          to="/activity-log"
+          className={({ isActive }) => 
+            `px-3 py-1.5 rounded-lg text-sm font-semibold border whitespace-nowrap transition-colors ${
+              isActive 
+                ? 'bg-primary/10 border-primary/25 text-primary' 
+                : 'bg-transparent border-transparent text-primary/70 hover:text-primary'
+            }`
+          }
+        >
+          Activity Log
+        </NavLink>
       </nav>
 
       {/* Right Actions Block */}
@@ -229,23 +386,119 @@ export default function Navbar() {
 
       {/* Mobile Menu Drawer */}
       {isMobileMenuOpen && (
-        <div className="lg:hidden absolute top-20 left-0 right-0 bg-dark-950/95 backdrop-blur-md border-b border-slate-800/80 p-4 space-y-2 z-40 shadow-xl flex flex-col select-none">
-          {getLinks().map(link => (
-            <NavLink
-              key={link.path}
-              to={link.path}
-              onClick={() => setIsMobileMenuOpen(false)}
-              className={({ isActive }) => 
-                `px-4 py-3 rounded-xl text-sm font-semibold border ${
-                  isActive 
-                    ? 'bg-primary/15 border-primary/25 text-primary' 
-                    : 'bg-transparent border-transparent text-primary/70 hover:text-primary hover:bg-primary/5'
-                }`
-              }
-            >
-              {link.label}
-            </NavLink>
-          ))}
+        <div className="lg:hidden absolute top-20 left-0 right-0 bg-dark-950/98 backdrop-blur-md border-b border-slate-800 p-5 space-y-3.5 z-40 shadow-2xl flex flex-col select-none max-h-[80vh] overflow-y-auto">
+          {/* Dashboard */}
+          <NavLink
+            to="/dashboard"
+            onClick={() => setIsMobileMenuOpen(false)}
+            className={({ isActive }) => 
+              `px-4 py-3 rounded-xl text-sm font-semibold border ${
+                isActive 
+                  ? 'bg-primary/15 border-primary/25 text-primary' 
+                  : 'bg-transparent border-transparent text-primary/70 hover:text-primary'
+              }`
+            }
+          >
+            Dashboard
+          </NavLink>
+
+          {/* Accounts Group */}
+          <div className="space-y-1.5">
+            <div className="px-4 text-[10px] font-black uppercase tracking-wider text-slate-500">Accounts & Contacts</div>
+            <div className="pl-4 space-y-1">
+              <NavLink
+                to="/accounts"
+                onClick={() => setIsMobileMenuOpen(false)}
+                className={({ isActive }) => 
+                  `block px-4 py-2.5 rounded-xl text-sm font-semibold border ${
+                    isActive 
+                      ? 'bg-primary/15 border-primary/25 text-primary' 
+                      : 'bg-transparent border-transparent text-primary/70 hover:text-primary'
+                  }`
+                }
+              >
+                Accounts Portfolio
+              </NavLink>
+              <NavLink
+                to="/contacts"
+                onClick={() => setIsMobileMenuOpen(false)}
+                className={({ isActive }) => 
+                  `block px-4 py-2.5 rounded-xl text-sm font-semibold border ${
+                    isActive 
+                      ? 'bg-primary/15 border-primary/25 text-primary' 
+                      : 'bg-transparent border-transparent text-primary/70 hover:text-primary'
+                  }`
+                }
+              >
+                Contacts Directory
+              </NavLink>
+            </div>
+          </div>
+
+          {/* Risks Group */}
+          {['Admin', 'Executive', 'Sales Manager'].includes(user?.role) && (
+            <div className="space-y-1.5">
+              <div className="px-4 text-[10px] font-black uppercase tracking-wider text-slate-500">Risks & Ingestion</div>
+              <div className="pl-4 space-y-1">
+                <NavLink
+                  to="/risks"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className={({ isActive }) => 
+                    `block px-4 py-2.5 rounded-xl text-sm font-semibold border ${
+                      isActive 
+                        ? 'bg-primary/15 border-primary/25 text-primary' 
+                        : 'bg-transparent border-transparent text-primary/70 hover:text-primary'
+                    }`
+                  }
+                >
+                  Risks Center
+                </NavLink>
+                <NavLink
+                  to="/webhooks-demo"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className={({ isActive }) => 
+                    `block px-4 py-2.5 rounded-xl text-sm font-semibold border ${
+                      isActive 
+                        ? 'bg-primary/15 border-primary/25 text-primary' 
+                        : 'bg-transparent border-transparent text-primary/70 hover:text-primary'
+                    }`
+                  }
+                >
+                  Email Ingestion
+                </NavLink>
+              </div>
+            </div>
+          )}
+
+          {/* User Directory */}
+          <NavLink
+            to="/users"
+            onClick={() => setIsMobileMenuOpen(false)}
+            className={({ isActive }) => 
+              `px-4 py-3 rounded-xl text-sm font-semibold border ${
+                isActive 
+                  ? 'bg-primary/15 border-primary/25 text-primary' 
+                  : 'bg-transparent border-transparent text-primary/70 hover:text-primary'
+              }`
+            }
+          >
+            User Directory
+          </NavLink>
+
+          {/* Activity Log */}
+          <NavLink
+            to="/activity-log"
+            onClick={() => setIsMobileMenuOpen(false)}
+            className={({ isActive }) => 
+              `px-4 py-3 rounded-xl text-sm font-semibold border ${
+                isActive 
+                  ? 'bg-primary/15 border-primary/25 text-primary' 
+                  : 'bg-transparent border-transparent text-primary/70 hover:text-primary'
+              }`
+            }
+          >
+            Activity Log
+          </NavLink>
         </div>
       )}
     </header>

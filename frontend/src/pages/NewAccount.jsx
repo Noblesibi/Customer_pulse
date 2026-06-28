@@ -14,7 +14,7 @@ export default function NewAccount() {
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [ceoName, setCeoName] = useState('');
-  const [domain, setDomain] = useState('');
+  const [domain, setDomain] = useState('Aerospace and Defence');
 
   // Stakeholder Details — employees are top-level, projects nested inside each
   const [employees, setEmployees] = useState([
@@ -26,9 +26,7 @@ export default function NewAccount() {
       department: '',
       hierarchyTag: 'Staff',
       influenceTag: 'Observer',
-      projects: [
-        { projectName: '', projectIndustry: 'Technology' }
-      ]
+      projects: []
     }
   ]);
 
@@ -41,7 +39,7 @@ export default function NewAccount() {
       department: '',
       hierarchyTag: 'Staff',
       influenceTag: 'Observer',
-      projects: [{ projectName: '', projectIndustry: 'Technology' }]
+      projects: []
     }]);
   };
 
@@ -57,7 +55,7 @@ export default function NewAccount() {
 
   const addProject = (eIndex) => {
     const updated = [...employees];
-    updated[eIndex].projects.push({ projectName: '', projectIndustry: 'Technology' });
+    updated[eIndex].projects.push({ projectName: '', projectIndustry: '', projectType: 'Development' });
     setEmployees(updated);
   };
 
@@ -77,6 +75,24 @@ export default function NewAccount() {
 
   const industries = ['Technology', 'Finance', 'Logistics', 'Healthcare', 'Manufacturing', 'Retail'];
   const regions = ['North America', 'Europe', 'Asia Pacific', 'Latin America', 'Middle East'];
+  const nestBus = [
+    'Aerospace and Defence',
+    'Banking & Financial Service (BFS)',
+    'Healthcare',
+    'Insurance',
+    'Locomotive',
+    'Industrial',
+    'Automotive',
+    'Logistics & Supply Chain'
+  ];
+  const projectTypes = [
+    'Development',
+    'Support & Maintenance',
+    'Testing & QA',
+    'Consulting',
+    'R&D',
+    'Implementation'
+  ];
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -94,6 +110,7 @@ export default function NewAccount() {
           department: emp.department,
           projectName: '',
           projectIndustry: '',
+          projectType: '',
           hierarchyTag: emp.hierarchyTag,
           influenceTag: emp.influenceTag
         });
@@ -107,6 +124,7 @@ export default function NewAccount() {
             department: emp.department,
             projectName: proj.projectName,
             projectIndustry: proj.projectIndustry,
+            projectType: proj.projectType || 'Development',
             hierarchyTag: emp.hierarchyTag,
             influenceTag: emp.influenceTag
           });
@@ -131,7 +149,8 @@ export default function NewAccount() {
     if (success) {
       navigate('/accounts');
     } else {
-      alert("Failed to create account. Please try again.");
+      const errorMsg = useStore.getState().accountsError || "Failed to create account. Please try again.";
+      alert(errorMsg);
     }
   };
 
@@ -234,14 +253,14 @@ export default function NewAccount() {
             </div>
 
             <div className="space-y-2">
-              <label className="text-xs text-slate-400 uppercase font-semibold">Domain</label>
-              <input 
-                type="text" 
+              <label className="text-xs text-slate-400 uppercase font-semibold">NeST BU</label>
+              <select 
                 value={domain}
                 onChange={e => setDomain(e.target.value)}
-                className="w-full bg-dark-950/60 border border-slate-800 focus:border-primary/50 text-sm text-white rounded-xl p-3 focus:outline-none transition-colors"
-                placeholder="e.g. acme.com"
-              />
+                className="w-full bg-dark-950/60 border border-slate-800 focus:border-primary/50 text-sm text-white rounded-xl p-3 focus:outline-none cursor-pointer transition-colors appearance-none"
+              >
+                {nestBus.map(bu => <option key={bu} value={bu}>{bu}</option>)}
+              </select>
             </div>
           </div>
         </div>
@@ -407,12 +426,11 @@ export default function NewAccount() {
                           </button>
                         )}
                         <span className="text-xs font-bold text-slate-500 block">Project {pIndex + 1}</span>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                           <div className="space-y-1">
-                            <label className="text-xs text-slate-400 uppercase font-semibold">Project Name *</label>
+                            <label className="text-xs text-slate-400 uppercase font-semibold">Project Name</label>
                             <input
                               type="text"
-                              required
                               value={proj.projectName}
                               onChange={e => updateProjectField(eIndex, pIndex, 'projectName', e.target.value)}
                               className="w-full bg-dark-950/40 border border-slate-800 focus:border-blue-500/50 text-xs text-white rounded-lg p-2.5 focus:outline-none transition-colors"
@@ -420,13 +438,23 @@ export default function NewAccount() {
                             />
                           </div>
                           <div className="space-y-1">
-                            <label className="text-xs text-slate-400 uppercase font-semibold">Project Industry</label>
-                            <select
+                            <label className="text-xs text-slate-400 uppercase font-semibold">Project Description</label>
+                            <input
+                              type="text"
                               value={proj.projectIndustry}
                               onChange={e => updateProjectField(eIndex, pIndex, 'projectIndustry', e.target.value)}
+                              className="w-full bg-dark-950/40 border border-slate-800 focus:border-blue-500/50 text-xs text-white rounded-lg p-2.5 focus:outline-none transition-colors"
+                              placeholder="e.g. Migration of critical database services"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-xs text-slate-400 uppercase font-semibold">Project Type</label>
+                            <select
+                              value={proj.projectType || 'Development'}
+                              onChange={e => updateProjectField(eIndex, pIndex, 'projectType', e.target.value)}
                               className="w-full bg-dark-950/40 border border-slate-800 focus:border-blue-500/50 text-xs text-white rounded-lg p-2.5 focus:outline-none cursor-pointer transition-colors appearance-none"
                             >
-                              {industries.map(ind => <option key={ind} value={ind}>{ind}</option>)}
+                              {projectTypes.map(type => <option key={type} value={type}>{type}</option>)}
                             </select>
                           </div>
                         </div>

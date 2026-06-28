@@ -15,13 +15,14 @@ export default function EditAccount() {
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [ceoName, setCeoName] = useState('');
-  const [domain, setDomain] = useState('');
+  const [domain, setDomain] = useState('Aerospace and Defence');
 
   // Stakeholder Details (Hierarchical Projects)
   const [projects, setProjects] = useState([
     {
       projectName: '',
-      projectIndustry: 'Technology',
+      projectIndustry: '',
+      projectType: 'Development',
       employees: [
         {
           name: '',
@@ -41,6 +42,24 @@ export default function EditAccount() {
 
   const industries = ['Technology', 'Finance', 'Logistics', 'Healthcare', 'Manufacturing', 'Retail'];
   const regions = ['North America', 'Europe', 'Asia Pacific', 'Latin America', 'Middle East'];
+  const nestBus = [
+    'Aerospace and Defence',
+    'Banking & Financial Service (BFS)',
+    'Healthcare',
+    'Insurance',
+    'Locomotive',
+    'Industrial',
+    'Automotive',
+    'Logistics & Supply Chain'
+  ];
+  const projectTypes = [
+    'Development',
+    'Support & Maintenance',
+    'Testing & QA',
+    'Consulting',
+    'R&D',
+    'Implementation'
+  ];
 
   // Fetch account and contact details on load
   useEffect(() => {
@@ -76,13 +95,15 @@ export default function EditAccount() {
           
           conData.forEach(c => {
             const pName = c.projectName || '';
-            const pInd = c.projectIndustry || 'Technology';
-            const key = `${pName}::${pInd}`;
+            const pInd = c.projectIndustry || '';
+            const pType = c.projectType || 'Development';
+            const key = `${pName}::${pInd}::${pType}`;
             
             if (!projectMap[key]) {
               projectMap[key] = {
                 projectName: pName,
                 projectIndustry: pInd,
+                projectType: pType,
                 employees: []
               };
             }
@@ -117,7 +138,8 @@ export default function EditAccount() {
   const addProject = () => {
     setProjects([...projects, {
       projectName: '',
-      projectIndustry: 'Technology',
+      projectIndustry: '',
+      projectType: 'Development',
       employees: [
         {
           name: '',
@@ -185,6 +207,7 @@ export default function EditAccount() {
           department: emp.department,
           projectName: proj.projectName,
           projectIndustry: proj.projectIndustry,
+          projectType: proj.projectType || 'Development',
           hierarchyTag: emp.hierarchyTag,
           influenceTag: emp.influenceTag
         });
@@ -207,7 +230,8 @@ export default function EditAccount() {
     if (success) {
       navigate('/accounts');
     } else {
-      alert("Failed to update account. Please try again.");
+      const errorMsg = useStore.getState().accountsError || "Failed to update account. Please try again.";
+      alert(errorMsg);
     }
   };
 
@@ -220,7 +244,7 @@ export default function EditAccount() {
   }
 
   return (
-    <div className="max-w-4xl mx-auto py-8 px-4 h-auto lg:h-[calc(100vh-10rem)] overflow-y-auto animate-soft-pulse duration-1000">
+    <div className="max-w-7xl mx-auto py-8 px-4 h-auto lg:h-[calc(100vh-10rem)] overflow-y-auto animate-soft-pulse duration-1000">
       
       {/* Header */}
       <div className="flex items-center gap-4 mb-8">
@@ -318,14 +342,14 @@ export default function EditAccount() {
             </div>
 
             <div className="space-y-2">
-              <label className="text-xs text-slate-400 uppercase font-semibold">Domain</label>
-              <input 
-                type="text" 
+              <label className="text-xs text-slate-400 uppercase font-semibold">NeST BU</label>
+              <select 
                 value={domain}
                 onChange={e => setDomain(e.target.value)}
-                className="w-full bg-dark-950/60 border border-slate-800 focus:border-primary/50 text-sm text-white rounded-xl p-3 focus:outline-none transition-colors"
-                placeholder="e.g. acme.com"
-              />
+                className="w-full bg-dark-950/60 border border-slate-800 focus:border-primary/50 text-sm text-white rounded-xl p-3 focus:outline-none cursor-pointer transition-colors appearance-none"
+              >
+                {nestBus.map(bu => <option key={bu} value={bu}>{bu}</option>)}
+              </select>
             </div>
           </div>
         </div>
@@ -370,12 +394,11 @@ export default function EditAccount() {
                 <h3 className="text-xs font-bold text-slate-400 mb-2">Project {pIndex + 1}</h3>
 
                 {/* Project level inputs */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pb-4 border-b border-slate-800/40">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pb-4 border-b border-slate-800/40">
                   <div className="space-y-2">
-                    <label className="text-xs text-slate-400 uppercase font-semibold">Project Name Details *</label>
+                    <label className="text-xs text-slate-400 uppercase font-semibold">Project Name</label>
                     <input 
                       type="text" 
-                      required
                       value={project.projectName}
                       onChange={e => updateProjectField(pIndex, 'projectName', e.target.value)}
                       className="w-full bg-dark-950/60 border border-slate-800 focus:border-blue-500/50 text-sm text-white rounded-xl p-3 focus:outline-none transition-colors"
@@ -384,13 +407,24 @@ export default function EditAccount() {
                   </div>
 
                   <div className="space-y-2">
-                    <label className="text-xs text-slate-400 uppercase font-semibold">Project Industry</label>
-                    <select 
+                    <label className="text-xs text-slate-400 uppercase font-semibold">Project Description</label>
+                    <input 
+                      type="text" 
                       value={project.projectIndustry}
                       onChange={e => updateProjectField(pIndex, 'projectIndustry', e.target.value)}
+                      className="w-full bg-dark-950/60 border border-slate-800 focus:border-blue-500/50 text-sm text-white rounded-xl p-3 focus:outline-none transition-colors"
+                      placeholder="e.g. Migration of critical database services"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-xs text-slate-400 uppercase font-semibold">Project Type</label>
+                    <select
+                      value={project.projectType || 'Development'}
+                      onChange={e => updateProjectField(pIndex, 'projectType', e.target.value)}
                       className="w-full bg-dark-950/60 border border-slate-800 focus:border-blue-500/50 text-sm text-white rounded-xl p-3 focus:outline-none cursor-pointer transition-colors appearance-none"
                     >
-                      {industries.map(ind => <option key={ind} value={ind}>{ind}</option>)}
+                      {projectTypes.map(type => <option key={type} value={type}>{type}</option>)}
                     </select>
                   </div>
                 </div>

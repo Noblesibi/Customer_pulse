@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { 
   ShieldAlert, ShieldCheck, Check, Sparkles, Filter, Building2, Clock, X
 } from 'lucide-react';
 import { useStore } from '../store/index.js';
 
 export default function Risks() {
+  const navigate = useNavigate();
   const { 
     user,
     risks, 
@@ -133,7 +135,12 @@ export default function Risks() {
                 
                 <div className="flex items-center gap-1.5 text-xs text-slate-400 font-semibold">
                   <Building2 className="w-3.5 h-3.5 text-slate-500" />
-                  <span>{risk.companyName}</span>
+                  <span 
+                    onClick={() => navigate(`/accounts/${risk.accountId}`)}
+                    className="hover:underline hover:text-primary cursor-pointer transition-colors"
+                  >
+                    {risk.companyName}
+                  </span>
                 </div>
 
                 <p className="text-xs text-slate-300 leading-relaxed bg-dark-900/40 p-3 rounded-lg border border-slate-800/50">
