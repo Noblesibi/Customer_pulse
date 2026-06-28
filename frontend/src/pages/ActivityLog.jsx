@@ -168,9 +168,10 @@ export default function ActivityLog() {
   // Filter tasks based on search
   const filteredTasks = allTasks.filter(task => {
     const query = search.toLowerCase();
+    const taskText = task.task || task.originalInteraction?.messageText || task.originalInteraction?.subject || '';
     return (
       (task.name && task.name.toLowerCase().includes(query)) ||
-      (task.task && task.task.toLowerCase().includes(query)) ||
+      (taskText.toLowerCase().includes(query)) ||
       (task.companyName && task.companyName.toLowerCase().includes(query)) ||
       (task.loggedByName && task.loggedByName.toLowerCase().includes(query))
     );
@@ -181,9 +182,10 @@ export default function ActivityLog() {
   const realMyTasks = realTasks.filter(task => task.uid === user?.uid);
   const filteredMyTasks = realMyTasks.filter(task => {
     const query = search.toLowerCase();
+    const taskText = task.task || task.originalInteraction?.messageText || task.originalInteraction?.subject || '';
     return (
       (task.name && task.name.toLowerCase().includes(query)) ||
-      (task.task && task.task.toLowerCase().includes(query)) ||
+      (taskText.toLowerCase().includes(query)) ||
       (task.companyName && task.companyName.toLowerCase().includes(query)) ||
       (task.loggedByName && task.loggedByName.toLowerCase().includes(query))
     );
@@ -245,7 +247,7 @@ export default function ActivityLog() {
           className={`px-5 py-3 text-xs font-bold transition-colors border-b-2 cursor-pointer ${
             activeTab === 'all-tasks'
               ? 'border-primary text-primary'
-              : 'border-transparent text-slate-400 hover:text-slate-700'
+              : 'border-transparent text-slate-400 hover:text-black'
           }`}
         >
           All Assigned Tasks
@@ -255,7 +257,7 @@ export default function ActivityLog() {
           className={`px-5 py-3 text-xs font-bold transition-colors border-b-2 cursor-pointer ${
             activeTab === 'my-tasks'
               ? 'border-primary text-primary'
-              : 'border-transparent text-slate-400 hover:text-slate-700'
+              : 'border-transparent text-slate-400 hover:text-black'
           }`}
         >
           Tasks Assigned to Me
@@ -310,6 +312,15 @@ export default function ActivityLog() {
               <tbody className="divide-y divide-slate-800/40">
                 {paginatedItems.map((task, idx) => {
                     const currentStatus = taskStatuses[`${task.interactionId}-${task.uid}`] || task.status || 'Pending';
+                    const today = new Date();
+                    today.setHours(0,0,0,0);
+                    const taskDue = task.dueDate ? new Date(task.dueDate) : null;
+                    if (taskDue) {
+                      taskDue.setHours(0,0,0,0);
+                    }
+                    const isTaskOverdue = taskDue && taskDue < today && currentStatus !== 'Completed';
+                    const isStatusUnchanged = currentStatus === 'Pending' || currentStatus === 'Task Assigned';
+                    const showAsOverdued = isTaskOverdue && isStatusUnchanged;
                     return (
                     <tr 
                       key={`${task.interactionId}-${task.uid}-${idx}`} 
@@ -323,7 +334,15 @@ export default function ActivityLog() {
                         })}
                       </td>
                       <td className="p-4">
-                        <div className="font-bold text-slate-200">{task.companyName}</div>
+                        <div 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            navigate(`/accounts/${task.accountId}`);
+                          }}
+                          className="font-bold text-slate-200 hover:underline hover:text-primary cursor-pointer transition-colors"
+                        >
+                          {task.companyName}
+                        </div>
                         <div className="text-xs text-slate-400 truncate max-w-[155px] font-medium">{task.originalInteraction.subject || 'No Subject'}</div>
                       </td>
                       {activeTab !== 'my-tasks' && (
@@ -337,7 +356,7 @@ export default function ActivityLog() {
                         </td>
                       )}
                       <td className="p-4 text-slate-350 leading-relaxed font-semibold max-w-xs break-words">
-                        <div>{task.task}</div>
+                        <div>{task.task || task.originalInteraction.messageText || task.originalInteraction.subject || 'Task Assignment'}</div>
                         {(task.priority || task.dueDate) && (
                           <div className="flex items-center gap-2 mt-1.5 flex-wrap">
                             {task.priority && (
@@ -350,11 +369,7 @@ export default function ActivityLog() {
                               </span>
                             )}
                             {task.dueDate && (() => {
-                              const today = new Date();
-                              today.setHours(0,0,0,0);
-                              const taskDue = new Date(task.dueDate);
-                              taskDue.setHours(0,0,0,0);
-                              const isOverdueObj = taskDue < today && currentStatus !== 'Completed';
+                              const isOverdueObj = isTaskOverdue;
                               return (
                                 <span className={`text-xs font-bold px-1.5 py-0.5 rounded border ${
                                   isOverdueObj 
@@ -377,6 +392,9 @@ export default function ActivityLog() {
                           let displayStatus = currentStatus === 'Pending' ? 'Task Assigned' : currentStatus;
                           if (displayStatus === 'Accept/Decline') displayStatus = 'Accept';
                           if (displayStatus === 'Completed/Forwarded') displayStatus = 'Completed';
+                          if (showAsOverdued) {
+                            displayStatus = 'Overdued';
+                          }
                           const forwardedTo = taskStatuses[`${task.interactionId}-${task.uid}-forwardedToName`] || task.forwardedToName;
                           if (showButtons) {
                             return (
@@ -398,6 +416,7 @@ export default function ActivityLog() {
                                   onClick={(e) => e.stopPropagation()}
                                   className="px-2 py-1 rounded-lg border border-slate-700 bg-slate-800 text-xs text-slate-300 font-bold outline-none cursor-pointer focus:border-indigo-500 w-fit"
                                 >
+                                  {displayStatus === 'Overdued' && <option value="Overdued">Overdued</option>}
                                   <option value="Task Assigned">Task Assigned</option>
                                   <option value="Accept">Accept</option>
                                   <option value="Decline">Decline</option>
@@ -419,6 +438,7 @@ export default function ActivityLog() {
                                 displayStatus.toLowerCase() === 'forwarded' ? 'bg-sky-500/10 border-sky-500/20 text-sky-600' :
                                 displayStatus.toLowerCase() === 'accept' ? 'bg-amber-500/10 border-amber-500/20 text-amber-600' :
                                 displayStatus.toLowerCase() === 'decline' ? 'bg-rose-500/10 border-rose-500/20 text-rose-600' :
+                                displayStatus.toLowerCase() === 'overdued' || displayStatus.toLowerCase() === 'overdue' ? 'bg-rose-500/10 border-rose-500/20 text-rose-600' :
                                 'bg-slate-400/10 border-slate-400/20 text-slate-500'
                               }`}>
                                 {displayStatus === 'Forwarded' && forwardedTo ? `Forwarded to @${forwardedTo}` : displayStatus}
@@ -489,6 +509,7 @@ export default function ActivityLog() {
                 const s = (st || 'Pending').toLowerCase();
                 if (s.includes('complete') || s.includes('forward')) return 'bg-emerald-500/10 border-emerald-500/25 text-emerald-400';
                 if (s.includes('progress') || s.includes('accept') || s.includes('decline')) return 'bg-amber-500/10 border-amber-500/25 text-amber-400';
+                if (s.includes('overdued') || s.includes('overdue')) return 'bg-rose-500/10 border-rose-500/25 text-rose-400';
                 return 'bg-slate-800 border-slate-700 text-slate-400';
               };
 
@@ -615,9 +636,22 @@ export default function ActivityLog() {
                             const isAssignee = mention.uid === user?.uid;
                             const currentStatus = taskStatuses[`${selectedLog.interactionId}-${mention.uid}`] || mention.status || 'Pending';
                             const forwardedTo = taskStatuses[`${selectedLog.interactionId}-${mention.uid}-forwardedToName`] || mention.forwardedToName;
+                            const today = new Date();
+                            today.setHours(0,0,0,0);
+                            const taskDue = mention.dueDate ? new Date(mention.dueDate) : null;
+                            if (taskDue) {
+                              taskDue.setHours(0,0,0,0);
+                            }
+                            const isTaskOverdue = taskDue && taskDue < today && currentStatus !== 'Completed';
+                            const isStatusUnchanged = currentStatus === 'Pending' || currentStatus === 'Task Assigned';
+                            const showAsOverdued = isTaskOverdue && isStatusUnchanged;
+
                             let displayStatus = currentStatus === 'Pending' ? 'Task Assigned' : currentStatus;
                             if (displayStatus === 'Accept/Decline') displayStatus = 'Accept';
                             if (displayStatus === 'Completed/Forwarded') displayStatus = 'Completed';
+                            if (showAsOverdued) {
+                              displayStatus = 'Overdued';
+                            }
                             
                             return (
                               <div 
@@ -640,7 +674,7 @@ export default function ActivityLog() {
                                 </div>
                                 
                                 <p className="text-xs text-slate-300 leading-relaxed font-semibold pl-1">
-                                  {mention.task}
+                                  {mention.task || selectedLog.messageText || selectedLog.subject || 'Task Assignment'}
                                 </p>
                                 {(mention.priority || mention.dueDate) && (
                                   <div className="flex items-center gap-2 pl-1 mt-1.5 flex-wrap">
@@ -654,11 +688,7 @@ export default function ActivityLog() {
                                       </span>
                                     )}
                                     {mention.dueDate && (() => {
-                                      const today = new Date();
-                                      today.setHours(0,0,0,0);
-                                      const taskDue = new Date(mention.dueDate);
-                                      taskDue.setHours(0,0,0,0);
-                                      const isOverdueObj = taskDue < today && displayStatus !== 'Completed';
+                                      const isOverdueObj = isTaskOverdue;
                                       return (
                                         <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${
                                           isOverdueObj 
@@ -701,6 +731,7 @@ export default function ActivityLog() {
                                         }}
                                         className="px-2.5 py-1 rounded-lg border border-slate-700 bg-slate-800 text-xs text-slate-300 font-bold outline-none cursor-pointer focus:border-primary"
                                       >
+                                        {displayStatus === 'Overdued' && <option value="Overdued">Overdued</option>}
                                         <option value="Task Assigned">Task Assigned</option>
                                         <option value="Accept">Accept</option>
                                         <option value="Decline">Decline</option>

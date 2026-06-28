@@ -172,6 +172,7 @@ export default function Dashboard() {
                 realMyTasks.push({
                   ...mention,
                   interactionId: item.interactionId,
+                  accountId: item.accountId,
                   companyName: item.companyName || 'External Account',
                   loggedByName: item.loggedByName || 'System Admin',
                   subject: item.subject,
@@ -189,6 +190,7 @@ export default function Dashboard() {
           const s = (st || 'Pending').toLowerCase();
           if (s.includes('complete') || s.includes('forward')) return 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400';
           if (s.includes('progress') || s.includes('accept') || s.includes('decline')) return 'bg-amber-500/10 border-amber-500/20 text-amber-400';
+          if (s.includes('overdued') || s.includes('overdue')) return 'bg-rose-500/10 border-rose-500/20 text-rose-600';
           return 'bg-slate-500/10 border-slate-600/30 text-slate-400';
         };
 
@@ -219,13 +221,15 @@ export default function Dashboard() {
                 {displayTasks.slice(0, 5).map((task, idx) => {
                   const currentStatus = taskStatuses[`${task.interactionId}-${task.uid}`] || task.status || 'Pending';
                   const forwardedTo = taskStatuses[`${task.interactionId}-${task.uid}-forwardedToName`] || task.forwardedToName;
-                  const isOverdue = task.dueDate && (() => {
-                    const today = new Date();
-                    today.setHours(0,0,0,0);
-                    const taskDue = new Date(task.dueDate);
+                  const today = new Date();
+                  today.setHours(0,0,0,0);
+                  const taskDue = task.dueDate ? new Date(task.dueDate) : null;
+                  if (taskDue) {
                     taskDue.setHours(0,0,0,0);
-                    return taskDue < today && currentStatus !== 'Completed';
-                  })();
+                  }
+                  const isTaskOverdue = taskDue && taskDue < today && currentStatus !== 'Completed';
+                  const isStatusUnchanged = currentStatus === 'Pending' || currentStatus === 'Task Assigned';
+                  const showAsOverdued = isTaskOverdue && isStatusUnchanged;
                   return (
                     <div 
                       key={`${task.interactionId}-${idx}`} 
@@ -235,7 +239,15 @@ export default function Dashboard() {
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-2 mb-1">
-                            <span className="text-xs font-extrabold text-slate-200">{task.companyName}</span>
+                            <span 
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                navigate(`/accounts/${task.accountId}`);
+                              }}
+                              className="text-xs font-extrabold text-slate-200 hover:underline hover:text-primary cursor-pointer transition-colors"
+                            >
+                              {task.companyName}
+                            </span>
                             {task.subject && (
                               <span className="text-xs text-slate-500 font-semibold truncate max-w-[160px]">{task.subject}</span>
                             )}
@@ -263,20 +275,29 @@ export default function Dashboard() {
                               <>
                                 <span className="text-xs text-slate-600">·</span>
                                 <span className={`text-xs font-bold px-1.5 py-0.5 rounded border ${
-                                  isOverdue 
+                                  isTaskOverdue 
                                     ? 'bg-rose-600 border-rose-500 text-white animate-pulse' 
                                     : 'bg-slate-800 border-slate-700 text-slate-300'
                                 }`}>
-                                  📅 Due: {new Date(task.dueDate).toLocaleDateString()} {isOverdue && ' (OVERDUE)'}
+                                  📅 Due: {new Date(task.dueDate).toLocaleDateString()} {isTaskOverdue && ' (OVERDUE)'}
                                 </span>
                               </>
                             )}
                           </div>
                         </div>
-                        <span className={`shrink-0 text-xs font-black uppercase tracking-wider px-2 py-1 rounded-lg border ${getStatusStyle(currentStatus)}`}>
-                          {currentStatus === 'Pending' ? 'Task Assigned' : 
-                           (currentStatus === 'Forwarded' && forwardedTo) ? `Forwarded to @${forwardedTo}` : currentStatus}
-                        </span>
+                        {(() => {
+                          let displayStatus = currentStatus === 'Pending' ? 'Task Assigned' : currentStatus;
+                          if (displayStatus === 'Accept/Decline') displayStatus = 'Accept';
+                          if (displayStatus === 'Completed/Forwarded') displayStatus = 'Completed';
+                          if (showAsOverdued) {
+                            displayStatus = 'Overdued';
+                          }
+                          return (
+                            <span className={`shrink-0 text-xs font-black uppercase tracking-wider px-2 py-1 rounded-lg border ${getStatusStyle(displayStatus)}`}>
+                              {displayStatus === 'Forwarded' && forwardedTo ? `Forwarded to @${forwardedTo}` : displayStatus}
+                            </span>
+                          );
+                        })()}
                       </div>
 
                       {/* Inline status change dropdown */}
@@ -287,6 +308,9 @@ export default function Dashboard() {
                             let displayStatus = currentStatus === 'Pending' ? 'Task Assigned' : currentStatus;
                             if (displayStatus === 'Accept/Decline') displayStatus = 'Accept';
                             if (displayStatus === 'Completed/Forwarded') displayStatus = 'Completed';
+                            if (showAsOverdued) {
+                              displayStatus = 'Overdued';
+                            }
                             return (
                               <select
                                 value={displayStatus}
@@ -306,6 +330,7 @@ export default function Dashboard() {
                                 onClick={(e) => e.stopPropagation()}
                                 className="px-2 py-1 rounded-lg border border-slate-700 bg-slate-800 text-xs text-slate-300 font-bold outline-none cursor-pointer focus:border-indigo-500"
                               >
+                                {displayStatus === 'Overdued' && <option value="Overdued">Overdued</option>}
                                 <option value="Task Assigned">Task Assigned</option>
                                 <option value="Accept">Accept</option>
                                 <option value="Decline">Decline</option>

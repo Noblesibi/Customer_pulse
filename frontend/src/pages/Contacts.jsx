@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { 
   Plus, Search, Edit2, Trash2, Shield, User, X, Mail, Phone, ChevronRight, Grid3X3
 } from 'lucide-react';
 import { useStore } from '../store/index.js';
 
 export default function Contacts() {
+  const navigate = useNavigate();
   const { 
     user,
     token,
@@ -36,12 +38,21 @@ export default function Contacts() {
   const [hierarchyTag, setHierarchyTag] = useState('Staff');
   const [influenceTag, setInfluenceTag] = useState('Observer');
   const [projectName, setProjectName] = useState('');
-  const [projectIndustry, setProjectIndustry] = useState('Technology');
+  const [projectIndustry, setProjectIndustry] = useState('');
+  const [projectType, setProjectType] = useState('');
   const [ownerId, setOwnerId] = useState('');
   const [ownerName, setOwnerName] = useState('');
 
   const hierarchyTags = ['CXO', 'VP', 'Director', 'Manager', 'Staff'];
   const influenceTags = ['Decision Maker', 'Influencer', 'Champion', 'Gatekeeper', 'Observer'];
+  const projectTypes = [
+    'Development',
+    'Support & Maintenance',
+    'Testing & QA',
+    'Consulting',
+    'R&D',
+    'Implementation'
+  ];
 
   const canEdit = ['Admin', 'Sales Manager', 'Employee'].includes(user?.role);
 
@@ -86,12 +97,16 @@ export default function Contacts() {
       influenceTag,
       projectName,
       projectIndustry,
+      projectType: projectType || 'Development',
       ownerId,
       ownerName
     });
     if (success) {
       setIsAddContactOpen(false);
       resetForm();
+    } else {
+      const errorMsg = useStore.getState().contactsError || "Failed to create contact. Please try again.";
+      alert(errorMsg);
     }
   };
 
@@ -107,6 +122,7 @@ export default function Contacts() {
       influenceTag,
       projectName,
       projectIndustry,
+      projectType: projectType || 'Development',
       ownerId,
       ownerName
     });
@@ -114,6 +130,9 @@ export default function Contacts() {
       setIsEditContactOpen(false);
       resetForm();
       fetchContacts(selectedAccountId);
+    } else {
+      const errorMsg = useStore.getState().contactsError || "Failed to update contact. Please try again.";
+      alert(errorMsg);
     }
   };
 
@@ -127,7 +146,8 @@ export default function Contacts() {
     setHierarchyTag(c.hierarchyTag);
     setInfluenceTag(c.influenceTag);
     setProjectName(c.projectName || '');
-    setProjectIndustry(c.projectIndustry || 'Technology');
+    setProjectIndustry(c.projectIndustry || '');
+    setProjectType(c.projectType || 'Development');
     setOwnerId(c.ownerId || '');
     setOwnerName(c.ownerName || '');
     setIsEditContactOpen(true);
@@ -150,7 +170,8 @@ export default function Contacts() {
     setHierarchyTag('Staff');
     setInfluenceTag('Observer');
     setProjectName('');
-    setProjectIndustry('Technology');
+    setProjectIndustry('');
+    setProjectType('');
     setOwnerId('');
     setOwnerName('');
   };
@@ -310,12 +331,21 @@ export default function Contacts() {
 
                     <h3 className="text-sm font-bold text-white pt-1">{c.name}</h3>
                     <p className="text-xs text-primary font-medium">{c.designation}</p>
-                    <span className="text-xs text-slate-400 block font-semibold">{account?.companyName || 'Corporate Client'}</span>
+                    {account ? (
+                      <span 
+                        onClick={() => navigate(`/accounts/${account.accountId || account.id}`)}
+                        className="text-xs text-slate-400 block font-semibold hover:underline hover:text-primary cursor-pointer transition-colors"
+                      >
+                        {account.companyName}
+                      </span>
+                    ) : (
+                      <span className="text-xs text-slate-400 block font-semibold">Corporate Client</span>
+                    )}
                     {c.projectName && (
                       <div className="mt-2 space-y-1">
-                        <span className="text-xs uppercase font-bold text-slate-500 block">Project & Industry</span>
+                        <span className="text-xs uppercase font-bold text-slate-500 block">Project & Details</span>
                         <span className="text-xs text-emerald-400 font-semibold block truncate">
-                          📁 {c.projectName} ({c.projectIndustry || 'Technology'})
+                          📁 {c.projectName} {c.projectType && `[${c.projectType}]`} {c.projectIndustry && `— ${c.projectIndustry}`}
                         </span>
                       </div>
                     )}
@@ -403,15 +433,23 @@ export default function Contacts() {
                 />
               </div>
               <div className="space-y-1">
-                <label className="text-xs text-slate-400 uppercase font-semibold">Project Industry</label>
-                <select 
+                <label className="text-xs text-slate-400 uppercase font-semibold">Project Description</label>
+                <input 
+                  type="text" 
                   value={projectIndustry}
                   onChange={(e) => setProjectIndustry(e.target.value)}
+                  className="w-full bg-dark-900/60 border border-slate-800 text-xs text-white rounded-lg p-2 focus:outline-none focus:border-primary/50"
+                  placeholder="e.g. Migration of critical database services"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs text-slate-400 uppercase font-semibold">Project Type</label>
+                <select 
+                  value={projectType}
+                  onChange={(e) => setProjectType(e.target.value)}
                   className="w-full bg-dark-900/60 border border-slate-800 text-xs text-white rounded-lg p-2 focus:outline-none cursor-pointer"
                 >
-                  {['Technology', 'Finance', 'Logistics', 'Healthcare', 'Manufacturing', 'Retail'].map(ind => (
-                    <option key={ind} value={ind}>{ind}</option>
-                  ))}
+                  {projectTypes.map(type => <option key={type} value={type}>{type}</option>)}
                 </select>
               </div>
               <div className="space-y-1">
@@ -518,16 +556,25 @@ export default function Contacts() {
                 />
               </div>
               <div className="space-y-1">
-                <label className="text-xs text-slate-400 uppercase font-semibold">Project Industry</label>
-                <select 
+                <label className="text-xs text-slate-400 uppercase font-semibold">Project Description</label>
+                <input 
+                  type="text" 
                   value={projectIndustry}
                   onChange={(e) => setProjectIndustry(e.target.value)}
                   disabled={!canEdit}
+                  className={`w-full bg-dark-900/60 border border-slate-800 text-xs text-white rounded-lg p-2 focus:outline-none ${!canEdit ? 'opacity-70 cursor-not-allowed' : 'focus:border-primary/50'}`}
+                  placeholder="e.g. Migration of critical database services"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs text-slate-400 uppercase font-semibold">Project Type</label>
+                <select 
+                  value={projectType}
+                  onChange={(e) => setProjectType(e.target.value)}
+                  disabled={!canEdit}
                   className={`w-full bg-dark-900/60 border border-slate-800 text-xs text-white rounded-lg p-2 focus:outline-none ${!canEdit ? 'opacity-70 cursor-not-allowed' : 'cursor-pointer'}`}
                 >
-                  {['Technology', 'Finance', 'Logistics', 'Healthcare', 'Manufacturing', 'Retail'].map(ind => (
-                    <option key={ind} value={ind}>{ind}</option>
-                  ))}
+                  {projectTypes.map(type => <option key={type} value={type}>{type}</option>)}
                 </select>
               </div>
               <div className="space-y-1">
