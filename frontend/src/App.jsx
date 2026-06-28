@@ -7,6 +7,7 @@ import Login from './pages/Login.jsx';
 import Landing from './pages/Landing.jsx';
 import Dashboard from './pages/Dashboard.jsx';
 import Accounts from './pages/Accounts.jsx';
+import AccountDetails from './pages/AccountDetails.jsx';
 import NewAccount from './pages/NewAccount.jsx';
 import EditAccount from './pages/EditAccount.jsx';
 import Contacts from './pages/Contacts.jsx';
@@ -29,6 +30,7 @@ export default function App() {
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/accounts/new" element={<NewAccount />} />
           <Route path="/accounts/:id/edit" element={<EditAccount />} />
+          <Route path="/accounts/:id" element={<AccountDetails />} />
           <Route path="/accounts" element={<Accounts />} />
           <Route path="/contacts" element={<Contacts />} />
           <Route path="/risks" element={<Risks />} />

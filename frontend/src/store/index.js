@@ -96,6 +96,7 @@ export const useStore = create((set, get) => ({
   totalPages: 1,
   currentPage: 1,
   accountsLoading: false,
+  accountsError: null,
 
   fetchAccounts: async (page = 1, search = '', filters = {}) => {
     const token = get().token;
@@ -129,6 +130,7 @@ export const useStore = create((set, get) => ({
 
   addAccount: async (accountData) => {
     const token = get().token;
+    set({ accountsError: null });
     try {
       const res = await fetch(`${API_BASE}/accounts`, {
         method: 'POST',
@@ -144,15 +146,18 @@ export const useStore = create((set, get) => ({
         get().fetchDashboardStats();
         return true;
       }
+      set({ accountsError: data.error || 'Failed to create account.' });
       return false;
     } catch (err) {
       console.error(err);
+      set({ accountsError: err.message || 'Failed to create account.' });
       return false;
     }
   },
 
   updateAccount: async (id, updatedData) => {
     const token = get().token;
+    set({ accountsError: null });
     try {
       const res = await fetch(`${API_BASE}/accounts/${id}`, {
         method: 'PUT',
@@ -170,9 +175,11 @@ export const useStore = create((set, get) => ({
         get().fetchDashboardStats();
         return true;
       }
+      set({ accountsError: data.error || 'Failed to update account.' });
       return false;
     } catch (err) {
       console.error(err);
+      set({ accountsError: err.message || 'Failed to update account.' });
       return false;
     }
   },
@@ -218,6 +225,7 @@ export const useStore = create((set, get) => ({
   // Contacts
   contacts: [],
   contactsLoading: false,
+  contactsError: null,
 
   fetchContacts: async (accountId = '') => {
     const token = get().token;
@@ -240,6 +248,7 @@ export const useStore = create((set, get) => ({
 
   addContact: async (contactData) => {
     const token = get().token;
+    set({ contactsError: null });
     try {
       const res = await fetch(`${API_BASE}/contacts`, {
         method: 'POST',
@@ -255,15 +264,18 @@ export const useStore = create((set, get) => ({
         get().fetchContacts(contactData.accountId);
         return true;
       }
+      set({ contactsError: data.error || 'Failed to create contact.' });
       return false;
     } catch (err) {
       console.error(err);
+      set({ contactsError: err.message || 'Failed to create contact.' });
       return false;
     }
   },
 
   updateContact: async (id, contactData) => {
     const token = get().token;
+    set({ contactsError: null });
     try {
       const res = await fetch(`${API_BASE}/contacts/${id}`, {
         method: 'PUT',
@@ -280,9 +292,11 @@ export const useStore = create((set, get) => ({
         }));
         return true;
       }
+      set({ contactsError: data.error || 'Failed to update contact.' });
       return false;
     } catch (err) {
       console.error(err);
+      set({ contactsError: err.message || 'Failed to update contact.' });
       return false;
     }
   },
