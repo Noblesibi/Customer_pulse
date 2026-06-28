@@ -216,7 +216,7 @@ export default function LogActivity() {
       <div className="glass p-5 rounded-2xl border border-slate-800/80 flex items-center justify-between">
         <button 
           onClick={() => navigate('/activity-log')}
-          className="text-xs font-bold text-slate-500 hover:text-slate-900 transition-colors flex items-center gap-1.5 cursor-pointer bg-slate-100 px-3.5 py-2 rounded-lg border border-slate-200"
+          className="text-xs font-bold text-slate-500 hover:text-primary transition-colors flex items-center gap-1.5 cursor-pointer bg-slate-100 px-3.5 py-2 rounded-lg border border-slate-200"
         >
           <ArrowLeft className="w-4 h-4" />
           Back to Activity Log

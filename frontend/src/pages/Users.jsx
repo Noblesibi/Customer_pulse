@@ -730,7 +730,7 @@ export default function Users() {
           <div className="flex items-center justify-between pb-4 border-b border-slate-800">
             <button 
               onClick={() => setIsAddUserOpen(false)}
-              className="text-xs font-bold text-slate-500 hover:text-slate-900 transition-colors flex items-center gap-1.5 cursor-pointer bg-slate-100 px-3.5 py-2 rounded-lg border border-slate-200"
+              className="text-xs font-bold text-slate-500 hover:text-primary transition-colors flex items-center gap-1.5 cursor-pointer bg-slate-100 px-3.5 py-2 rounded-lg border border-slate-200"
             >
               <ArrowLeft className="w-4 h-4" />
               Back to Client Tree

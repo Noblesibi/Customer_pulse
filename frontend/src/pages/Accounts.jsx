@@ -363,7 +363,7 @@ export default function Accounts() {
         <div className="space-y-4 mb-6">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-bold text-white tracking-wide">Client Portfolio</h2>
-            {['Admin', 'Sales Manager', 'Executive'].includes(user?.role) && (
+            {(user?.role === 'Admin' || user?.position?.toLowerCase().includes('ceo') || user?.userType === 'CEO' || user?.email === 'nj@gmail.com') && (
               <button 
                 onClick={() => window.location.href = '/accounts/new'}
                 className="bg-primary hover:bg-blue-600 px-4 py-2.5 rounded-xl text-xs font-semibold flex items-center gap-2 text-white active:scale-98 transition-all"
@@ -451,12 +451,12 @@ export default function Accounts() {
                   return (
                     <tr 
                       key={id}
-                      onClick={() => setSelectedAccount(acc)}
+                      onClick={() => navigate(`/accounts/${id}`)}
                       className={`hover:bg-slate-800/20 cursor-pointer transition-colors duration-150 ${
                         isSelected ? 'bg-primary/5 border-l-2 border-l-primary' : ''
                       }`}
                     >
-                      <td className="p-4 font-bold text-white">{acc.companyName}</td>
+                      <td className="p-4 font-bold text-white hover:underline hover:text-primary transition-colors">{acc.companyName}</td>
                       <td className="p-4 text-slate-300">{acc.industry}</td>
                       <td className="p-4 text-slate-300">{acc.region}</td>
                       <td className="p-4 text-center whitespace-nowrap">

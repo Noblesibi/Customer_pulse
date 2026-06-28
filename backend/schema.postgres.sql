@@ -50,6 +50,7 @@ CREATE TABLE IF NOT EXISTS "Contacts" (
     "department" VARCHAR(100),
     "projectName" VARCHAR(150),
     "projectIndustry" VARCHAR(100),
+    "projectType" VARCHAR(100),
     "hierarchyTag" VARCHAR(50),
     "influenceTag" VARCHAR(50),
     "ownerId" VARCHAR(50) NULL,

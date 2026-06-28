@@ -115,7 +115,7 @@ router.get('/:id', async (req, res) => {
  * Create contact (restricted to Admin, Manager, and Employee).
  */
 router.post('/', requireRole(['Admin', 'Sales Manager', 'Employee', 'Executive']), async (req, res) => {
-  const { accountId, name, email, designation, hierarchyTag, influenceTag, phone, projectName, projectIndustry, ownerId, ownerName } = req.body;
+  const { accountId, name, email, designation, hierarchyTag, influenceTag, phone, projectName, projectIndustry, projectType, ownerId, ownerName } = req.body;
 
   if (!accountId || !name || !email) {
     return res.status(400).json({ error: 'Missing accountId, name, or email' });
@@ -133,6 +133,19 @@ router.post('/', requireRole(['Admin', 'Sales Manager', 'Employee', 'Executive']
     const accountDoc = await db.collection('accounts').doc(accountId).get();
     if (!accountDoc.exists) {
       return res.status(404).json({ error: 'Associated Account not found' });
+    }
+
+    // Check for duplicate employee name in another company
+    const contactsSnap = await db.collection('contacts').get();
+    const existingContacts = contactsSnap.docs.map(doc => doc.data());
+    const duplicate = existingContacts.find(c => 
+      c.name && c.name.toLowerCase().trim() === name.toLowerCase().trim() &&
+      c.accountId !== accountId
+    );
+    if (duplicate) {
+      const otherAccountDoc = await db.collection('accounts').doc(duplicate.accountId).get();
+      const otherCompName = otherAccountDoc.exists ? otherAccountDoc.data().companyName : 'another company';
+      return res.status(400).json({ error: `Employee "${name}" already exists in ${otherCompName}.` });
     }
 
     let finalOwnerId = ownerId || req.user.uid;
@@ -158,7 +171,8 @@ router.post('/', requireRole(['Admin', 'Sales Manager', 'Employee', 'Executive']
       influenceTag: iTag,
       phone: phone || '',
       projectName: projectName || '',
-      projectIndustry: projectIndustry || 'Technology',
+      projectIndustry: projectIndustry || '',
+      projectType: projectType || '',
       ownerId: finalOwnerId,
       ownerName: finalOwnerName,
       createdAt: new Date().toISOString()
@@ -183,7 +197,7 @@ router.post('/', requireRole(['Admin', 'Sales Manager', 'Employee', 'Executive']
  */
 router.put('/:id', requireRole(['Admin', 'Sales Manager', 'Employee', 'Executive']), async (req, res) => {
   const { id } = req.params;
-  const { name, email, designation, hierarchyTag, influenceTag, phone, projectName, projectIndustry, ownerId, ownerName } = req.body;
+  const { name, email, designation, hierarchyTag, influenceTag, phone, projectName, projectIndustry, projectType, ownerId, ownerName } = req.body;
 
   try {
     const docRef = db.collection('contacts').doc(id);
@@ -195,7 +209,21 @@ router.put('/:id', requireRole(['Admin', 'Sales Manager', 'Employee', 'Executive
 
     const currentData = doc.data();
     const updates = {};
-    if (name) updates.name = name;
+    if (name) {
+      const contactsSnap = await db.collection('contacts').get();
+      const existingContacts = contactsSnap.docs.map(doc => doc.data());
+      const duplicate = existingContacts.find(c => 
+        c.contactId !== id && c.id !== id &&
+        c.name && c.name.toLowerCase().trim() === name.toLowerCase().trim() &&
+        c.accountId !== currentData.accountId
+      );
+      if (duplicate) {
+        const otherAccountDoc = await db.collection('accounts').doc(duplicate.accountId).get();
+        const otherCompName = otherAccountDoc.exists ? otherAccountDoc.data().companyName : 'another company';
+        return res.status(400).json({ error: `Employee "${name}" already exists in ${otherCompName}.` });
+      }
+      updates.name = name;
+    }
     if (email) updates.email = email;
     if (designation) updates.designation = designation;
     if (hierarchyTag) updates.hierarchyTag = hierarchyTag;
@@ -203,6 +231,7 @@ router.put('/:id', requireRole(['Admin', 'Sales Manager', 'Employee', 'Executive
     if (phone !== undefined) updates.phone = phone;
     if (projectName !== undefined) updates.projectName = projectName;
     if (projectIndustry !== undefined) updates.projectIndustry = projectIndustry;
+    if (projectType !== undefined) updates.projectType = projectType;
 
     if (ownerId !== undefined) {
       updates.ownerId = ownerId;
