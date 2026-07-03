@@ -184,6 +184,9 @@ async function getRow(tableName, keyColumn, keyVal) {
  * Generates an ID with correct prefix for new records.
  */
 function generateId(collectionName) {
+  if (collectionName.toLowerCase() === 'healthscores') {
+    return Math.floor(Math.random() * 100000000);
+  }
   const prefix = {
     users: 'user-',
     accounts: 'acc-',

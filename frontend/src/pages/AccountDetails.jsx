@@ -585,26 +585,65 @@ export default function AccountDetails() {
                                 const match = notif?.message?.match(/:\s*"([^"]+)"/);
                                 displayMessage = match ? match[1] : (notif ? notif.message : item.messageText);
                               }
+
+                              const currentStatus = m.status || 'Pending';
+                              const today = new Date();
+                              today.setHours(0,0,0,0);
+                              const taskDue = m.dueDate ? new Date(m.dueDate) : null;
+                              if (taskDue) {
+                                taskDue.setHours(0,0,0,0);
+                              }
+                              const isTaskOverdue = taskDue && taskDue < today && currentStatus !== 'Completed';
+                              const isStatusUnchanged = currentStatus === 'Pending' || currentStatus === 'Task Assigned';
+                              const showAsOverdued = isTaskOverdue && isStatusUnchanged;
+
+                              let displayStatus = currentStatus === 'Pending' ? 'Task Assigned' : currentStatus;
+                              if (displayStatus === 'Accept/Decline') displayStatus = 'Accept';
+                              if (displayStatus === 'Completed/Forwarded') displayStatus = 'Completed';
+                              if (showAsOverdued) {
+                                displayStatus = 'Overdued';
+                              }
+
+                              let statusText = displayStatus;
+                              let statusColor = 'text-slate-500';
+                              let StatusIcon = Clock;
+
+                              if (displayStatus === 'Completed') {
+                                statusText = 'Completed';
+                                statusColor = 'text-emerald-400';
+                                StatusIcon = CheckCheck;
+                              } else if (displayStatus === 'Forwarded') {
+                                const forwardedTo = m.forwardedToName;
+                                statusText = forwardedTo ? `Forwarded to @${forwardedTo}` : 'Forwarded';
+                                statusColor = 'text-sky-400';
+                                StatusIcon = Send;
+                              } else if (displayStatus === 'Accept') {
+                                statusText = 'Accepted';
+                                statusColor = 'text-amber-400';
+                                StatusIcon = CheckSquare;
+                              } else if (displayStatus === 'Decline') {
+                                statusText = 'Declined';
+                                statusColor = 'text-rose-400';
+                                StatusIcon = X;
+                              } else if (displayStatus === 'Overdued') {
+                                statusText = 'Overdue';
+                                statusColor = 'text-rose-500 font-extrabold animate-pulse';
+                                StatusIcon = ShieldAlert;
+                              } else {
+                                statusText = 'Pending';
+                                statusColor = 'text-slate-500';
+                                StatusIcon = Clock;
+                              }
+
                               return (
                                 <div key={m.uid} className="bg-slate-900/40 p-3 rounded-xl border border-slate-800 space-y-1.5 w-full text-xs leading-relaxed">
                                   <div className="flex items-center justify-between">
                                     <span className="flex items-center gap-1 bg-primary/10 border border-primary/25 text-primary font-black rounded-full px-2.5 py-0.5">
                                       <AtSign className="w-3 h-3" />{m.name}
                                     </span>
-                                    <span className={`font-black flex items-center gap-1 ${
-                                      notif?.read ? 'text-emerald-400' : 'text-slate-500'
-                                    }`}>
-                                      {notif?.read ? (
-                                        <>
-                                          <CheckCheck className="w-4 h-4 text-emerald-400" />
-                                          Seen {notif.readAt ? `(${new Date(notif.readAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})` : ''}
-                                        </>
-                                      ) : (
-                                        <>
-                                          <Clock className="w-4 h-4 text-slate-500" />
-                                          Pending
-                                        </>
-                                      )}
+                                    <span className={`font-black flex items-center gap-1 ${statusColor}`}>
+                                      <StatusIcon className="w-4 h-4" />
+                                      {statusText}
                                     </span>
                                   </div>
                                   <p className="text-slate-350 pl-1 font-bold">
@@ -866,7 +905,7 @@ export default function AccountDetails() {
                                 key={s.uid}
                                 type="button"
                                 onMouseDown={() => insertMention(s)}
-                                className={`w-full flex items-center justify-between px-3 py-2 text-xs hover:bg-slate-100 transition-colors text-slate-700 ${
+                                className={`w-full flex items-center justify-between px-3 py-2 text-xs hover:bg-slate-800 transition-colors text-slate-700 ${
                                   isSelected ? 'bg-primary/5 text-primary' : ''
                                 }`}
                               >

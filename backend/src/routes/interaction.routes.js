@@ -54,7 +54,10 @@ router.get('/', async (req, res) => {
       );
 
       const allowedIds = new Set([...ownedAccountIds, ...stakeholderAccountIds]);
-      interactions = interactions.filter(i => allowedIds.has(i.accountId));
+      interactions = interactions.filter(i =>
+        allowedIds.has(i.accountId) ||
+        (Array.isArray(i.actionMentions) && i.actionMentions.some(m => m.uid === req.user.uid))
+      );
     }
 
     // Filter by source
@@ -203,17 +206,20 @@ router.put('/:id/task-status', async (req, res) => {
     }
 
     if (status === 'Forwarded' && forwardToUid && forwardToName) {
-      // Append a new mention task for the forwarded user copying original details
-      actionMentions.push({
-        uid: forwardToUid,
-        name: forwardToName,
-        task: targetMentionTask,
-        status: 'Task Assigned',
-        dueDate: originalDueDate,
-        priority: originalPriority,
-        comments: '',
-        completionDate: null
-      });
+      // Only add if not already present (prevent duplicates on re-forward)
+      const alreadyMentioned = actionMentions.some(m => m.uid === forwardToUid && m.status === 'Task Assigned');
+      if (!alreadyMentioned) {
+        actionMentions.push({
+          uid: forwardToUid,
+          name: forwardToName,
+          task: targetMentionTask,
+          status: 'Task Assigned',
+          dueDate: originalDueDate,
+          priority: originalPriority,
+          comments: '',
+          completionDate: null
+        });
+      }
     }
 
     await db.collection('interactions').doc(id).update({ actionMentions });

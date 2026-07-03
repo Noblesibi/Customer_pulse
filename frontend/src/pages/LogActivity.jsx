@@ -429,7 +429,7 @@ export default function LogActivity() {
                           key={s.uid}
                           type="button"
                           onMouseDown={() => insertMention(s)}
-                          className={`w-full flex items-center justify-between px-3 py-2.5 text-xs hover:bg-slate-100 transition-colors text-slate-700 ${
+                          className={`w-full flex items-center justify-between px-3 py-2.5 text-xs hover:bg-slate-800 transition-colors text-slate-700 ${
                             isSelected ? 'bg-primary/5 text-primary' : ''
                           }`}
                         >
