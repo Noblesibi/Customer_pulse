@@ -547,7 +547,7 @@ export default function Dashboard() {
       </div>
 
       {/* 3. Bottom Widgets Panel */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Left Side: Top Risks Tracker */}
         <div className="glass p-4 rounded-xl border border-slate-800/80 flex flex-col justify-between">
           <div>
@@ -604,54 +604,6 @@ export default function Dashboard() {
                   </div>
                 </div>
               ))}
-            </div>
-          </div>
-        </div>
-
-        {/* Right Side: Upcoming Customer Commitments */}
-        <div className="glass p-4 rounded-xl border border-slate-800/80 flex flex-col">
-          <div>
-            <div className="flex items-center gap-2 mb-3">
-              <CalendarClock className="w-4 h-4 text-emerald-400" />
-              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">Upcoming Commitments</h3>
-            </div>
-            <div className="space-y-3">
-              {(widgets.upcomingCommitments || []).length === 0 ? (
-                <div className="p-6 text-center text-xs text-slate-500">No upcoming commitments found</div>
-              ) : (
-                (widgets.upcomingCommitments || []).slice(0, 5).map(commit => {
-                  const today = new Date();
-                  today.setHours(0,0,0,0);
-                  const commitDue = new Date(commit.dueDate);
-                  commitDue.setHours(0,0,0,0);
-                  const daysLeft = Math.round((commitDue.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-                  
-                  return (
-                    <div key={commit.id} className="bg-dark-900/60 p-3 rounded-xl border border-slate-800 space-y-2">
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="text-xs font-bold text-white truncate max-w-[125px]">{commit.companyName}</span>
-                        <span className={`text-xs font-black px-1.5 py-0.5 rounded uppercase ${
-                          commit.priority === 'High' ? 'bg-rose-500/10 border border-rose-500/20 text-rose-450' :
-                          commit.priority === 'Medium' ? 'bg-amber-500/10 border border-amber-500/20 text-amber-450' :
-                          'bg-slate-800 border border-slate-700 text-slate-400'
-                        }`}>
-                          {commit.priority}
-                        </span>
-                      </div>
-                      <p className="text-xs text-slate-350 leading-relaxed font-semibold line-clamp-2">{commit.task}</p>
-                      
-                      <div className="flex items-center justify-between text-xs text-slate-500 border-t border-slate-800/80 pt-1.5">
-                        <span className="font-semibold text-slate-400">@{commit.assigneeName}</span>
-                        <span className={`font-bold px-1 py-0.5 rounded ${
-                          daysLeft <= 3 ? 'text-rose-400 bg-rose-500/5 font-extrabold' : 'text-slate-350'
-                        }`}>
-                          📅 {daysLeft === 0 ? 'Today' : daysLeft === 1 ? 'Tomorrow' : `In ${daysLeft} days`}
-                        </span>
-                      </div>
-                    </div>
-                  );
-                })
-              )}
             </div>
           </div>
         </div>

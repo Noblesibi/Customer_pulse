@@ -37,6 +37,7 @@ export default function ActivityLog() {
   const [activeTab, setActiveTab] = useState('all-tasks'); // 'all-tasks' | 'my-tasks'
   const [search, setSearch] = useState('');
   const [actionFilter, setActionFilter] = useState('All');
+  const [statusFilter, setStatusFilter] = useState('All');
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedLog, setSelectedLog] = useState(null);
   const itemsPerPage = 10;
@@ -45,11 +46,29 @@ export default function ActivityLog() {
   const [completionModalState, setCompletionModalState] = useState({ isOpen: false, task: null, newStatus: '' });
   const [completionNote, setCompletionNote] = useState('');
   const [completionFile, setCompletionFile] = useState(null);
-  const [taskStatuses, setTaskStatuses] = useState({});
+  const [taskStatuses, setTaskStatuses] = useState(() => {
+    try {
+      const saved = localStorage.getItem('cp_task_notes');
+      return saved ? JSON.parse(saved) : {};
+    } catch (_) { return {}; }
+  });
+
+  // Helper: update taskStatuses and persist to localStorage
+  const updateTaskStatuses = (updater) => {
+    setTaskStatuses(prev => {
+      const next = typeof updater === 'function' ? updater(prev) : { ...prev, ...updater };
+      try { localStorage.setItem('cp_task_notes', JSON.stringify(next)); } catch (_) {}
+      return next;
+    });
+  };
 
   // Forward Task Modal State
   const [forwardModalState, setForwardModalState] = useState({ isOpen: false, task: null, newStatus: 'Forwarded' });
   const [forwardToUid, setForwardToUid] = useState('');
+
+  // Decline Modal State
+  const [declineModalState, setDeclineModalState] = useState({ isOpen: false, task: null });
+  const [declineReason, setDeclineReason] = useState('');
 
   const handleForwardSubmit = async (e) => {
     e.preventDefault();
@@ -63,7 +82,7 @@ export default function ActivityLog() {
       fetchActivityLogs();
       fetchInteractions();
     }
-    setTaskStatuses(prev => ({ 
+    updateTaskStatuses(prev => ({ 
       ...prev, 
       [`${task.interactionId}-${task.uid}`]: newStatus,
       [`${task.interactionId}-${task.uid}-forwardedToName`]: selectedUser.name 
@@ -148,6 +167,8 @@ export default function ActivityLog() {
     }
   });
 
+  // Sort by timestamp descending by default (newest tasks first)
+  realTasks.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
 
   const currentUserStaff = staffList.find(s => s.uid === user?.uid);
   const isTrueAdmin = currentUserStaff
@@ -165,16 +186,35 @@ export default function ActivityLog() {
     ? realTasks
     : realTasks.filter(task => task.loggedByUid === user?.uid);
 
-  // Filter tasks based on search
+  // Filter tasks based on search and status
   const filteredTasks = allTasks.filter(task => {
     const query = search.toLowerCase();
     const taskText = task.task || task.originalInteraction?.messageText || task.originalInteraction?.subject || '';
-    return (
+    const matchesSearch = (
       (task.name && task.name.toLowerCase().includes(query)) ||
       (taskText.toLowerCase().includes(query)) ||
       (task.companyName && task.companyName.toLowerCase().includes(query)) ||
       (task.loggedByName && task.loggedByName.toLowerCase().includes(query))
     );
+
+    const currentStatus = taskStatuses[`${task.interactionId}-${task.uid}`] || task.status || 'Pending';
+    let displayStatus = currentStatus === 'Pending' ? 'Task Assigned' : currentStatus;
+    if (displayStatus === 'Accept/Decline') displayStatus = 'Accept';
+    if (displayStatus === 'Completed/Forwarded') displayStatus = 'Completed';
+    const today = new Date();
+    today.setHours(0,0,0,0);
+    const taskDue = task.dueDate ? new Date(task.dueDate) : null;
+    if (taskDue) {
+      taskDue.setHours(0,0,0,0);
+    }
+    const isTaskOverdue = taskDue && taskDue < today && currentStatus !== 'Completed';
+    const isStatusUnchanged = currentStatus === 'Pending' || currentStatus === 'Task Assigned';
+    if (isTaskOverdue && isStatusUnchanged) {
+      displayStatus = 'Overdued';
+    }
+
+    const matchesStatus = statusFilter === 'All' || displayStatus.toLowerCase() === statusFilter.toLowerCase();
+    return matchesSearch && matchesStatus;
   });
 
   // Filter tasks assigned to current user only — no dummy fallback
@@ -183,12 +223,31 @@ export default function ActivityLog() {
   const filteredMyTasks = realMyTasks.filter(task => {
     const query = search.toLowerCase();
     const taskText = task.task || task.originalInteraction?.messageText || task.originalInteraction?.subject || '';
-    return (
+    const matchesSearch = (
       (task.name && task.name.toLowerCase().includes(query)) ||
       (taskText.toLowerCase().includes(query)) ||
       (task.companyName && task.companyName.toLowerCase().includes(query)) ||
       (task.loggedByName && task.loggedByName.toLowerCase().includes(query))
     );
+
+    const currentStatus = taskStatuses[`${task.interactionId}-${task.uid}`] || task.status || 'Pending';
+    let displayStatus = currentStatus === 'Pending' ? 'Task Assigned' : currentStatus;
+    if (displayStatus === 'Accept/Decline') displayStatus = 'Accept';
+    if (displayStatus === 'Completed/Forwarded') displayStatus = 'Completed';
+    const today = new Date();
+    today.setHours(0,0,0,0);
+    const taskDue = task.dueDate ? new Date(task.dueDate) : null;
+    if (taskDue) {
+      taskDue.setHours(0,0,0,0);
+    }
+    const isTaskOverdue = taskDue && taskDue < today && currentStatus !== 'Completed';
+    const isStatusUnchanged = currentStatus === 'Pending' || currentStatus === 'Task Assigned';
+    if (isTaskOverdue && isStatusUnchanged) {
+      displayStatus = 'Overdued';
+    }
+
+    const matchesStatus = statusFilter === 'All' || displayStatus.toLowerCase() === statusFilter.toLowerCase();
+    return matchesSearch && matchesStatus;
   });
 
 
@@ -265,9 +324,9 @@ export default function ActivityLog() {
       </div>
 
       {/* Filters and Search Panel */}
-      <div className="glass p-4 rounded-xl border border-slate-800/80 grid grid-cols-1 md:grid-cols-3 gap-3">
+      <div className="glass p-4 rounded-xl border border-slate-800/80 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 items-center">
         {/* Search */}
-        <div className="relative md:col-span-2">
+        <div className="relative md:col-span-2 sm:col-span-2">
           <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
           <input
             type="text"
@@ -281,10 +340,28 @@ export default function ActivityLog() {
           />
         </div>
 
-
+        {/* Status Filter */}
+        <div className="relative md:col-span-1 sm:col-span-1">
+          <select
+            value={statusFilter}
+            onChange={(e) => {
+              setStatusFilter(e.target.value);
+              setCurrentPage(1);
+            }}
+            className="w-full bg-dark-700/50 border border-slate-350 focus:border-primary/50 outline-none text-xs rounded-xl px-3 py-2.5 text-black font-semibold cursor-pointer"
+          >
+            <option value="All">All Statuses</option>
+            <option value="Task Assigned">Task Assigned</option>
+            <option value="Accept">Accept</option>
+            <option value="Decline">Decline</option>
+            <option value="Completed">Completed</option>
+            <option value="Forwarded">Forwarded</option>
+            <option value="Overdued">Overdued</option>
+          </select>
+        </div>
 
         {/* Counter */}
-        <div className="flex items-center justify-end text-xs font-semibold text-slate-450 pr-2">
+        <div className="flex items-center justify-end text-xs font-semibold text-slate-450 pr-2 md:col-span-1 sm:col-span-1">
           Showing {totalItems} task assignment{totalItems !== 1 ? 's' : ''}
         </div>
       </div>
@@ -343,7 +420,6 @@ export default function ActivityLog() {
                         >
                           {task.companyName}
                         </div>
-                        <div className="text-xs text-slate-400 truncate max-w-[155px] font-medium">{task.originalInteraction.subject || 'No Subject'}</div>
                       </td>
                       {activeTab !== 'my-tasks' && (
                         <td className="p-4">
@@ -408,9 +484,11 @@ export default function ActivityLog() {
                                       setCompletionModalState({ isOpen: true, task, newStatus: st });
                                     } else if (st === 'Forwarded') {
                                       setForwardModalState({ isOpen: true, task, newStatus: st });
+                                    } else if (st === 'Decline') {
+                                      setDeclineModalState({ isOpen: true, task });
                                     } else {
                                       updateTaskStatus(task.interactionId, task.uid, st).then(ok => { if (ok) fetchInteractions(); });
-                                      setTaskStatuses(prev => ({ ...prev, [`${task.interactionId}-${task.uid}`]: st }));
+                                      updateTaskStatuses(prev => ({ ...prev, [`${task.interactionId}-${task.uid}`]: st }));
                                     }
                                   }}
                                   onClick={(e) => e.stopPropagation()}
@@ -443,6 +521,11 @@ export default function ActivityLog() {
                               }`}>
                                 {displayStatus === 'Forwarded' && forwardedTo ? `Forwarded to @${forwardedTo}` : displayStatus}
                               </span>
+                              {(displayStatus === 'Completed' || displayStatus === 'Decline') && taskStatuses[`${task.interactionId}-${task.uid}-note`] && (
+                                <span className="text-xs text-slate-400 italic leading-relaxed block max-w-[180px] break-words">
+                                  "{taskStatuses[`${task.interactionId}-${task.uid}-note`]}"
+                                </span>
+                              )}
                             </div>
                           );
                         })()}
@@ -672,6 +755,14 @@ export default function ActivityLog() {
                                     {displayStatus === 'Forwarded' && forwardedTo ? `Forwarded to @${forwardedTo}` : displayStatus}
                                   </span>
                                 </div>
+                                {(displayStatus === 'Completed' || displayStatus === 'Decline') && taskStatuses[`${selectedLog.interactionId}-${mention.uid}-note`] && (
+                                  <div className="flex items-start gap-1.5 px-1 pb-1">
+                                    <span className="text-xs font-bold text-slate-500 uppercase tracking-widest shrink-0 mt-0.5">Note:</span>
+                                    <span className="text-xs text-slate-400 italic leading-relaxed break-words">
+                                      "{taskStatuses[`${selectedLog.interactionId}-${mention.uid}-note`]}"
+                                    </span>
+                                  </div>
+                                )}
                                 
                                 <p className="text-xs text-slate-300 leading-relaxed font-semibold pl-1">
                                   {mention.task || selectedLog.messageText || selectedLog.subject || 'Task Assignment'}
@@ -714,6 +805,8 @@ export default function ActivityLog() {
                                             setCompletionModalState({ isOpen: true, task: { ...mention, interactionId: selectedLog.interactionId }, newStatus: st });
                                           } else if (st === 'Forwarded') {
                                             setForwardModalState({ isOpen: true, task: { ...mention, interactionId: selectedLog.interactionId }, newStatus: st });
+                                          } else if (st === 'Decline') {
+                                            setDeclineModalState({ isOpen: true, task: { ...mention, interactionId: selectedLog.interactionId } });
                                           } else {
                                             const ok = await updateTaskStatus(selectedLog.interactionId, mention.uid, st);
                                             if (ok) {
@@ -726,7 +819,7 @@ export default function ActivityLog() {
                                                 return { ...prev, actionMentions: updatedMentions };
                                               });
                                             }
-                                            setTaskStatuses(prev => ({ ...prev, [`${selectedLog.interactionId}-${mention.uid}`]: st }));
+                                            updateTaskStatuses(prev => ({ ...prev, [`${selectedLog.interactionId}-${mention.uid}`]: st }));
                                           }
                                         }}
                                         className="px-2.5 py-1 rounded-lg border border-slate-700 bg-slate-800 text-xs text-slate-300 font-bold outline-none cursor-pointer focus:border-primary"
@@ -778,7 +871,7 @@ export default function ActivityLog() {
                   <div className="px-6 py-4 border-t border-slate-800/85 flex justify-end bg-dark-900/40">
                     <button
                       onClick={() => setSelectedLog(null)}
-                      className="bg-slate-800 hover:bg-slate-700 text-slate-205 hover:text-white px-6 py-2.5 rounded-xl text-xs font-bold border border-slate-750 transition-all cursor-pointer shadow-md active:scale-98"
+                      className="bg-slate-800 text-slate-205 px-6 py-2.5 rounded-xl text-xs font-bold border border-slate-750 transition-all cursor-pointer shadow-md active:scale-98"
                     >
                       Close Details
                     </button>
@@ -824,7 +917,7 @@ export default function ActivityLog() {
                 }
                 fetchInteractions();
               }
-              setTaskStatuses(prev => ({ ...prev, [`${task.interactionId}-${task.uid}`]: newStatus }));
+              updateTaskStatuses(prev => ({ ...prev, [`${task.interactionId}-${task.uid}`]: newStatus, [`${task.interactionId}-${task.uid}-note`]: completionNote.trim() }));
               // Update details panel selectedLog state as well
               if (selectedLog && selectedLog.interactionId === task.interactionId) {
                 setSelectedLog(prev => {
@@ -918,6 +1011,77 @@ export default function ActivityLog() {
                   className="px-5 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-bold rounded-xl transition-all"
                 >
                   Forward Task
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Decline Task Modal */}
+      {declineModalState.isOpen && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
+          <div className="bg-dark-900 border border-slate-800 w-full max-w-md rounded-2xl p-6 shadow-2xl relative">
+            <button
+              onClick={() => {
+                setDeclineModalState({ isOpen: false, task: null });
+                setDeclineReason('');
+              }}
+              className="absolute top-4 right-4 p-1.5 rounded-lg bg-slate-800 text-slate-400 hover:text-slate-200"
+            >
+              <X className="w-4 h-4" />
+            </button>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-full bg-rose-500/20 flex items-center justify-center">
+                <ShieldAlert className="w-5 h-5 text-rose-400" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-white">Decline Task</h3>
+                <p className="text-xs text-slate-400">Provide a reason for declining this task</p>
+              </div>
+            </div>
+
+            <form
+              onSubmit={async (e) => {
+                e.preventDefault();
+                const { task } = declineModalState;
+                const ok = await updateTaskStatus(task.interactionId, task.uid, 'Decline');
+                if (ok) {
+                  if (declineReason.trim()) {
+                    await replyToInteraction(task.interactionId, `Decline Reason: ${declineReason}`);
+                  }
+                  fetchInteractions();
+                }
+                updateTaskStatuses(prev => ({ ...prev, [`${task.interactionId}-${task.uid}`]: 'Decline', [`${task.interactionId}-${task.uid}-note`]: declineReason.trim() }));
+                if (selectedLog && selectedLog.interactionId === task.interactionId) {
+                  setSelectedLog(prev => {
+                    const updatedMentions = (prev.actionMentions || []).map(m =>
+                      m.uid === task.uid ? { ...m, status: 'Decline' } : m
+                    );
+                    return { ...prev, actionMentions: updatedMentions };
+                  });
+                }
+                setDeclineModalState({ isOpen: false, task: null });
+                setDeclineReason('');
+              }}
+              className="space-y-4"
+            >
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1.5">Reason for Declining</label>
+                <textarea
+                  value={declineReason}
+                  onChange={(e) => setDeclineReason(e.target.value)}
+                  className="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-sm text-slate-200 outline-none focus:border-rose-500 min-h-[100px]"
+                  placeholder="E.g., Unable to complete due to conflicting priorities or missing resources."
+                  required
+                />
+              </div>
+              <div className="flex justify-end pt-2">
+                <button
+                  type="submit"
+                  className="px-5 py-2 bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold rounded-xl transition-all"
+                >
+                  Submit Decline
                 </button>
               </div>
             </form>

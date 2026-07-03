@@ -1,6 +1,31 @@
 import ldap from 'ldapjs';
 
 /**
+ * Helper to convert ldapjs 3.x SearchResultEntry to a flat object.
+ */
+function entryToObject(entry) {
+  const dnString = entry.objectName ? entry.objectName.toString() : '';
+  const obj = {
+    dn: dnString,
+    distinguishedName: dnString
+  };
+  
+  const attrs = entry.pojo?.attributes || [];
+  for (const attr of attrs) {
+    const name = attr.type;
+    const values = attr.values || [];
+    if (values.length === 1) {
+      obj[name] = values[0];
+    } else if (values.length > 1) {
+      obj[name] = values;
+    } else {
+      obj[name] = null;
+    }
+  }
+  return obj;
+}
+
+/**
  * Authenticates a user against Nest Digital's Active Directory (LDAP).
  *
  * AD Configuration (Nest Digital):
@@ -110,7 +135,7 @@ export async function authenticateLdapUser(username, password) {
         searchRes.on('searchEntry', (entry) => {
           // Take the first matching entry only
           if (!userEntry) {
-            userEntry = entry.object;
+            userEntry = entryToObject(entry);
           }
         });
 
