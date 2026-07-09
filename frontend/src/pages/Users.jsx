@@ -1310,8 +1310,8 @@ export default function Users() {
           {/* Page Header */}
           <div className="glass p-5 rounded-2xl border border-slate-800/80 flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
-              <h2 className="text-base font-extrabold text-white uppercase tracking-wider">Client Engagement Tree</h2>
-              <p className="text-xs text-slate-500 mt-1">Explore Nest Digital organization structure and connected client stakeholders.</p>
+              <h2 className="text-base font-extrabold text-white uppercase tracking-wider">User Directory</h2>
+              <p className="text-xs text-slate-500 mt-1">All platform users grouped by their business unit and role.</p>
             </div>
             <div className="flex items-center gap-3 relative max-w-lg w-full md:justify-end">
               <div className="relative w-full max-w-sm">
@@ -1319,12 +1319,12 @@ export default function Users() {
                   type="text"
                   value={clientSearch}
                   onChange={(e) => setClientSearch(e.target.value)}
-                  placeholder="Search company, project, or region..."
+                  placeholder="Search by name, role, BU..."
                   className="w-full bg-dark-900/60 border border-slate-800 text-xs text-white rounded-xl py-2.5 pl-4 pr-10 focus:outline-none focus:border-primary/50 placeholder-slate-500 font-semibold"
                 />
               </div>
               {user?.role === 'Admin' && (
-                <button 
+                <button
                   onClick={() => {
                     setUserType('Employee');
                     setPosition('');
@@ -1341,203 +1341,185 @@ export default function Users() {
             </div>
           </div>
 
-          {/* Org Tree structure representing client connections */}
-          {usersLoading || accountsLoading || contactsLoading ? (
+          {/* User Groups */}
+          {usersLoading ? (
             <div className="h-64 flex items-center justify-center">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
             </div>
-          ) : (
-            <div className="space-y-3">
-              {/* Swipe Helper for Mobile/Tablets */}
-              <div className="lg:hidden bg-primary/10 border border-primary/25 rounded-xl p-3 text-center text-xs font-semibold text-primary flex items-center justify-center gap-2">
-                <span>👈 Swipe horizontally to explore full client engagement architecture tree 👉</span>
-              </div>
-              <div className="glass p-6 rounded-2xl border border-slate-800/80 overflow-x-auto select-none">
-              <div className="min-w-[1650px] flex flex-col items-center gap-8">
-                
-                {/* CEO Node */}
-                <div className="flex flex-col items-center">
-                  {renderOrgNode('CEO', 'CEO', {}, null, { bg: 'bg-indigo-550/10 border-indigo-500/20 text-indigo-200', accentBg: 'bg-indigo-500/20 border-indigo-500/30 text-indigo-400' })}
-                  <div className="w-0.5 bg-slate-850 h-8"></div>
+          ) : (() => {
+            const q = clientSearch.toLowerCase();
+            const filtered = usersList.filter(u =>
+              !q ||
+              (u.name || '').toLowerCase().includes(q) ||
+              (u.email || '').toLowerCase().includes(q) ||
+              (u.position || '').toLowerCase().includes(q) ||
+              (u.userType || u.role || '').toLowerCase().includes(q) ||
+              (u.bu || '').toLowerCase().includes(q) ||
+              (u.department || '').toLowerCase().includes(q)
+            );
+
+            // Role order for sorting within a group
+            const roleOrder = ['CEO','Admin','Functional Head','BU Head','Delivery Head','Delivery Manager','Project Manager','Sales Manager','Account Manager','Employee'];
+            const sortUsers = (arr) => [...arr].sort((a,b) => {
+              const ra = roleOrder.indexOf(a.userType || a.role) === -1 ? 99 : roleOrder.indexOf(a.userType || a.role);
+              const rb = roleOrder.indexOf(b.userType || b.role) === -1 ? 99 : roleOrder.indexOf(b.userType || b.role);
+              return ra - rb || (a.name||'').localeCompare(b.name||'');
+            });
+
+            // Leadership: CEO, Admin, Functional Heads (no BU)
+            const leadership = filtered.filter(u => {
+              const type = u.userType || u.role;
+              return ['CEO','Admin','Functional Head'].includes(type);
+            });
+
+            // Group everyone else by BU
+            const buMap = {};
+            filtered.forEach(u => {
+              const type = u.userType || u.role;
+              if (['CEO','Admin','Functional Head'].includes(type)) return;
+              const bu = u.bu || u.department || 'Unassigned';
+              if (!buMap[bu]) buMap[bu] = [];
+              buMap[bu].push(u);
+            });
+
+            const buEntries = Object.entries(buMap).sort(([a],[b]) => a.localeCompare(b));
+
+            const RoleChip = ({ type }) => {
+              const colors = {
+                CEO: 'bg-indigo-500/15 text-indigo-400 border-indigo-500/30',
+                Admin: 'bg-rose-500/15 text-rose-400 border-rose-500/30',
+                'Functional Head': 'bg-slate-500/15 text-slate-400 border-slate-600/30',
+                'BU Head': 'bg-amber-500/15 text-amber-400 border-amber-500/30',
+                'Delivery Head': 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30',
+                'Delivery Manager': 'bg-teal-500/15 text-teal-400 border-teal-500/30',
+                'Project Manager': 'bg-purple-500/15 text-purple-400 border-purple-500/30',
+                'Sales Manager': 'bg-orange-500/15 text-orange-400 border-orange-500/30',
+                'Account Manager': 'bg-cyan-500/15 text-cyan-400 border-cyan-500/30',
+                Employee: 'bg-blue-500/15 text-blue-400 border-blue-500/30',
+              };
+              const cls = colors[type] || 'bg-slate-500/10 text-slate-400 border-slate-600/20';
+              return (
+                <span className={`text-[10px] font-black uppercase tracking-wider border px-1.5 py-0.5 rounded-md ${cls}`}>
+                  {type}
+                </span>
+              );
+            };
+
+            const UserCard = ({ u }) => {
+              const isMe = user && user.email?.toLowerCase() === u.email?.toLowerCase();
+              const initials = u.name ? u.name.substring(0,2).toUpperCase() : 'US';
+              const type = u.userType || u.role;
+              return (
+                <div className={`glass border ${isMe ? 'border-primary/60 ring-1 ring-primary/30' : 'border-slate-700/50'} rounded-xl p-3 flex items-center gap-3 relative hover:border-slate-600/70 transition-all group`}>
+                  {isMe && (
+                    <span className="absolute top-0 left-0 bg-primary text-white text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded-br-lg rounded-tl-xl">You</span>
+                  )}
+                  <div className="bg-primary/10 border border-primary/20 text-primary w-9 h-9 rounded-lg flex items-center justify-center font-bold text-sm shrink-0">
+                    {initials}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-start justify-between gap-2">
+                      <span className="font-extrabold text-white text-xs truncate">{u.name}</span>
+                      {(user?.role === 'Admin') && (
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteUser(u.uid || u.id, u.name)}
+                          className="shrink-0 text-slate-600 hover:text-rose-400 transition-colors opacity-0 group-hover:opacity-100 cursor-pointer"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+                    <span className="text-[10px] text-slate-500 block truncate">{u.email}</span>
+                    <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                      <RoleChip type={type} />
+                      {u.position && u.position !== type && (
+                        <span className="text-[10px] text-slate-500 italic truncate">{u.position}</span>
+                      )}
+                    </div>
+                  </div>
                 </div>
+              );
+            };
 
-                {/* 7 Columns Row containing Functional Heads & BU Structure in the middle */}
-                <div className="w-full flex flex-col items-center">
-                  <div className="relative w-full flex justify-between items-start">
-                    {/* The horizontal bar connecting CEO to all 7 children */}
-                    <div className="absolute top-0 left-[7%] right-[7%] h-0.5 bg-slate-850"></div>
-                    
-                    {/* Column 1: Finance Head */}
-                    <div className="flex flex-col items-center pt-4 relative">
-                      <div className="absolute top-0 w-0.5 bg-slate-850 h-4"></div>
-                      {renderOrgNode('Finance Head', 'Functional Head', { position: 'Finance Head', department: 'Finance' }, u => u.position?.toLowerCase().includes('finance'), { bg: 'bg-slate-900/60 border-slate-800 text-slate-300' })}
+            return (
+              <div className="space-y-5">
+                {/* Leadership Section */}
+                {leadership.length > 0 && (
+                  <div className="glass rounded-2xl border border-slate-800/60 p-5">
+                    <div className="flex items-center gap-2 mb-4">
+                      <span className="w-2 h-2 rounded-full bg-indigo-400 shrink-0"></span>
+                      <h3 className="text-xs font-black text-slate-300 uppercase tracking-widest">Leadership & Administration</h3>
+                      <span className="ml-auto text-[10px] font-bold text-slate-600 bg-slate-800/60 px-2 py-0.5 rounded-full">{leadership.length}</span>
                     </div>
-
-                    {/* Column 2: Global HR Head */}
-                    <div className="flex flex-col items-center pt-4 relative">
-                      <div className="absolute top-0 w-0.5 bg-slate-850 h-4"></div>
-                      {renderOrgNode('Global HR Head', 'Functional Head', { position: 'Global HR Head', department: 'HR' }, u => u.position?.toLowerCase().includes('hr'), { bg: 'bg-slate-900/60 border-slate-800 text-slate-300' })}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+                      {sortUsers(leadership).map(u => <UserCard key={u.uid||u.id} u={u} />)}
                     </div>
+                  </div>
+                )}
 
-                    {/* Column 3: ITG Head */}
-                    <div className="flex flex-col items-center pt-4 relative">
-                      <div className="absolute top-0 w-0.5 bg-slate-850 h-4"></div>
-                      {renderOrgNode('ITG Head', 'Functional Head', { position: 'ITG Head', department: 'ITG' }, u => u.position?.toLowerCase().includes('itg'), { bg: 'bg-slate-900/60 border-slate-800 text-slate-300' })}
-                    </div>
+                {/* BU Groups */}
+                {buEntries.map(([bu, members]) => {
+                  const buHeads = members.filter(u => ['BU Head','Delivery Head'].includes(u.userType||u.role));
+                  const managers = members.filter(u => ['Project Manager','Delivery Manager','Sales Manager','Account Manager'].includes(u.userType||u.role));
+                  const employees = members.filter(u => !['BU Head','Delivery Head','Project Manager','Delivery Manager','Sales Manager','Account Manager'].includes(u.userType||u.role));
 
-                    {/* Column 4: BU Structure (Middle Sibling) */}
-                    <div className="flex flex-col items-center pt-4 relative">
-                      <div className="absolute top-0 w-0.5 bg-slate-850 h-4"></div>
-                      
-                      {/* BU Structure Node */}
-                      <div className="bg-slate-900/80 border border-slate-800 text-slate-400 text-xs font-extrabold px-6 py-2.5 rounded-xl shadow-md uppercase tracking-wider">
-                        BU Structure
+                  const buColors = {
+                    head: 'bg-amber-400',
+                    border: 'border-amber-500/20',
+                    label: 'text-amber-400',
+                  };
+
+                  return (
+                    <div key={bu} className="glass rounded-2xl border border-slate-800/60 p-5 space-y-4">
+                      {/* BU Header */}
+                      <div className="flex items-center gap-2 pb-3 border-b border-slate-800/60">
+                        <span className={`w-2 h-2 rounded-full ${buColors.head} shrink-0`}></span>
+                        <h3 className={`text-xs font-black uppercase tracking-widest ${buColors.label}`}>{bu}</h3>
+                        <span className="ml-auto text-[10px] font-bold text-slate-600 bg-slate-800/60 px-2 py-0.5 rounded-full">{members.length} members</span>
                       </div>
-                      
-                      <div className="w-0.5 bg-slate-850 h-8"></div>
-                      
-                      {/* BU Structure Branches: P&L vs Delivery */}
-                      <div className="flex gap-8 justify-center items-start relative pt-6">
-                        {/* Horizontal connector bar for BU Structure children */}
-                        <div className="absolute top-0 left-1/4 right-1/4 h-0.5 bg-slate-850"></div>
-                        
-                        {/* Left BU Branch: P&L (Hunting & Mining) */}
-                        <div className="flex flex-col items-center relative">
-                          <div className="absolute top-0 w-0.5 bg-slate-850 h-4"></div>
-                          <div className="bg-purple-500/10 border border-purple-500/20 text-purple-400 text-xs font-black px-2.5 py-1 rounded-full uppercase tracking-wider mb-2.5">
-                            P&L Hunting & Mining
-                          </div>
-                          
-                          <div className="flex flex-col items-center gap-6">
-                            {/* P&L BU Head */}
-                            {renderOrgNode('P&L Head', 'BU Head', { position: 'P&L Head', bu: 'P&L (Hunting & Mining)' }, u => u.bu?.toLowerCase().includes('p&l') || u.position?.toLowerCase().includes('p&l'), { bg: 'bg-purple-500/10 border-purple-500/20 text-purple-200', accentBg: 'bg-purple-500/20 border-purple-500/30 text-purple-400' })}
-                            
-                            <div className="w-0.5 bg-purple-500/30 h-6"></div>
-                            
-                            {/* BFS BU Consultant */}
-                            <div className="flex flex-col items-center">
-                              <span className="text-xs text-purple-500/80 font-black uppercase tracking-wider mb-1.5">Consultant Roster</span>
-                              {renderOrgNode('BFS BU Consultant', 'Employee', { position: 'BFS BU Consultant', bu: 'P&L (Hunting & Mining)' }, u => u.position?.toLowerCase().includes('bfs') || u.position?.toLowerCase().includes('consultant'), { bg: 'bg-purple-500/10 border-purple-500/20 text-purple-200', accentBg: 'bg-purple-500/20 border-purple-500/30 text-purple-400' })}
-                            </div>
+
+                      {/* BU / Delivery Heads */}
+                      {buHeads.length > 0 && (
+                        <div>
+                          <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Unit Heads</p>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+                            {sortUsers(buHeads).map(u => <UserCard key={u.uid||u.id} u={u} />)}
                           </div>
                         </div>
+                      )}
 
-                        {/* Right BU Branch: Delivery (Farming) */}
-                        <div className="flex flex-col items-center relative">
-                          <div className="absolute top-0 w-0.5 bg-slate-850 h-4"></div>
-                          <div className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-black px-2.5 py-1 rounded-full uppercase tracking-wider mb-2.5">
-                            Delivery Farming
-                          </div>
-
-                          <div className="flex flex-col items-center w-full">
-                            {/* Delivery Head */}
-                            {renderOrgNode('Delivery Head', 'Delivery Head', { position: 'Delivery Head', bu: 'Delivery (Farming)' }, u => (u.userType || u.role) === 'Delivery Head' && (!u.position || (!u.position.toLowerCase().includes('insurance') && !u.position.toLowerCase().includes('industrial') && !u.position.toLowerCase().includes('healthcare') && !u.position.toLowerCase().includes('mobility'))), { bg: 'bg-emerald-500/10 border-emerald-500/20 text-emerald-200', accentBg: 'bg-emerald-500/20 border-emerald-500/30 text-emerald-400' })}
-                            
-                            <div className="w-0.5 bg-emerald-500/30 h-6"></div>
-                            
-                            {/* Sub-Delivery Heads: Insurance, Industrial, Healthcare & Mobility */}
-                            <div className="w-full flex justify-between gap-4 relative pt-6">
-                              <div className="absolute top-0 left-12 right-12 h-0.5 bg-emerald-500/30"></div>
-
-                              {/* Insurance Delivery Head */}
-                              <div className="flex flex-col items-center relative">
-                                <div className="absolute top-0 w-0.5 bg-emerald-500/30 h-4"></div>
-                                <span className="text-xs text-emerald-500 font-bold mb-1.5 z-10">Insurance</span>
-                                {renderOrgNode('Insurance Delivery Head', 'Delivery Head', { position: 'Insurance Delivery Head', bu: 'Insurance' }, u => u.position?.toLowerCase().includes('insurance'), { bg: 'bg-emerald-500/10 border-emerald-500/20 text-emerald-200', accentBg: 'bg-emerald-500/20 border-emerald-500/30 text-emerald-400' })}
-                              </div>
-
-                              {/* Industrial Delivery Head */}
-                              <div className="flex flex-col items-center relative">
-                                <div className="absolute top-0 w-0.5 bg-emerald-500/30 h-4"></div>
-                                <span className="text-xs text-emerald-500 font-bold mb-1.5 z-10">Industrial</span>
-                                {renderOrgNode('Industrial Delivery Head', 'Delivery Head', { position: 'Industrial Delivery Head', bu: 'Industrial' }, u => u.position?.toLowerCase().includes('industrial'), { bg: 'bg-emerald-500/10 border-emerald-500/20 text-emerald-200', accentBg: 'bg-emerald-500/20 border-emerald-500/30 text-emerald-400' })}
-                              </div>
-
-                              {/* Healthcare & Mobility Delivery Head */}
-                              <div className="flex flex-col items-center relative">
-                                <div className="absolute top-0 w-0.5 bg-emerald-500/30 h-4"></div>
-                                <span className="text-xs text-emerald-500 font-bold mb-1.5 z-10">Healthcare & Mobility</span>
-                                {renderOrgNode('Healthcare & Mobility Delivery Head', 'Delivery Head', { position: 'Healthcare & Mobility Delivery Head', bu: 'Healthcare & Mobility' }, u => u.position?.toLowerCase().includes('healthcare & mobility') || u.position?.toLowerCase().includes('healthcare and mobility') || (u.position?.toLowerCase().includes('healthcare') && u.position?.toLowerCase().includes('mobility')), { bg: 'bg-emerald-500/10 border-emerald-500/20 text-emerald-200', accentBg: 'bg-emerald-500/20 border-emerald-500/30 text-emerald-400' })}
-                                
-                                <div className="w-0.5 bg-emerald-500/30 h-6"></div>
-                                
-                                {/* Healthcare & Mobility Nested Sub-levels */}
-                                <div className="flex gap-4 justify-center items-start relative pt-6">
-                                  <div className="absolute top-0 left-8 right-8 h-0.5 bg-emerald-500/20"></div>
-                                  
-                                  {/* Mobility Delivery Mgr */}
-                                  <div className="flex flex-col items-center relative">
-                                    <div className="absolute top-0 w-0.5 bg-emerald-500/20 h-4"></div>
-                                    <span className="text-xs text-emerald-500/60 uppercase font-black tracking-wider mb-1 z-10">Mobility Mgr</span>
-                                    {renderOrgNode('Mobility Delivery Mgr', 'Delivery Manager', { position: 'Mobility Delivery Mgr', bu: 'Healthcare & Mobility' }, u => u.position?.toLowerCase().includes('mobility') && u.position?.toLowerCase().includes('mgr'), { bg: 'bg-emerald-500/10 border-emerald-500/20 text-emerald-200', accentBg: 'bg-emerald-500/20 border-emerald-500/30 text-emerald-400' })}
-                                  </div>
-
-                                  {/* Healthcare Delivery Head */}
-                                  <div className="flex flex-col items-center relative">
-                                    <div className="absolute top-0 w-0.5 bg-emerald-500/20 h-4"></div>
-                                    <span className="text-xs text-emerald-500/60 uppercase font-black tracking-wider mb-1 z-10">Healthcare Head</span>
-                                    {renderOrgNode('Healthcare Delivery Head', 'Delivery Head', { position: 'Healthcare Delivery Head', bu: 'Healthcare & Mobility' }, u => u.position?.toLowerCase().includes('healthcare delivery head') || (u.position?.toLowerCase().includes('healthcare') && (u.userType || u.role) === 'Delivery Head' && !u.position?.toLowerCase().includes('mobility')), { bg: 'bg-emerald-500/10 border-emerald-500/20 text-emerald-200', accentBg: 'bg-emerald-500/20 border-emerald-500/30 text-emerald-400' })}
-                                  </div>
-
-                                  {/* Associate Delivery - HC */}
-                                  <div className="flex flex-col items-center relative">
-                                    <div className="absolute top-0 w-0.5 bg-emerald-500/20 h-4"></div>
-                                    <span className="text-xs text-emerald-500/60 uppercase font-black tracking-wider mb-1 z-10">Associate HC</span>
-                                    {renderOrgNode('Associate Delivery - HC', 'Employee', { position: 'Associate Delivery - HC', bu: 'Healthcare & Mobility' }, u => u.position?.toLowerCase().includes('associate') && u.position?.toLowerCase().includes('hc'), { bg: 'bg-emerald-500/10 border-emerald-500/20 text-emerald-200', accentBg: 'bg-emerald-500/20 border-emerald-500/30 text-emerald-400' })}
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
+                      {/* Managers */}
+                      {managers.length > 0 && (
+                        <div>
+                          <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Managers</p>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+                            {sortUsers(managers).map(u => <UserCard key={u.uid||u.id} u={u} />)}
                           </div>
                         </div>
-                      </div>
-                    </div>
+                      )}
 
-                    {/* Column 5: NDA */}
-                    <div className="flex flex-col items-center pt-4 relative">
-                      <div className="absolute top-0 w-0.5 bg-slate-850 h-4"></div>
-                      {renderOrgNode('NDA', 'Functional Head', { position: 'NDA', department: 'Legal' }, u => u.position?.toLowerCase().includes('nda') || u.position?.toLowerCase().includes('legal'), { bg: 'bg-slate-900/60 border-slate-800 text-slate-300' })}
+                      {/* Employees */}
+                      {employees.length > 0 && (
+                        <div>
+                          <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Employees</p>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+                            {sortUsers(employees).map(u => <UserCard key={u.uid||u.id} u={u} />)}
+                          </div>
+                        </div>
+                      )}
                     </div>
+                  );
+                })}
 
-                    {/* Column 6: TC Head */}
-                    <div className="flex flex-col items-center pt-4 relative">
-                      <div className="absolute top-0 w-0.5 bg-slate-850 h-4"></div>
-                      {renderOrgNode('TC Head', 'Functional Head', { position: 'TC Head', department: 'TC' }, u => u.position?.toLowerCase().includes('tc'), { bg: 'bg-slate-900/60 border-slate-800 text-slate-300' })}
-                    </div>
-
-                    {/* Column 7: Quality Head */}
-                    <div className="flex flex-col items-center pt-4 relative">
-                      <div className="absolute top-0 w-0.5 bg-slate-850 h-4"></div>
-                      {renderOrgNode('Quality Head', 'Functional Head', { position: 'Quality Head', department: 'Quality' }, u => u.position?.toLowerCase().includes('quality'), { bg: 'bg-slate-900/60 border-slate-800 text-slate-300' })}
-                    </div>
+                {filtered.length === 0 && (
+                  <div className="glass rounded-2xl border border-slate-800/60 p-12 text-center">
+                    <p className="text-sm text-slate-500 font-semibold">No users found matching "{clientSearch}"</p>
                   </div>
-                </div>
-
-                {/* Shared Managers Layer */}
-                <div className="flex flex-col items-center w-full mt-6">
-                  <div className="w-1/2 flex justify-between relative h-6">
-                    <div className="absolute top-0 left-0 right-0 border-t border-dashed border-slate-800 h-0.5"></div>
-                    <div className="absolute top-0 left-0 w-0.5 border-l border-dashed border-slate-800 h-6"></div>
-                    <div className="absolute top-0 right-0 w-0.5 border-l border-dashed border-slate-800 h-6"></div>
-                  </div>
-
-                  <div className="bg-amber-955/5 border border-amber-500/15 rounded-2xl p-6 w-full max-w-5xl relative">
-                    <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-amber-500/10 border border-amber-500/25 text-amber-450 text-xs font-black px-3.5 py-1.5 rounded-full uppercase tracking-wider z-10">
-                      Sales, Account & Project Managers
-                    </div>
-                    
-                    <div className="flex justify-center gap-6 flex-wrap mt-4">
-                      {renderManagersList('Sales Managers', 'Sales Manager', { position: 'Sales Manager', department: 'Sales' })}
-                      {renderManagersList('Account Managers', 'Account Manager', { position: 'Account Manager', department: 'Accounts' })}
-                      {renderManagersList('Project Managers', 'Project Manager', { position: 'Project Manager', department: 'Operations' })}
-                    </div>
-                  </div>
-                </div>
-
+                )}
               </div>
-            </div>
-            </div>
-          )}
+            );
+          })()}
         </div>
       )}
       {/* ========================================================

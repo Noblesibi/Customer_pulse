@@ -18,6 +18,9 @@ import activityRouter from './routes/activity.routes.js';
 // Webhook imports
 import { handleOutlookWebhook, handleTeamsWebhook } from './controllers/webhook.controller.js';
 
+// Sync scheduler import
+import { startSyncScheduler } from './services/userSync.service.js';
+
 dotenv.config();
 
 const app = express();
@@ -87,4 +90,7 @@ app.use((err, req, res, next) => {
 app.listen(PORT, () => {
   console.log(`🚀 Customer Pulse Backend running on port ${PORT}`);
   console.log(`🔗 Health check available at http://localhost:${PORT}/api/health`);
+  
+  // Start the background employee sync scheduler
+  startSyncScheduler();
 });

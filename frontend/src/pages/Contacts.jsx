@@ -276,18 +276,18 @@ export default function Contacts() {
 
       {/* 2. Contacts List Data Panel */}
       <div className="glass p-6 rounded-2xl border border-slate-800/80 flex flex-col">
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
           <h2 className="text-lg font-bold text-white tracking-wide">Stakeholder Directory</h2>
-          <div className="flex gap-3">
+          <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
             {/* Search */}
-            <div className="relative">
+            <div className="relative w-full sm:w-64">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
               <input 
                 type="text" 
                 placeholder="Search stakeholders..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="bg-dark-900/60 border border-slate-800 focus:border-primary/50 text-xs rounded-xl py-2.5 pl-9 pr-4 text-white focus:outline-none transition-colors"
+                className="bg-dark-900/60 border border-slate-800 focus:border-primary/50 text-xs rounded-xl py-2.5 pl-9 pr-4 text-white focus:outline-none transition-colors w-full"
               />
             </div>
             
@@ -295,7 +295,7 @@ export default function Contacts() {
             {['Admin', 'Sales Manager', 'Employee'].includes(user?.role) && (
               <button 
                 onClick={() => setIsAddContactOpen(true)}
-                className="bg-primary hover:bg-blue-600 px-4 py-2.5 rounded-xl text-xs font-semibold flex items-center gap-2 text-white active:scale-98 transition-all"
+                className="bg-primary hover:bg-blue-600 px-4 py-2.5 rounded-xl text-xs font-semibold flex items-center justify-center gap-2 text-white active:scale-98 transition-all w-full sm:w-auto cursor-pointer"
               >
                 <Plus className="w-4 h-4" />
                 Add Stakeholder

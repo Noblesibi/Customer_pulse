@@ -1,8 +1,9 @@
 import { Router } from 'express';
 import { db, logActivity } from '../config/database.js';
 import { authenticateToken } from '../middleware/auth.middleware.js';
-import { analyzeCommunication } from '../services/ai.service.js';
+import { analyzeCommunication, generateTaskHeader } from '../services/ai.service.js';
 import { calculateAccountHealth } from '../services/health.service.js';
+import { sendTaskAssignmentEmail } from '../services/email.service.js';
 import fs from 'fs';
 import path from 'path';
 
@@ -208,18 +209,46 @@ router.put('/:id/task-status', async (req, res) => {
     if (status === 'Forwarded' && forwardToUid && forwardToName) {
       // Only add if not already present (prevent duplicates on re-forward)
       const alreadyMentioned = actionMentions.some(m => m.uid === forwardToUid && m.status === 'Task Assigned');
+      let header = '';
       if (!alreadyMentioned) {
+        header = await generateTaskHeader(targetMentionTask);
         actionMentions.push({
           uid: forwardToUid,
           name: forwardToName,
           task: targetMentionTask,
+          taskHeader: header,
           status: 'Task Assigned',
           dueDate: originalDueDate,
           priority: originalPriority,
           comments: '',
           completionDate: null
         });
+      } else {
+        const existing = actionMentions.find(m => m.uid === forwardToUid && m.status === 'Task Assigned');
+        header = existing?.taskHeader || '';
       }
+
+      const notifId = 'notif-' + Math.random().toString(36).substring(2, 11);
+      await db.collection('notifications').doc(notifId).set({
+        notificationId: notifId,
+        toUserId: forwardToUid,
+        accountId: interaction.accountId,
+        interactionId: id,
+        type: 'Task Assigned',
+        message: `${req.user.name} forwarded a task to you: "${targetMentionTask}"`,
+        read: false,
+        timestamp: new Date().toISOString()
+      });
+
+      // Send email alert asynchronously
+      sendTaskAssignmentEmail(forwardToUid, {
+        task: targetMentionTask,
+        taskHeader: header,
+        accountName: interaction.companyName || 'External Account',
+        priority: originalPriority,
+        dueDate: originalDueDate,
+        assignerName: req.user.name || req.user.email
+      });
     }
 
     await db.collection('interactions').doc(id).update({ actionMentions });
@@ -233,20 +262,6 @@ router.put('/:id/task-status', async (req, res) => {
       'Update Task Status',
       `Updated task status to "${status}" in interaction "${interaction.subject || 'Interaction'}"`
     );
-
-    if (status === 'Forwarded' && forwardToUid && forwardToName) {
-      const notifId = 'notif-' + Math.random().toString(36).substring(2, 11);
-      await db.collection('notifications').doc(notifId).set({
-        notificationId: notifId,
-        toUserId: forwardToUid,
-        accountId: interaction.accountId,
-        interactionId: id,
-        type: 'Task Assigned',
-        message: `${req.user.name} forwarded a task to you: "${targetMentionTask}"`,
-        read: false,
-        timestamp: new Date().toISOString()
-      });
-    }
 
     return res.json({ success: true, actionMentions });
   } catch (error) {
@@ -406,6 +421,21 @@ router.post('/', async (req, res) => {
     // Run AI Engine Analysis
     const analysis = await analyzeCommunication(messageText);
 
+    const enrichedActionMentions = await Promise.all(
+      (actionMentions || []).map(async (m) => {
+        const header = await generateTaskHeader(m.task || messageText);
+        return {
+          ...m,
+          taskHeader: header,
+          status: m.status || 'Task Assigned',
+          dueDate: m.dueDate || null,
+          priority: m.priority || 'Medium',
+          comments: m.comments || '',
+          completionDate: m.completionDate || null
+        };
+      })
+    );
+
     const interactionId = 'int-' + Math.random().toString(36).substring(2, 11);
     const newInteraction = {
       interactionId,
@@ -416,14 +446,7 @@ router.post('/', async (req, res) => {
       messageText,
       date: date || new Date().toISOString().split('T')[0],
       time: time || new Date().toTimeString().slice(0, 5),
-      actionMentions: (actionMentions || []).map(m => ({
-        ...m,
-        status: m.status || 'Task Assigned',
-        dueDate: m.dueDate || null,
-        priority: m.priority || 'Medium',
-        comments: m.comments || '',
-        completionDate: m.completionDate || null
-      })),
+      actionMentions: enrichedActionMentions,
       loggedByUid: req.user.uid,
       loggedByName,
       sentiment: analysis.sentiment,
@@ -495,6 +518,17 @@ router.post('/', async (req, res) => {
           timestamp: new Date().toISOString()
         };
         await db.collection('notifications').doc(taskNotifId).set(notifDoc);
+
+        // Send email alert asynchronously
+        sendTaskAssignmentEmail(mention.uid, {
+          task: taskText,
+          taskHeader: mention.taskHeader,
+          accountName: companyName,
+          priority: mention.priority || 'Medium',
+          dueDate: mention.dueDate,
+          assignerName: loggedByName
+        });
+
         return notifDoc;
       });
       mentionNotifications = await Promise.all(mentionNotifPromises);
