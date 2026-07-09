@@ -17,7 +17,6 @@ export default function Dashboard() {
   const {
     dashboardStats, dashboardLoading, fetchDashboardStats,
     user,
-    myTasks, myTasksLoading, fetchMyTasks,
     replyToInteraction, fetchReplies, repliesByInteraction,
     usersList, fetchUsersList,
     activityLogs, activityLogsLoading, fetchActivityLogs,
@@ -38,6 +37,7 @@ export default function Dashboard() {
   // Forward Task Modal State
   const [forwardModalState, setForwardModalState] = useState({ isOpen: false, task: null, newStatus: 'Forwarded' });
   const [forwardToUid, setForwardToUid] = useState('');
+  const [forwardReason, setForwardReason] = useState('');
 
   const handleForwardSubmit = async (e) => {
     e.preventDefault();
@@ -46,22 +46,26 @@ export default function Dashboard() {
     const selectedUser = (staffList || []).find(s => s.uid === forwardToUid);
     if (!selectedUser) return;
     
-    const ok = await updateTaskStatus(task.interactionId, task.uid, newStatus, '', selectedUser.uid, selectedUser.name);
+    const ok = await updateTaskStatus(task.interactionId, task.uid, newStatus, forwardReason.trim(), selectedUser.uid, selectedUser.name);
     if (ok) {
+      if (forwardReason.trim()) {
+        await replyToInteraction(task.interactionId, `Forwarded Task Note: ${forwardReason}`);
+      }
       fetchInteractions();
     }
     setTaskStatuses(prev => ({ 
       ...prev, 
       [`${task.interactionId}-${task.uid}`]: newStatus,
-      [`${task.interactionId}-${task.uid}-forwardedToName`]: selectedUser.name 
+      [`${task.interactionId}-${task.uid}-forwardedToName`]: selectedUser.name,
+      [`${task.interactionId}-${task.uid}-note`]: forwardReason.trim()
     }));
     setForwardModalState({ isOpen: false, task: null, newStatus: 'Forwarded' });
     setForwardToUid('');
+    setForwardReason('');
   };
 
   useEffect(() => {
     fetchDashboardStats();
-    fetchMyTasks();
     fetchInteractions();
     fetchStaff();
     if (user?.userType === 'CEO') {
@@ -69,7 +73,6 @@ export default function Dashboard() {
     }
     const interval = setInterval(() => {
       fetchDashboardStats();
-      fetchMyTasks();
       fetchInteractions();
       fetchStaff();
       if (user?.userType === 'CEO') {
@@ -169,8 +172,12 @@ export default function Dashboard() {
           if (Array.isArray(item.actionMentions)) {
             item.actionMentions.forEach(mention => {
               if (mention.uid === user?.uid) {
+                const taskDesc = mention.task || item.messageText || item.subject || 'Task Assignment';
+                const fallbackHeader = taskDesc.split(/[.!?\n]/)[0].trim();
+                const cleanHeader = fallbackHeader.length <= 50 ? fallbackHeader : (fallbackHeader.slice(0, 47) + '...');
                 realMyTasks.push({
                   ...mention,
+                  taskHeader: mention.taskHeader || cleanHeader,
                   interactionId: item.interactionId,
                   accountId: item.accountId,
                   companyName: item.companyName || 'External Account',
@@ -248,11 +255,13 @@ export default function Dashboard() {
                             >
                               {task.companyName}
                             </span>
-                            {task.subject && (
-                              <span className="text-xs text-slate-500 font-semibold truncate max-w-[160px]">{task.subject}</span>
-                            )}
                           </div>
-                          <p className="text-xs text-slate-355 font-semibold leading-relaxed">{task.task}</p>
+                          <p className="text-xs text-slate-355 font-semibold leading-relaxed">{task.taskHeader || task.task || task.originalInteraction?.messageText || task.originalInteraction?.subject || 'Task Assignment'}</p>
+                          {(currentStatus === 'Completed' || currentStatus === 'Decline' || currentStatus === 'Forwarded') && (taskStatuses[`${task.interactionId}-${task.uid}-note`] || task.comments || task.completionNote) && (
+                            <p className="text-[11px] text-slate-405 italic mt-1 bg-slate-950/20 px-2.5 py-1 rounded border border-slate-800/60 w-fit">
+                              Note: "{taskStatuses[`${task.interactionId}-${task.uid}-note`] || task.comments || task.completionNote}"
+                            </p>
+                          )}
                           <div className="flex items-center gap-2.5 mt-2 flex-wrap">
                             <span className="text-xs text-slate-500 font-medium">Assigned by: <span className="text-slate-400 font-bold">{task.loggedByName}</span></span>
                             <span className="text-xs text-slate-600">·</span>
@@ -424,12 +433,12 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* 2. Charts Section */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+      {/* 2. Charts Section — responsive grids */}
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
         {/* Chart A: Industry Health Trend */}
-        <div className="glass p-4 rounded-xl border border-slate-800/80">
-          <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3">Industry Health Profile</h3>
-          <div className="h-44">
+        <div className="glass p-3 rounded-xl border border-slate-800/80">
+          <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">Industry Health Profile</h3>
+          <div className="h-28">
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={trendData}>
                 <defs>
@@ -439,8 +448,8 @@ export default function Dashboard() {
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" opacity={0.3} />
-                <XAxis dataKey="industry" stroke="#64748b" fontSize={10} />
-                <YAxis stroke="#64748b" fontSize={10} domain={[0, 100]} />
+                <XAxis dataKey="industry" stroke="#64748b" fontSize={9} />
+                <YAxis stroke="#64748b" fontSize={9} domain={[0, 100]} />
                 <Tooltip contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', color: '#fff', borderRadius: '12px' }} />
                 <Area type="monotone" dataKey="avgHealth" name="Avg Health Score" stroke="#2563EB" strokeWidth={2} fillOpacity={1} fill="url(#healthGrad)" />
               </AreaChart>
@@ -449,68 +458,64 @@ export default function Dashboard() {
         </div>
 
         {/* Chart B: Sentiment Distribution */}
-        <div className="glass p-4 rounded-xl border border-slate-800/80 grid grid-cols-1 md:grid-cols-5 items-center gap-3">
-          <div className="md:col-span-3 h-44">
-            {sentimentData.length === 0 ? (
-              <div className="h-full flex items-center justify-center text-xs text-slate-500">
-                No sentiment data logged yet
-              </div>
-            ) : (
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={sentimentData}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={40}
-                    outerRadius={60}
-                    paddingAngle={4}
-                    dataKey="value"
-                  >
-                    {sentimentData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', color: '#fff', borderRadius: '12px' }} />
-                </PieChart>
-              </ResponsiveContainer>
-            )}
-          </div>
-          <div className="md:col-span-2 space-y-2 pr-2">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">Communication Sentiment</h3>
-            <div className="space-y-1.5">
+        <div className="glass p-3 rounded-xl border border-slate-800/80 flex flex-col">
+          <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">Communication Sentiment</h3>
+          <div className="flex-1 flex items-center gap-2">
+            <div className="h-28 w-28 shrink-0">
+              {sentimentData.length === 0 ? (
+                <div className="h-full flex items-center justify-center text-xs text-slate-500">—</div>
+              ) : (
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={sentimentData}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={28}
+                      outerRadius={44}
+                      paddingAngle={4}
+                      dataKey="value"
+                    >
+                      {sentimentData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.color} />
+                      ))}
+                    </Pie>
+                    <Tooltip contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', color: '#fff', borderRadius: '12px' }} />
+                  </PieChart>
+                </ResponsiveContainer>
+              )}
+            </div>
+            <div className="space-y-1.5 min-w-0">
               {sentimentData.map(entry => (
-                <div key={entry.name} className="flex items-center justify-between text-xs font-semibold">
-                  <div className="flex items-center gap-2">
-                    <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: entry.color }} />
-                    <span className="text-slate-300">{entry.name}</span>
+                <div key={entry.name} className="flex items-center justify-between text-xs font-semibold gap-1">
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: entry.color }} />
+                    <span className="text-slate-300 truncate">{entry.name}</span>
                   </div>
-                  <span className="text-white">{entry.value} logged</span>
+                  <span className="text-white shrink-0">{entry.value}</span>
                 </div>
               ))}
               {sentimentData.length === 0 && (
-                <span className="text-xs text-slate-500">Log client emails/chats to populate sentiment distribution</span>
+                <span className="text-xs text-slate-500">No data</span>
               )}
             </div>
           </div>
         </div>
-      </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         {/* Chart C: Risk Categories Distribution */}
-        <div className="glass p-4 rounded-xl border border-slate-800/80">
-          <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3">Active Risk Types</h3>
-          <div className="h-44">
+        <div className="glass p-3 rounded-xl border border-slate-800/80">
+          <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">Active Risk Types</h3>
+          <div className="h-28">
             {riskData.length === 0 ? (
               <div className="h-full flex items-center justify-center text-xs text-slate-500">
-                No unresolved risks logged. System is clean!
+                No unresolved risks. System is clean!
               </div>
             ) : (
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={riskData}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" opacity={0.3} />
                   <XAxis dataKey="category" stroke="#64748b" fontSize={9} tickLine={false} />
-                  <YAxis stroke="#64748b" fontSize={10} allowDecimals={false} />
+                  <YAxis stroke="#64748b" fontSize={9} allowDecimals={false} />
                   <Tooltip contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', color: '#fff', borderRadius: '12px' }} />
                   <Bar dataKey="Count" fill="#EF4444" radius={[4, 4, 0, 0]}>
                     {riskData.map((entry, index) => (
@@ -524,9 +529,9 @@ export default function Dashboard() {
         </div>
 
         {/* Chart D: Engagement Source Distribution */}
-        <div className="glass p-4 rounded-xl border border-slate-800/80">
-          <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3">Engagement Channels</h3>
-          <div className="h-44">
+        <div className="glass p-3 rounded-xl border border-slate-800/80">
+          <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">Engagement Channels</h3>
+          <div className="h-28">
             {engagementData.length === 0 ? (
               <div className="h-full flex items-center justify-center text-xs text-slate-500">
                 No interactions logged yet
@@ -535,10 +540,10 @@ export default function Dashboard() {
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={engagementData} layout="vertical">
                   <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" opacity={0.3} />
-                  <XAxis type="number" stroke="#64748b" fontSize={10} />
-                  <YAxis dataKey="source" type="category" stroke="#64748b" fontSize={10} />
+                  <XAxis type="number" stroke="#64748b" fontSize={9} />
+                  <YAxis dataKey="source" type="category" stroke="#64748b" fontSize={9} />
                   <Tooltip contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', color: '#fff', borderRadius: '12px' }} />
-                  <Bar dataKey="Count" fill="#2563EB" radius={[0, 4, 4, 0]} barSize={14} />
+                  <Bar dataKey="Count" fill="#2563EB" radius={[0, 4, 4, 0]} barSize={12} />
                 </BarChart>
               </ResponsiveContainer>
             )}
@@ -547,7 +552,7 @@ export default function Dashboard() {
       </div>
 
       {/* 3. Bottom Widgets Panel */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Left Side: Top Risks Tracker */}
         <div className="glass p-4 rounded-xl border border-slate-800/80 flex flex-col justify-between">
           <div>
@@ -607,194 +612,8 @@ export default function Dashboard() {
             </div>
           </div>
         </div>
-
-        {/* Right Side: Upcoming Customer Commitments */}
-        <div className="glass p-4 rounded-xl border border-slate-800/80 flex flex-col">
-          <div>
-            <div className="flex items-center gap-2 mb-3">
-              <CalendarClock className="w-4 h-4 text-emerald-400" />
-              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">Upcoming Commitments</h3>
-            </div>
-            <div className="space-y-3">
-              {(widgets.upcomingCommitments || []).length === 0 ? (
-                <div className="p-6 text-center text-xs text-slate-500">No upcoming commitments found</div>
-              ) : (
-                (widgets.upcomingCommitments || []).slice(0, 5).map(commit => {
-                  const today = new Date();
-                  today.setHours(0,0,0,0);
-                  const commitDue = new Date(commit.dueDate);
-                  commitDue.setHours(0,0,0,0);
-                  const daysLeft = Math.round((commitDue.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-                  
-                  return (
-                    <div key={commit.id} className="bg-dark-900/60 p-3 rounded-xl border border-slate-800 space-y-2">
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="text-xs font-bold text-white truncate max-w-[125px]">{commit.companyName}</span>
-                        <span className={`text-xs font-black px-1.5 py-0.5 rounded uppercase ${
-                          commit.priority === 'High' ? 'bg-rose-500/10 border border-rose-500/20 text-rose-450' :
-                          commit.priority === 'Medium' ? 'bg-amber-500/10 border border-amber-500/20 text-amber-450' :
-                          'bg-slate-800 border border-slate-700 text-slate-400'
-                        }`}>
-                          {commit.priority}
-                        </span>
-                      </div>
-                      <p className="text-xs text-slate-350 leading-relaxed font-semibold line-clamp-2">{commit.task}</p>
-                      
-                      <div className="flex items-center justify-between text-xs text-slate-500 border-t border-slate-800/80 pt-1.5">
-                        <span className="font-semibold text-slate-400">@{commit.assigneeName}</span>
-                        <span className={`font-bold px-1 py-0.5 rounded ${
-                          daysLeft <= 3 ? 'text-rose-400 bg-rose-500/5 font-extrabold' : 'text-slate-350'
-                        }`}>
-                          📅 {daysLeft === 0 ? 'Today' : daysLeft === 1 ? 'Tomorrow' : `In ${daysLeft} days`}
-                        </span>
-                      </div>
-                    </div>
-                  );
-                })
-              )}
-            </div>
-          </div>
-        </div>
       </div>
 
-
-      {/* ── MY TASKS WIDGET ── visible to non-admin users when they have assignments */}
-      {user?.role !== 'Admin' && (
-        <div className="glass p-4 rounded-xl border border-slate-800/80">
-          <div className="flex items-center gap-2 mb-3">
-            <ClipboardList className="w-4 h-4 text-primary" />
-            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">My Assigned Tasks</h3>
-            <span className="ml-auto bg-primary/10 border border-primary/20 text-primary text-xs font-bold px-2 py-0.5 rounded-full">
-              {myTasks.length} task{myTasks.length !== 1 ? 's' : ''}
-            </span>
-          </div>
-
-          {myTasksLoading ? (
-            <div className="flex items-center justify-center py-6">
-              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary" />
-            </div>
-          ) : myTasks.length === 0 ? (
-            <div className="text-center py-6 text-xs text-slate-500">No tasks assigned to you yet.</div>
-          ) : (
-            <div className="space-y-3">
-              {myTasks.map(task => {
-                const replies = repliesByInteraction[task.interactionId] || task.replies || [];
-                const myReply = replies.find(r => r.authorUid === user?.uid);
-                const myMention = (task.actionMentions || []).find(m => m.uid === user?.uid);
-                const isOverdue = myMention?.dueDate && (() => {
-                  const today = new Date();
-                  today.setHours(0,0,0,0);
-                  const taskDue = new Date(myMention.dueDate);
-                  taskDue.setHours(0,0,0,0);
-                  return taskDue < today && myMention?.status !== 'Completed';
-                })();
-                return (
-                  <div key={task.interactionId} className="bg-dark-900/60 border border-slate-800 rounded-xl p-4 space-y-3">
-                    {/* Task header */}
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="space-y-1 flex-1">
-                        <div className="flex items-center gap-2">
-                          <Building2 className="w-3.5 h-3.5 text-primary" />
-                          <span className="text-xs font-bold text-white">{task.companyName}</span>
-                          <span className={`text-xs font-bold px-1.5 py-0.5 rounded-full border ${
-                            task.replyStatus === 'Replied'
-                              ? 'bg-emerald-500/10 border-emerald-500/25 text-emerald-400'
-                              : 'bg-amber-500/10 border-amber-500/25 text-amber-400'
-                          }`}>
-                            {task.replyStatus === 'Replied' ? '✓ Replied' : '⏳ Pending'}
-                          </span>
-                        </div>
-                        <p className="text-xs text-slate-300 leading-relaxed line-clamp-3">{task.messageText}</p>
-                        {myMention && (
-                          <div className="bg-slate-950/40 p-2.5 rounded-lg border border-slate-800/80 mb-2">
-                            <span className="text-xs text-slate-500 font-bold uppercase tracking-wider block mb-1">Your Sub-Task:</span>
-                            <p className="text-xs text-slate-200 font-semibold leading-relaxed">{myMention.task}</p>
-                          </div>
-                        )}
-                        <div className="flex items-center gap-1.5 text-xs text-slate-500">
-                          <Clock className="w-3 h-3" />
-                          {task.loggedByName && <span>By {task.loggedByName} ·</span>}
-                          <span>{new Date(task.timestamp).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}</span>
-                          {myMention?.priority && (
-                            <>
-                              <span className="text-slate-650">·</span>
-                              <span className={`text-xs font-bold px-1.5 py-0.5 rounded border ${
-                                myMention.priority === 'High' ? 'bg-rose-500/10 border-rose-500/20 text-rose-450' :
-                                myMention.priority === 'Medium' ? 'bg-amber-500/10 border-amber-500/20 text-amber-450' :
-                                'bg-slate-800 border-slate-700 text-slate-450'
-                              }`}>
-                                {myMention.priority === 'High' ? '🔥 High' : myMention.priority === 'Medium' ? '⚡ Medium' : 'Low'}
-                              </span>
-                            </>
-                          )}
-                          {myMention?.dueDate && (
-                            <>
-                              <span className="text-slate-650">·</span>
-                              <span className={`text-xs font-bold px-1.5 py-0.5 rounded border ${
-                                isOverdue 
-                                  ? 'bg-rose-600 border-rose-500 text-white animate-pulse' 
-                                  : 'bg-slate-800 border-slate-700 text-slate-300'
-                              }`}>
-                                📅 Due: {new Date(myMention.dueDate).toLocaleDateString()} {isOverdue && ' (OVERDUE)'}
-                              </span>
-                            </>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Existing replies */}
-                    {replies.length > 0 && (
-                      <div className="space-y-1.5 border-t border-slate-800 pt-2">
-                        {replies.map(r => (
-                          <div key={r.replyId} className="flex gap-2 text-xs">
-                            <span className="text-primary font-bold shrink-0">{r.authorName}:</span>
-                            <span className="text-slate-300">{r.text}</span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-
-                    {/* Reply box — hide if already replied */}
-                    {!myReply && (
-                      <div className="flex gap-2 pt-1">
-                        <input
-                          type="text"
-                          value={replyTexts[task.interactionId] || ''}
-                          onChange={e => setReplyTexts(prev => ({ ...prev, [task.interactionId]: e.target.value }))}
-                          onKeyDown={async e => {
-                            if (e.key === 'Enter' && replyTexts[task.interactionId]?.trim()) {
-                              setSendingReply(prev => ({ ...prev, [task.interactionId]: true }));
-                              await replyToInteraction(task.interactionId, replyTexts[task.interactionId]);
-                              setReplyTexts(prev => ({ ...prev, [task.interactionId]: '' }));
-                              setSendingReply(prev => ({ ...prev, [task.interactionId]: false }));
-                            }
-                          }}
-                          placeholder="Type your reply and press Enter..."
-                          className="flex-1 bg-dark-900 border border-slate-700 text-xs text-white rounded-xl px-3 py-2 focus:outline-none focus:border-primary/50"
-                        />
-                        <button
-                          disabled={!replyTexts[task.interactionId]?.trim() || sendingReply[task.interactionId]}
-                          onClick={async () => {
-                            if (!replyTexts[task.interactionId]?.trim()) return;
-                            setSendingReply(prev => ({ ...prev, [task.interactionId]: true }));
-                            await replyToInteraction(task.interactionId, replyTexts[task.interactionId]);
-                            setReplyTexts(prev => ({ ...prev, [task.interactionId]: '' }));
-                            setSendingReply(prev => ({ ...prev, [task.interactionId]: false }));
-                          }}
-                          className="bg-primary text-white p-2 rounded-xl cursor-pointer disabled:opacity-40"
-                        >
-                          <Send className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      )}
 
       {/* ── BU HEAD TEAM OVERVIEW ── */}
       {user?.userType === 'BU Head' && (
@@ -1126,6 +945,7 @@ export default function Dashboard() {
               onClick={() => {
                 setForwardModalState({ isOpen: false, task: null, newStatus: 'Forwarded' });
                 setForwardToUid('');
+                setForwardReason('');
               }}
               className="absolute top-4 right-4 p-1.5 rounded-lg bg-slate-800 text-slate-400 hover:text-slate-200"
             >
@@ -1159,6 +979,15 @@ export default function Dashboard() {
                       </option>
                     ))}
                 </select>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1.5">Forwarding Note / Reason</label>
+                <textarea
+                  value={forwardReason}
+                  onChange={(e) => setForwardReason(e.target.value)}
+                  className="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-sm text-slate-200 outline-none focus:border-indigo-500 min-h-[100px]"
+                  placeholder="E.g., Forwarding to you as you are leading the deployment module."
+                />
               </div>
               <div className="flex justify-end pt-2">
                 <button
