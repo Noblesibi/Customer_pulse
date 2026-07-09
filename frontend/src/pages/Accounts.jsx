@@ -424,7 +424,7 @@ export default function Accounts() {
         </div>
 
         {/* Data Table */}
-        <div className="flex-1 overflow-y-auto mb-4 border border-slate-800/60 rounded-xl overflow-x-auto">
+        <div className="flex-1 overflow-y-auto mb-4 border border-slate-800/60 rounded-xl">
           {accountsLoading ? (
             <div className="h-48 flex items-center justify-center">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
@@ -434,65 +434,134 @@ export default function Accounts() {
               No clients found matching the selected parameters
             </div>
           ) : (
-            <table className="w-full text-left text-xs border-collapse">
-              <thead>
-                <tr className="bg-dark-900/40 border-b border-slate-800 text-slate-400 font-semibold uppercase tracking-wider">
-                  <th className="p-4">Company</th>
-                  <th className="p-4">Industry</th>
-                  <th className="p-4">Region</th>
-                  <th className="p-4 text-center">Health</th>
-                  <th className="p-4 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-800/40">
+            <>
+              {/* Stacked Cards for Mobile */}
+              <div className="block md:hidden space-y-3 p-3">
                 {accounts.map(acc => {
                   const id = acc.accountId || acc.id;
                   const isSelected = selectedAccount && (selectedAccount.accountId === id || selectedAccount.id === id);
                   return (
-                    <tr 
+                    <div
                       key={id}
                       onClick={() => navigate(`/accounts/${id}`)}
-                      className={`hover:bg-slate-800/20 cursor-pointer transition-colors duration-150 ${
-                        isSelected ? 'bg-primary/5 border-l-2 border-l-primary' : ''
+                      className={`glass p-3.5 rounded-xl border transition-all cursor-pointer ${
+                        isSelected ? 'border-primary bg-primary/5 ring-1 ring-primary/30' : 'border-slate-800/80 hover:border-slate-700/80'
                       }`}
                     >
-                      <td className="p-4 font-bold text-white hover:underline hover:text-primary transition-colors">{acc.companyName}</td>
-                      <td className="p-4 text-slate-300">{acc.industry}</td>
-                      <td className="p-4 text-slate-300">{acc.region}</td>
-                      <td className="p-4 text-center whitespace-nowrap">
-                        <span 
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleShowHealthExplanation(id);
-                          }}
-                          className={`px-2.5 py-1 text-xs font-bold rounded-full border whitespace-nowrap cursor-help hover:scale-105 transition-transform duration-150 ${getHealthPillColor(acc.healthScore)}`}
-                        >
-                          {acc.healthScore}% - {acc.status}
-                        </span>
-                      </td>
-                      <td className="p-4 text-right space-x-1.5 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
-                        {['Admin', 'Sales Manager', 'Executive'].includes(user?.role) && (
-                          <button 
-                            onClick={() => navigate(`/accounts/${id}/edit`)}
-                            className="inline-flex items-center justify-center bg-slate-800 hover:bg-slate-700 p-2 rounded-lg text-slate-300 hover:text-white transition-colors"
+                      <div className="flex justify-between items-start gap-3">
+                        <div className="min-w-0 flex-1">
+                          <h3 className="font-bold text-xs text-white hover:underline hover:text-primary transition-colors truncate">
+                            {acc.companyName}
+                          </h3>
+                          <div className="flex flex-col gap-0.5 mt-1.5 text-[10px] text-slate-400">
+                            <span className="truncate">Nest BU: <strong className="text-slate-305 font-medium">{acc.domain || '—'}</strong></span>
+                            <span>Region: <strong className="text-slate-305 font-medium">{acc.region}</strong></span>
+                          </div>
+                        </div>
+                        <div className="flex flex-col items-end gap-3 shrink-0">
+                          <span 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleShowHealthExplanation(id);
+                            }}
+                            className={`px-2 py-0.5 text-[10px] font-black rounded-full border whitespace-nowrap cursor-help hover:scale-105 transition-all ${getHealthPillColor(acc.healthScore)}`}
                           >
-                            <Edit2 className="w-3.5 h-3.5" />
-                          </button>
-                        )}
-                        {['Admin', 'Executive'].includes(user?.role) && (
-                          <button 
-                            onClick={() => handleDeleteAccount(acc)}
-                            className="inline-flex items-center justify-center bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 p-2 rounded-lg text-rose-400 hover:text-rose-200 transition-colors"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        )}
-                      </td>
-                    </tr>
+                            {acc.healthScore}% - {acc.status}
+                          </span>
+                          {(user?.role === 'Admin' || user?.position?.toLowerCase().includes('ceo') || user?.userType === 'CEO' || user?.email === 'nj@gmail.com') && (
+                            <div className="flex gap-1.5" onClick={(e) => e.stopPropagation()}>
+                              {(user?.role === 'Admin' || user?.position?.toLowerCase().includes('ceo') || user?.userType === 'CEO' || user?.email === 'nj@gmail.com') && (
+                                <button 
+                                  onClick={() => navigate(`/accounts/${id}/edit`)}
+                                  className="inline-flex items-center justify-center bg-slate-800 hover:bg-slate-700 p-1.5 rounded-lg text-slate-300 hover:text-white transition-colors"
+                                >
+                                  <Edit2 className="w-3 h-3" />
+                                </button>
+                              )}
+                              {user?.role === 'Admin' && (
+                                <button 
+                                  onClick={() => handleDeleteAccount(acc)}
+                                  className="inline-flex items-center justify-center bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 p-1.5 rounded-lg text-rose-400 hover:text-rose-200 transition-colors"
+                                >
+                                  <Trash2 className="w-3 h-3" />
+                                </button>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
                   );
                 })}
-              </tbody>
-            </table>
+              </div>
+
+              {/* Table for Desktop */}
+              <div className="hidden md:block overflow-x-auto">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead>
+                    <tr className="bg-dark-900/40 border-b border-slate-800 text-slate-400 font-semibold uppercase tracking-wider">
+                      <th className="p-4">Company</th>
+                      <th className="p-4">Nest BU</th>
+                      <th className="p-4">Region</th>
+                      <th className="p-4 text-center">Health</th>
+                      {(user?.role === 'Admin' || user?.position?.toLowerCase().includes('ceo') || user?.userType === 'CEO' || user?.email === 'nj@gmail.com') && (
+                        <th className="p-4 text-right">Actions</th>
+                      )}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800/40">
+                    {accounts.map(acc => {
+                      const id = acc.accountId || acc.id;
+                      const isSelected = selectedAccount && (selectedAccount.accountId === id || selectedAccount.id === id);
+                      return (
+                        <tr 
+                          key={id}
+                          onClick={() => navigate(`/accounts/${id}`)}
+                          className={`hover:bg-slate-800/20 cursor-pointer transition-colors duration-150 ${
+                            isSelected ? 'bg-primary/5 border-l-2 border-l-primary' : ''
+                          }`}
+                        >
+                          <td className="p-4 font-bold text-white hover:underline hover:text-primary transition-colors">{acc.companyName}</td>
+                          <td className="p-4 text-slate-300">{acc.domain || '—'}</td>
+                          <td className="p-4 text-slate-300">{acc.region}</td>
+                          <td className="p-4 text-center whitespace-nowrap">
+                            <span 
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleShowHealthExplanation(id);
+                              }}
+                              className={`px-2.5 py-1 text-xs font-bold rounded-full border whitespace-nowrap cursor-help hover:scale-105 transition-transform duration-150 ${getHealthPillColor(acc.healthScore)}`}
+                            >
+                              {acc.healthScore}% - {acc.status}
+                            </span>
+                          </td>
+                          {(user?.role === 'Admin' || user?.position?.toLowerCase().includes('ceo') || user?.userType === 'CEO' || user?.email === 'nj@gmail.com') && (
+                            <td className="p-4 text-right space-x-1.5 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                              {(user?.role === 'Admin' || user?.position?.toLowerCase().includes('ceo') || user?.userType === 'CEO' || user?.email === 'nj@gmail.com') && (
+                                <button 
+                                  onClick={() => navigate(`/accounts/${id}/edit`)}
+                                  className="inline-flex items-center justify-center bg-slate-800 hover:bg-slate-700 p-2 rounded-lg text-slate-300 hover:text-white transition-colors"
+                                >
+                                  <Edit2 className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                              {user?.role === 'Admin' && (
+                                <button 
+                                  onClick={() => handleDeleteAccount(acc)}
+                                  className="inline-flex items-center justify-center bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 p-2 rounded-lg text-rose-400 hover:text-rose-200 transition-colors"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                            </td>
+                          )}
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </>
           )}
         </div>
 

@@ -400,43 +400,6 @@ export default function AccountDetails() {
             </div>
           </div>
 
-          {/* AI Relationship Summary Card */}
-          <div className="glass p-6 rounded-2xl border border-slate-800/80 space-y-5">
-            <div className="flex items-center justify-between border-b border-slate-850 pb-2">
-              <h3 className="text-sm font-extrabold uppercase tracking-widest text-slate-400 flex items-center gap-1.5">
-                <BrainCircuit className="w-4 h-4 text-primary" />
-                AI Executive Summary
-              </h3>
-              <button
-                onClick={() => fetchAccountSummary(id)}
-                disabled={summaryLoading}
-                className="bg-primary/10 border border-primary/25 hover:bg-primary/20 px-3 py-1.5 rounded-lg text-xs font-bold text-primary transition-all disabled:opacity-50"
-              >
-                Regenerate
-              </button>
-            </div>
-            
-            {summaryLoading ? (
-              <div className="py-12 flex flex-col items-center justify-center gap-3">
-                <Loader2 className="w-6 h-6 text-primary animate-spin" />
-                <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider animate-pulse">Running analysis engine...</span>
-              </div>
-            ) : activeAccountSummary ? (
-              <div className="bg-primary/5 border border-primary/15 rounded-2xl p-5 space-y-2.5 shadow-inner">
-                <p className="text-sm text-slate-200 leading-relaxed whitespace-pre-wrap font-medium">{activeAccountSummary}</p>
-              </div>
-            ) : (
-              <div className="py-12 text-center text-xs text-slate-500 space-y-4">
-                <p className="font-bold text-slate-400">No AI analysis summary generated yet for this account.</p>
-                <button
-                  onClick={() => fetchAccountSummary(id)}
-                  className="bg-primary hover:bg-blue-600 text-white font-extrabold text-xs px-5 py-2.5 rounded-xl transition-all"
-                >
-                  Generate Summary
-                </button>
-              </div>
-            )}
-          </div>
 
         </div>
 
