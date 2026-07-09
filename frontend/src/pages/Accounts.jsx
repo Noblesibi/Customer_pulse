@@ -424,7 +424,7 @@ export default function Accounts() {
         </div>
 
         {/* Data Table */}
-        <div className="flex-1 overflow-y-auto mb-4 border border-slate-800/60 rounded-xl overflow-x-auto">
+        <div className="flex-1 overflow-y-auto mb-4 border border-slate-800/60 rounded-xl">
           {accountsLoading ? (
             <div className="h-48 flex items-center justify-center">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
@@ -434,65 +434,134 @@ export default function Accounts() {
               No clients found matching the selected parameters
             </div>
           ) : (
-            <table className="w-full text-left text-xs border-collapse">
-              <thead>
-                <tr className="bg-dark-900/40 border-b border-slate-800 text-slate-400 font-semibold uppercase tracking-wider">
-                  <th className="p-4">Company</th>
-                  <th className="p-4">Industry</th>
-                  <th className="p-4">Region</th>
-                  <th className="p-4 text-center">Health</th>
-                  <th className="p-4 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-800/40">
+            <>
+              {/* Stacked Cards for Mobile */}
+              <div className="block md:hidden space-y-3 p-3">
                 {accounts.map(acc => {
                   const id = acc.accountId || acc.id;
                   const isSelected = selectedAccount && (selectedAccount.accountId === id || selectedAccount.id === id);
                   return (
-                    <tr 
+                    <div
                       key={id}
                       onClick={() => navigate(`/accounts/${id}`)}
-                      className={`hover:bg-slate-800/20 cursor-pointer transition-colors duration-150 ${
-                        isSelected ? 'bg-primary/5 border-l-2 border-l-primary' : ''
+                      className={`glass p-3.5 rounded-xl border transition-all cursor-pointer ${
+                        isSelected ? 'border-primary bg-primary/5 ring-1 ring-primary/30' : 'border-slate-800/80 hover:border-slate-700/80'
                       }`}
                     >
-                      <td className="p-4 font-bold text-white hover:underline hover:text-primary transition-colors">{acc.companyName}</td>
-                      <td className="p-4 text-slate-300">{acc.industry}</td>
-                      <td className="p-4 text-slate-300">{acc.region}</td>
-                      <td className="p-4 text-center whitespace-nowrap">
-                        <span 
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleShowHealthExplanation(id);
-                          }}
-                          className={`px-2.5 py-1 text-xs font-bold rounded-full border whitespace-nowrap cursor-help hover:scale-105 transition-transform duration-150 ${getHealthPillColor(acc.healthScore)}`}
-                        >
-                          {acc.healthScore}% - {acc.status}
-                        </span>
-                      </td>
-                      <td className="p-4 text-right space-x-1.5 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
-                        {['Admin', 'Sales Manager', 'Executive'].includes(user?.role) && (
-                          <button 
-                            onClick={() => navigate(`/accounts/${id}/edit`)}
-                            className="inline-flex items-center justify-center bg-slate-800 hover:bg-slate-700 p-2 rounded-lg text-slate-300 hover:text-white transition-colors"
+                      <div className="flex justify-between items-start gap-3">
+                        <div className="min-w-0 flex-1">
+                          <h3 className="font-bold text-xs text-white hover:underline hover:text-primary transition-colors truncate">
+                            {acc.companyName}
+                          </h3>
+                          <div className="flex flex-col gap-0.5 mt-1.5 text-[10px] text-slate-400">
+                            <span className="truncate">Nest BU: <strong className="text-slate-305 font-medium">{acc.domain || '—'}</strong></span>
+                            <span>Region: <strong className="text-slate-305 font-medium">{acc.region}</strong></span>
+                          </div>
+                        </div>
+                        <div className="flex flex-col items-end gap-3 shrink-0">
+                          <span 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleShowHealthExplanation(id);
+                            }}
+                            className={`px-2 py-0.5 text-[10px] font-black rounded-full border whitespace-nowrap cursor-help hover:scale-105 transition-all ${getHealthPillColor(acc.healthScore)}`}
                           >
-                            <Edit2 className="w-3.5 h-3.5" />
-                          </button>
-                        )}
-                        {['Admin', 'Executive'].includes(user?.role) && (
-                          <button 
-                            onClick={() => handleDeleteAccount(acc)}
-                            className="inline-flex items-center justify-center bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 p-2 rounded-lg text-rose-400 hover:text-rose-200 transition-colors"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        )}
-                      </td>
-                    </tr>
+                            {acc.healthScore}% - {acc.status}
+                          </span>
+                          {(user?.role === 'Admin' || user?.position?.toLowerCase().includes('ceo') || user?.userType === 'CEO' || user?.email === 'nj@gmail.com') && (
+                            <div className="flex gap-1.5" onClick={(e) => e.stopPropagation()}>
+                              {(user?.role === 'Admin' || user?.position?.toLowerCase().includes('ceo') || user?.userType === 'CEO' || user?.email === 'nj@gmail.com') && (
+                                <button 
+                                  onClick={() => navigate(`/accounts/${id}/edit`)}
+                                  className="inline-flex items-center justify-center bg-slate-800 hover:bg-slate-700 p-1.5 rounded-lg text-slate-300 hover:text-white transition-colors"
+                                >
+                                  <Edit2 className="w-3 h-3" />
+                                </button>
+                              )}
+                              {user?.role === 'Admin' && (
+                                <button 
+                                  onClick={() => handleDeleteAccount(acc)}
+                                  className="inline-flex items-center justify-center bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 p-1.5 rounded-lg text-rose-400 hover:text-rose-200 transition-colors"
+                                >
+                                  <Trash2 className="w-3 h-3" />
+                                </button>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
                   );
                 })}
-              </tbody>
-            </table>
+              </div>
+
+              {/* Table for Desktop */}
+              <div className="hidden md:block overflow-x-auto">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead>
+                    <tr className="bg-dark-900/40 border-b border-slate-800 text-slate-400 font-semibold uppercase tracking-wider">
+                      <th className="p-4">Company</th>
+                      <th className="p-4">Nest BU</th>
+                      <th className="p-4">Region</th>
+                      <th className="p-4 text-center">Health</th>
+                      {(user?.role === 'Admin' || user?.position?.toLowerCase().includes('ceo') || user?.userType === 'CEO' || user?.email === 'nj@gmail.com') && (
+                        <th className="p-4 text-right">Actions</th>
+                      )}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800/40">
+                    {accounts.map(acc => {
+                      const id = acc.accountId || acc.id;
+                      const isSelected = selectedAccount && (selectedAccount.accountId === id || selectedAccount.id === id);
+                      return (
+                        <tr 
+                          key={id}
+                          onClick={() => navigate(`/accounts/${id}`)}
+                          className={`hover:bg-slate-800/20 cursor-pointer transition-colors duration-150 ${
+                            isSelected ? 'bg-primary/5 border-l-2 border-l-primary' : ''
+                          }`}
+                        >
+                          <td className="p-4 font-bold text-white hover:underline hover:text-primary transition-colors">{acc.companyName}</td>
+                          <td className="p-4 text-slate-300">{acc.domain || '—'}</td>
+                          <td className="p-4 text-slate-300">{acc.region}</td>
+                          <td className="p-4 text-center whitespace-nowrap">
+                            <span 
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleShowHealthExplanation(id);
+                              }}
+                              className={`px-2.5 py-1 text-xs font-bold rounded-full border whitespace-nowrap cursor-help hover:scale-105 transition-transform duration-150 ${getHealthPillColor(acc.healthScore)}`}
+                            >
+                              {acc.healthScore}% - {acc.status}
+                            </span>
+                          </td>
+                          {(user?.role === 'Admin' || user?.position?.toLowerCase().includes('ceo') || user?.userType === 'CEO' || user?.email === 'nj@gmail.com') && (
+                            <td className="p-4 text-right space-x-1.5 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                              {(user?.role === 'Admin' || user?.position?.toLowerCase().includes('ceo') || user?.userType === 'CEO' || user?.email === 'nj@gmail.com') && (
+                                <button 
+                                  onClick={() => navigate(`/accounts/${id}/edit`)}
+                                  className="inline-flex items-center justify-center bg-slate-800 hover:bg-slate-700 p-2 rounded-lg text-slate-300 hover:text-white transition-colors"
+                                >
+                                  <Edit2 className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                              {user?.role === 'Admin' && (
+                                <button 
+                                  onClick={() => handleDeleteAccount(acc)}
+                                  className="inline-flex items-center justify-center bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 p-2 rounded-lg text-rose-400 hover:text-rose-200 transition-colors"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                            </td>
+                          )}
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </>
           )}
         </div>
 
@@ -747,26 +816,65 @@ export default function Accounts() {
                                   const match = notif?.message?.match(/:\s*"([^"]+)"/);
                                   displayMessage = match ? match[1] : (notif ? notif.message : item.messageText);
                                 }
+
+                                const currentStatus = m.status || 'Pending';
+                                const today = new Date();
+                                today.setHours(0,0,0,0);
+                                const taskDue = m.dueDate ? new Date(m.dueDate) : null;
+                                if (taskDue) {
+                                  taskDue.setHours(0,0,0,0);
+                                }
+                                const isTaskOverdue = taskDue && taskDue < today && currentStatus !== 'Completed';
+                                const isStatusUnchanged = currentStatus === 'Pending' || currentStatus === 'Task Assigned';
+                                const showAsOverdued = isTaskOverdue && isStatusUnchanged;
+
+                                let displayStatus = currentStatus === 'Pending' ? 'Task Assigned' : currentStatus;
+                                if (displayStatus === 'Accept/Decline') displayStatus = 'Accept';
+                                if (displayStatus === 'Completed/Forwarded') displayStatus = 'Completed';
+                                if (showAsOverdued) {
+                                  displayStatus = 'Overdued';
+                                }
+
+                                let statusText = displayStatus;
+                                let statusColor = 'text-slate-500';
+                                let StatusIcon = Clock;
+
+                                if (displayStatus === 'Completed') {
+                                  statusText = 'Completed';
+                                  statusColor = 'text-emerald-400';
+                                  StatusIcon = CheckCheck;
+                                } else if (displayStatus === 'Forwarded') {
+                                  const forwardedTo = m.forwardedToName;
+                                  statusText = forwardedTo ? `Forwarded to @${forwardedTo}` : 'Forwarded';
+                                  statusColor = 'text-sky-400';
+                                  StatusIcon = Send;
+                                } else if (displayStatus === 'Accept') {
+                                  statusText = 'Accepted';
+                                  statusColor = 'text-amber-400';
+                                  StatusIcon = CheckSquare;
+                                } else if (displayStatus === 'Decline') {
+                                  statusText = 'Declined';
+                                  statusColor = 'text-rose-400';
+                                  StatusIcon = X;
+                                } else if (displayStatus === 'Overdued') {
+                                  statusText = 'Overdue';
+                                  statusColor = 'text-rose-500 font-extrabold animate-pulse';
+                                  StatusIcon = ShieldAlert;
+                                } else {
+                                  statusText = 'Pending';
+                                  statusColor = 'text-slate-500';
+                                  StatusIcon = Clock;
+                                }
+
                                 return (
                                   <div key={m.uid} className="bg-slate-900/30 p-2 rounded-xl border border-slate-800/60 space-y-1 w-full text-xs leading-relaxed">
                                     <div className="flex items-center justify-between">
                                       <span className="flex items-center gap-1 bg-primary/10 border border-primary/25 text-primary font-bold rounded-full px-2 py-0.5">
                                         <AtSign className="w-2.5 h-2.5" />{m.name}
                                       </span>
-                                      <span className={`font-bold flex items-center gap-1 ${
-                                        notif?.read ? 'text-emerald-400' : 'text-slate-500'
-                                      }`}>
-                                        {notif?.read ? (
-                                          <>
-                                            <CheckCheck className="w-3.5 h-3.5 text-emerald-400" />
-                                            Seen {notif.readAt ? `(${new Date(notif.readAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})` : ''}
-                                          </>
-                                        ) : (
-                                          <>
-                                            <Clock className="w-3.5 h-3.5 text-slate-500" />
-                                            Pending
-                                          </>
-                                        )}
+                                      <span className={`font-bold flex items-center gap-1 ${statusColor}`}>
+                                        <StatusIcon className="w-3.5 h-3.5" />
+                                        {statusText}
                                       </span>
                                     </div>
                                     <p className="text-slate-400 pl-1 font-medium">

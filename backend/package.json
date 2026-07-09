@@ -18,6 +18,7 @@
     "morgan": "^1.10.0",
     "mssql": "^12.5.5",
     "mysql2": "^3.22.5",
+    "nodemailer": "^6.9.13",
     "pg": "^8.21.0"
   },
   "devDependencies": {

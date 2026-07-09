@@ -166,3 +166,55 @@ export async function generateExecutiveSummary(companyName, recentInteractionsTe
     return defaultSummary;
   }
 }
+
+/**
+ * Local fallback summarizer for generating task headers.
+ */
+function localGenerateTaskHeader(text) {
+  if (!text) return 'Task Assignment';
+  const cleanText = text.trim();
+  // Take first sentence
+  const sentence = cleanText.split(/[.!?]/)[0].trim();
+  if (sentence.length <= 50) return sentence;
+  // Fall back to truncating the first 47 chars
+  return sentence.slice(0, 47) + '...';
+}
+
+/**
+ * Generates a short task header/title from a full description using Gemini or rule-based fallback.
+ */
+export async function generateTaskHeader(text) {
+  if (!text || text.trim() === '') {
+    return 'Task Assignment';
+  }
+
+  if (!genAI) {
+    return localGenerateTaskHeader(text);
+  }
+
+  try {
+    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+    const prompt = `
+      You are an AI assistant in a CRM system. Your job is to read a task description and generate a very short, concise task header/title (maximum 5 words) that summarizes the action.
+      Do not include extra explanations or punctuation.
+      
+      Task Description:
+      "${text}"
+      
+      Response:
+    `;
+
+    const result = await model.generateContent(prompt);
+    const response = await result.response;
+    let headerText = response.text().trim();
+    
+    // Clean any surrounding quotes or markdown
+    headerText = headerText.replace(/^["']|["']$/g, '').trim();
+    
+    return headerText || localGenerateTaskHeader(text);
+  } catch (error) {
+    console.error('Gemini AI call failed for generating task header, using local fallback:', error.message);
+    return localGenerateTaskHeader(text);
+  }
+}
+

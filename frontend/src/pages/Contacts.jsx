@@ -276,18 +276,18 @@ export default function Contacts() {
 
       {/* 2. Contacts List Data Panel */}
       <div className="glass p-6 rounded-2xl border border-slate-800/80 flex flex-col">
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
           <h2 className="text-lg font-bold text-white tracking-wide">Stakeholder Directory</h2>
-          <div className="flex gap-3">
+          <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
             {/* Search */}
-            <div className="relative">
+            <div className="relative w-full sm:w-64">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
               <input 
                 type="text" 
                 placeholder="Search stakeholders..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="bg-dark-900/60 border border-slate-800 focus:border-primary/50 text-xs rounded-xl py-2.5 pl-9 pr-4 text-white focus:outline-none transition-colors"
+                className="bg-dark-900/60 border border-slate-800 focus:border-primary/50 text-xs rounded-xl py-2.5 pl-9 pr-4 text-white focus:outline-none transition-colors w-full"
               />
             </div>
             
@@ -295,7 +295,7 @@ export default function Contacts() {
             {['Admin', 'Sales Manager', 'Employee'].includes(user?.role) && (
               <button 
                 onClick={() => setIsAddContactOpen(true)}
-                className="bg-primary hover:bg-blue-600 px-4 py-2.5 rounded-xl text-xs font-semibold flex items-center gap-2 text-white active:scale-98 transition-all"
+                className="bg-primary hover:bg-blue-600 px-4 py-2.5 rounded-xl text-xs font-semibold flex items-center justify-center gap-2 text-white active:scale-98 transition-all w-full sm:w-auto cursor-pointer"
               >
                 <Plus className="w-4 h-4" />
                 Add Stakeholder
@@ -400,134 +400,175 @@ export default function Contacts() {
       {/* Add Contact Modal */}
       {isAddContactOpen && (
         <div className="fixed inset-0 bg-dark-950/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="glass max-w-sm w-full rounded-2xl p-6 border border-slate-800">
-            <div className="flex items-center justify-between mb-4">
+          <div className="glass max-w-2xl w-full rounded-2xl border border-slate-800 flex flex-col max-h-[90vh] overflow-hidden">
+            {/* Header */}
+            <div className="flex items-center justify-between p-6 border-b border-slate-800/80">
               <h3 className="font-bold text-white text-base">Add Account Stakeholder</h3>
-              <button onClick={() => setIsAddContactOpen(false)} className="text-slate-400 hover:text-white"><X className="w-5 h-5" /></button>
+              <button 
+                onClick={() => setIsAddContactOpen(false)} 
+                className="p-1.5 rounded-lg bg-slate-800 text-slate-400 hover:text-white transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
             </div>
-            <form onSubmit={handleCreateContact} className="space-y-3">
-              <div className="space-y-1">
-                <label className="text-xs text-slate-400 uppercase font-semibold">Account Company</label>
-                <select 
-                  value={accountId}
-                  onChange={(e) => setAccountId(e.target.value)}
-                  required
-                  className="w-full bg-dark-900/60 border border-slate-800 text-xs text-white rounded-lg p-2 focus:outline-none cursor-pointer"
-                >
-                  <option value="">Select Client Account</option>
-                  {localAccounts.map(acc => (
-                    <option key={acc.accountId || acc.id} value={acc.accountId || acc.id}>
-                      {acc.companyName}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="space-y-1">
-                <label className="text-xs text-slate-400 uppercase font-semibold">Project Name Details</label>
-                <input 
-                  type="text" 
-                  value={projectName}
-                  onChange={(e) => setProjectName(e.target.value)}
-                  className="w-full bg-dark-900/60 border border-slate-800 text-xs text-white rounded-lg p-2 focus:outline-none focus:border-primary/50"
-                  placeholder="e.g. Acme Migration Platform"
-                />
-              </div>
-              <div className="space-y-1">
-                <label className="text-xs text-slate-400 uppercase font-semibold">Project Description</label>
-                <input 
-                  type="text" 
-                  value={projectIndustry}
-                  onChange={(e) => setProjectIndustry(e.target.value)}
-                  className="w-full bg-dark-900/60 border border-slate-800 text-xs text-white rounded-lg p-2 focus:outline-none focus:border-primary/50"
-                  placeholder="e.g. Migration of critical database services"
-                />
-              </div>
-              <div className="space-y-1">
-                <label className="text-xs text-slate-400 uppercase font-semibold">Project Type</label>
-                <select 
-                  value={projectType}
-                  onChange={(e) => setProjectType(e.target.value)}
-                  className="w-full bg-dark-900/60 border border-slate-800 text-xs text-white rounded-lg p-2 focus:outline-none cursor-pointer"
-                >
-                  {projectTypes.map(type => <option key={type} value={type}>{type}</option>)}
-                </select>
-              </div>
-              <div className="space-y-1">
-                <label className="text-xs text-slate-400 uppercase font-semibold">Contact Name</label>
-                <input 
-                  type="text" 
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  required 
-                  className="w-full bg-dark-900/60 border border-slate-800 text-xs text-white rounded-lg p-2 focus:outline-none focus:border-primary/50"
-                  placeholder="e.g. Alice Smith"
-                />
-              </div>
-              <div className="space-y-1">
-                <label className="text-xs text-slate-400 uppercase font-semibold">Corporate Email</label>
-                <input 
-                  type="email" 
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required 
-                  className="w-full bg-dark-900/60 border border-slate-800 text-xs text-white rounded-lg p-2 focus:outline-none focus:border-primary/50"
-                  placeholder="alice@domain.com"
-                />
-              </div>
-              <div className="space-y-1">
-                <label className="text-xs text-slate-400 uppercase font-semibold">Role Designation</label>
-                <input 
-                  type="text" 
-                  value={designation}
-                  onChange={(e) => setDesignation(e.target.value)}
-                  className="w-full bg-dark-900/60 border border-slate-800 text-xs text-white rounded-lg p-2 focus:outline-none focus:border-primary/50"
-                  placeholder="e.g. VP Operations"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <label className="text-xs text-slate-400 uppercase font-semibold">Hierarchy Tag</label>
-                  <select 
-                    value={hierarchyTag}
-                    onChange={(e) => setHierarchyTag(e.target.value)}
-                    className="w-full bg-dark-900/60 border border-slate-800 text-xs text-white rounded-lg p-2 focus:outline-none cursor-pointer"
-                  >
-                    {hierarchyTags.map(tag => <option key={tag} value={tag}>{tag}</option>)}
-                  </select>
+            {/* Form Container */}
+            <form onSubmit={handleCreateContact} className="flex-1 overflow-y-auto p-6 space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Left Column: Client & Project Info */}
+                <div className="space-y-3">
+                  <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest border-b border-slate-800/60 pb-1 mb-2">Project Details</h4>
+                  
+                  <div className="space-y-1">
+                    <label className="text-xs text-slate-400 uppercase font-semibold">Account Company</label>
+                    <select 
+                      value={accountId}
+                      onChange={(e) => setAccountId(e.target.value)}
+                      required
+                      className="w-full bg-dark-900/60 border border-slate-800 text-xs text-white rounded-lg p-2 focus:outline-none cursor-pointer"
+                    >
+                      <option value="">Select Client Account</option>
+                      {localAccounts.map(acc => (
+                        <option key={acc.accountId || acc.id} value={acc.accountId || acc.id}>
+                          {acc.companyName}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs text-slate-400 uppercase font-semibold">Project Name Details</label>
+                    <input 
+                      type="text" 
+                      value={projectName}
+                      onChange={(e) => setProjectName(e.target.value)}
+                      className="w-full bg-dark-900/60 border border-slate-800 text-xs text-white rounded-lg p-2 focus:outline-none focus:border-primary/50"
+                      placeholder="e.g. Acme Migration Platform"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs text-slate-400 uppercase font-semibold">Project Description</label>
+                    <textarea 
+                      value={projectIndustry}
+                      onChange={(e) => setProjectIndustry(e.target.value)}
+                      className="w-full bg-dark-900/60 border border-slate-800 text-xs text-white rounded-lg p-2 focus:outline-none focus:border-primary/50 min-h-[72px]"
+                      placeholder="e.g. Migration of critical database services"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs text-slate-400 uppercase font-semibold">Project Type</label>
+                    <select 
+                      value={projectType}
+                      onChange={(e) => setProjectType(e.target.value)}
+                      className="w-full bg-dark-900/60 border border-slate-800 text-xs text-white rounded-lg p-2 focus:outline-none cursor-pointer"
+                    >
+                      {projectTypes.map(type => <option key={type} value={type}>{type}</option>)}
+                    </select>
+                  </div>
                 </div>
-                <div className="space-y-1">
-                  <label className="text-xs text-slate-400 uppercase font-semibold">Influence Tag</label>
-                  <select 
-                    value={influenceTag}
-                    onChange={(e) => setInfluenceTag(e.target.value)}
-                    className="w-full bg-dark-900/60 border border-slate-800 text-xs text-white rounded-lg p-2 focus:outline-none cursor-pointer"
-                  >
-                    {influenceTags.map(tag => <option key={tag} value={tag}>{tag}</option>)}
-                  </select>
+
+                {/* Right Column: Stakeholder Contact Info */}
+                <div className="space-y-3">
+                  <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest border-b border-slate-800/60 pb-1 mb-2">Stakeholder Profile</h4>
+
+                  <div className="space-y-1">
+                    <label className="text-xs text-slate-400 uppercase font-semibold">Contact Name</label>
+                    <input 
+                      type="text" 
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      required 
+                      className="w-full bg-dark-900/60 border border-slate-800 text-xs text-white rounded-lg p-2 focus:outline-none focus:border-primary/50"
+                      placeholder="e.g. Alice Smith"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs text-slate-400 uppercase font-semibold">Corporate Email</label>
+                    <input 
+                      type="email" 
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      required 
+                      className="w-full bg-dark-900/60 border border-slate-800 text-xs text-white rounded-lg p-2 focus:outline-none focus:border-primary/50"
+                      placeholder="alice@domain.com"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs text-slate-400 uppercase font-semibold">Phone Number</label>
+                    <input 
+                      type="text" 
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
+                      className="w-full bg-dark-900/60 border border-slate-800 text-xs text-white rounded-lg p-2 focus:outline-none focus:border-primary/50"
+                      placeholder="e.g. +91 9747106044"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs text-slate-400 uppercase font-semibold">Role Designation</label>
+                    <input 
+                      type="text" 
+                      value={designation}
+                      onChange={(e) => setDesignation(e.target.value)}
+                      className="w-full bg-dark-900/60 border border-slate-800 text-xs text-white rounded-lg p-2 focus:outline-none focus:border-primary/50"
+                      placeholder="e.g. VP Operations"
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <label className="text-xs text-slate-400 uppercase font-semibold">Hierarchy Tag</label>
+                      <select 
+                        value={hierarchyTag}
+                        onChange={(e) => setHierarchyTag(e.target.value)}
+                        className="w-full bg-dark-900/60 border border-slate-800 text-xs text-white rounded-lg p-2 focus:outline-none cursor-pointer"
+                      >
+                        {hierarchyTags.map(tag => <option key={tag} value={tag}>{tag}</option>)}
+                      </select>
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs text-slate-400 uppercase font-semibold">Influence Tag</label>
+                      <select 
+                        value={influenceTag}
+                        onChange={(e) => setInfluenceTag(e.target.value)}
+                        className="w-full bg-dark-900/60 border border-slate-800 text-xs text-white rounded-lg p-2 focus:outline-none cursor-pointer"
+                      >
+                        {influenceTags.map(tag => <option key={tag} value={tag}>{tag}</option>)}
+                      </select>
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs text-slate-400 uppercase font-semibold">Stakeholder Owner</label>
+                    <select 
+                      value={ownerId}
+                      onChange={(e) => {
+                        const selId = e.target.value;
+                        const selStaff = staffList.find(s => s.uid === selId);
+                        setOwnerId(selId);
+                        setOwnerName(selStaff ? selStaff.name : '');
+                      }}
+                      className="w-full bg-dark-900/60 border border-slate-800 text-xs text-white rounded-lg p-2 focus:outline-none cursor-pointer"
+                    >
+                      <option value="">Select Stakeholder Owner</option>
+                      {staffList.map(staff => (
+                        <option key={staff.uid} value={staff.uid}>{staff.name} ({staff.role})</option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
-              </div>
-              <div className="space-y-1">
-                <label className="text-xs text-slate-400 uppercase font-semibold">Stakeholder Owner</label>
-                <select 
-                  value={ownerId}
-                  onChange={(e) => {
-                    const selId = e.target.value;
-                    const selStaff = staffList.find(s => s.uid === selId);
-                    setOwnerId(selId);
-                    setOwnerName(selStaff ? selStaff.name : '');
-                  }}
-                  className="w-full bg-dark-900/60 border border-slate-800 text-xs text-white rounded-lg p-2 focus:outline-none cursor-pointer"
-                >
-                  <option value="">Select Stakeholder Owner</option>
-                  {staffList.map(staff => (
-                    <option key={staff.uid} value={staff.uid}>{staff.name} ({staff.role})</option>
-                  ))}
-                </select>
               </div>
               
-              <button type="submit" className="w-full bg-primary hover:bg-blue-600 text-xs text-white font-semibold rounded-lg py-2.5 mt-2 transition-all">
-                Save Stakeholder
-              </button>
+              <div className="flex justify-end pt-4 border-t border-slate-800/80 gap-3">
+                <button 
+                  type="button"
+                  onClick={() => setIsAddContactOpen(false)}
+                  className="px-5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-350 font-bold text-xs cursor-pointer transition-all"
+                >
+                  Cancel
+                </button>
+                <button 
+                  type="submit" 
+                  className="px-6 py-2 rounded-xl bg-primary hover:bg-blue-600 text-white font-bold text-xs cursor-pointer shadow-md transition-all"
+                >
+                  Save Stakeholder
+                </button>
+              </div>
             </form>
           </div>
         </div>
@@ -536,137 +577,169 @@ export default function Contacts() {
       {/* Edit Contact Modal */}
       {isEditContactOpen && (
         <div className="fixed inset-0 bg-dark-950/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="glass max-w-sm w-full rounded-2xl p-6 border border-slate-800">
-            <div className="flex items-center justify-between mb-4">
+          <div className="glass max-w-2xl w-full rounded-2xl border border-slate-800 flex flex-col max-h-[90vh] overflow-hidden">
+            {/* Header */}
+            <div className="flex items-center justify-between p-6 border-b border-slate-800/80">
               <h3 className="font-bold text-white text-base">
                 {canEdit ? 'Edit Stakeholder Profile' : 'Stakeholder Profile'}
               </h3>
-              <button onClick={() => setIsEditContactOpen(false)} className="text-slate-400 hover:text-white"><X className="w-5 h-5" /></button>
+              <button 
+                onClick={() => setIsEditContactOpen(false)} 
+                className="p-1.5 rounded-lg bg-slate-800 text-slate-400 hover:text-white transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
             </div>
-            <form onSubmit={handleEditContact} className="space-y-3">
-              <div className="space-y-1">
-                <label className="text-xs text-slate-400 uppercase font-semibold">Project Name Details</label>
-                <input 
-                  type="text" 
-                  value={projectName}
-                  onChange={(e) => setProjectName(e.target.value)}
-                  disabled={!canEdit}
-                  className={`w-full bg-dark-900/60 border border-slate-800 text-xs text-white rounded-lg p-2 focus:outline-none ${!canEdit ? 'opacity-70 cursor-not-allowed' : 'focus:border-primary/50'}`}
-                  placeholder="e.g. Acme Migration Platform"
-                />
-              </div>
-              <div className="space-y-1">
-                <label className="text-xs text-slate-400 uppercase font-semibold">Project Description</label>
-                <input 
-                  type="text" 
-                  value={projectIndustry}
-                  onChange={(e) => setProjectIndustry(e.target.value)}
-                  disabled={!canEdit}
-                  className={`w-full bg-dark-900/60 border border-slate-800 text-xs text-white rounded-lg p-2 focus:outline-none ${!canEdit ? 'opacity-70 cursor-not-allowed' : 'focus:border-primary/50'}`}
-                  placeholder="e.g. Migration of critical database services"
-                />
-              </div>
-              <div className="space-y-1">
-                <label className="text-xs text-slate-400 uppercase font-semibold">Project Type</label>
-                <select 
-                  value={projectType}
-                  onChange={(e) => setProjectType(e.target.value)}
-                  disabled={!canEdit}
-                  className={`w-full bg-dark-900/60 border border-slate-800 text-xs text-white rounded-lg p-2 focus:outline-none ${!canEdit ? 'opacity-70 cursor-not-allowed' : 'cursor-pointer'}`}
-                >
-                  {projectTypes.map(type => <option key={type} value={type}>{type}</option>)}
-                </select>
-              </div>
-              <div className="space-y-1">
-                <label className="text-xs text-slate-400 uppercase font-semibold">Contact Name</label>
-                <input 
-                  type="text" 
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  required 
-                  disabled={!canEdit}
-                  className={`w-full bg-dark-900/60 border border-slate-800 text-xs text-white rounded-lg p-2 focus:outline-none ${!canEdit ? 'opacity-70 cursor-not-allowed' : 'focus:border-primary/50'}`}
-                />
-              </div>
-              <div className="space-y-1">
-                <label className="text-xs text-slate-400 uppercase font-semibold">Corporate Email</label>
-                <input 
-                  type="email" 
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required 
-                  disabled={!canEdit}
-                  className={`w-full bg-dark-900/60 border border-slate-800 text-xs text-white rounded-lg p-2 focus:outline-none ${!canEdit ? 'opacity-70 cursor-not-allowed' : 'focus:border-primary/50'}`}
-                />
-              </div>
-              <div className="space-y-1">
-                <label className="text-xs text-slate-400 uppercase font-semibold">Role Designation</label>
-                <input 
-                  type="text" 
-                  value={designation}
-                  onChange={(e) => setDesignation(e.target.value)}
-                  disabled={!canEdit}
-                  className={`w-full bg-dark-900/60 border border-slate-800 text-xs text-white rounded-lg p-2 focus:outline-none ${!canEdit ? 'opacity-70 cursor-not-allowed' : 'focus:border-primary/50'}`}
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <label className="text-xs text-slate-400 uppercase font-semibold">Hierarchy Tag</label>
-                  <select 
-                    value={hierarchyTag}
-                    onChange={(e) => setHierarchyTag(e.target.value)}
-                    disabled={!canEdit}
-                    className={`w-full bg-dark-900/60 border border-slate-800 text-xs text-white rounded-lg p-2 focus:outline-none ${!canEdit ? 'opacity-70 cursor-not-allowed' : 'cursor-pointer'}`}
-                  >
-                    {hierarchyTags.map(tag => <option key={tag} value={tag}>{tag}</option>)}
-                  </select>
+            {/* Form Container */}
+            <form onSubmit={handleEditContact} className="flex-1 overflow-y-auto p-6 space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Left Column: Client & Project Info */}
+                <div className="space-y-3">
+                  <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest border-b border-slate-800/60 pb-1 mb-2">Project Details</h4>
+                  
+                  <div className="space-y-1">
+                    <label className="text-xs text-slate-400 uppercase font-semibold">Project Name Details</label>
+                    <input 
+                      type="text" 
+                      value={projectName}
+                      onChange={(e) => setProjectName(e.target.value)}
+                      disabled={!canEdit}
+                      className={`w-full bg-dark-900/60 border border-slate-800 text-xs text-white rounded-lg p-2 focus:outline-none ${!canEdit ? 'opacity-70 cursor-not-allowed' : 'focus:border-primary/50'}`}
+                      placeholder="e.g. Acme Migration Platform"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs text-slate-400 uppercase font-semibold">Project Description</label>
+                    <textarea 
+                      value={projectIndustry}
+                      onChange={(e) => setProjectIndustry(e.target.value)}
+                      disabled={!canEdit}
+                      className={`w-full bg-dark-900/60 border border-slate-800 text-xs text-white rounded-lg p-2 focus:outline-none ${!canEdit ? 'opacity-70 cursor-not-allowed' : 'focus:border-primary/50'} min-h-[72px]`}
+                      placeholder="e.g. Migration of critical database services"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs text-slate-400 uppercase font-semibold">Project Type</label>
+                    <select 
+                      value={projectType}
+                      onChange={(e) => setProjectType(e.target.value)}
+                      disabled={!canEdit}
+                      className={`w-full bg-dark-900/60 border border-slate-800 text-xs text-white rounded-lg p-2 focus:outline-none ${!canEdit ? 'opacity-70 cursor-not-allowed' : 'cursor-pointer'}`}
+                    >
+                      {projectTypes.map(type => <option key={type} value={type}>{type}</option>)}
+                    </select>
+                  </div>
                 </div>
-                <div className="space-y-1">
-                  <label className="text-xs text-slate-400 uppercase font-semibold">Influence Tag</label>
-                  <select 
-                    value={influenceTag}
-                    onChange={(e) => setInfluenceTag(e.target.value)}
-                    disabled={!canEdit}
-                    className={`w-full bg-dark-900/60 border border-slate-800 text-xs text-white rounded-lg p-2 focus:outline-none ${!canEdit ? 'opacity-70 cursor-not-allowed' : 'cursor-pointer'}`}
-                  >
-                    {influenceTags.map(tag => <option key={tag} value={tag}>{tag}</option>)}
-                  </select>
+
+                {/* Right Column: Stakeholder Contact Info */}
+                <div className="space-y-3">
+                  <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest border-b border-slate-800/60 pb-1 mb-2">Stakeholder Profile</h4>
+
+                  <div className="space-y-1">
+                    <label className="text-xs text-slate-400 uppercase font-semibold">Contact Name</label>
+                    <input 
+                      type="text" 
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      required 
+                      disabled={!canEdit}
+                      className={`w-full bg-dark-900/60 border border-slate-800 text-xs text-white rounded-lg p-2 focus:outline-none ${!canEdit ? 'opacity-70 cursor-not-allowed' : 'focus:border-primary/50'}`}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs text-slate-400 uppercase font-semibold">Corporate Email</label>
+                    <input 
+                      type="email" 
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      required 
+                      disabled={!canEdit}
+                      className={`w-full bg-dark-900/60 border border-slate-800 text-xs text-white rounded-lg p-2 focus:outline-none ${!canEdit ? 'opacity-70 cursor-not-allowed' : 'focus:border-primary/50'}`}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs text-slate-400 uppercase font-semibold">Phone Number</label>
+                    <input 
+                      type="text" 
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
+                      disabled={!canEdit}
+                      className={`w-full bg-dark-900/60 border border-slate-800 text-xs text-white rounded-lg p-2 focus:outline-none ${!canEdit ? 'opacity-70 cursor-not-allowed' : 'focus:border-primary/50'}`}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs text-slate-400 uppercase font-semibold">Role Designation</label>
+                    <input 
+                      type="text" 
+                      value={designation}
+                      onChange={(e) => setDesignation(e.target.value)}
+                      disabled={!canEdit}
+                      className={`w-full bg-dark-900/60 border border-slate-800 text-xs text-white rounded-lg p-2 focus:outline-none ${!canEdit ? 'opacity-70 cursor-not-allowed' : 'focus:border-primary/50'}`}
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <label className="text-xs text-slate-400 uppercase font-semibold">Hierarchy Tag</label>
+                      <select 
+                        value={hierarchyTag}
+                        onChange={(e) => setHierarchyTag(e.target.value)}
+                        disabled={!canEdit}
+                        className={`w-full bg-dark-900/60 border border-slate-800 text-xs text-white rounded-lg p-2 focus:outline-none ${!canEdit ? 'opacity-70 cursor-not-allowed' : 'cursor-pointer'}`}
+                      >
+                        {hierarchyTags.map(tag => <option key={tag} value={tag}>{tag}</option>)}
+                      </select>
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs text-slate-400 uppercase font-semibold">Influence Tag</label>
+                      <select 
+                        value={influenceTag}
+                        onChange={(e) => setInfluenceTag(e.target.value)}
+                        disabled={!canEdit}
+                        className={`w-full bg-dark-900/60 border border-slate-800 text-xs text-white rounded-lg p-2 focus:outline-none ${!canEdit ? 'opacity-70 cursor-not-allowed' : 'cursor-pointer'}`}
+                      >
+                        {influenceTags.map(tag => <option key={tag} value={tag}>{tag}</option>)}
+                      </select>
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs text-slate-400 uppercase font-semibold">Stakeholder Owner</label>
+                    <select 
+                      value={ownerId}
+                      onChange={(e) => {
+                        const selId = e.target.value;
+                        const selStaff = staffList.find(s => s.uid === selId);
+                        setOwnerId(selId);
+                        setOwnerName(selStaff ? selStaff.name : '');
+                      }}
+                      disabled={!canEdit}
+                      className={`w-full bg-dark-900/60 border border-slate-800 text-xs text-white rounded-lg p-2 focus:outline-none ${!canEdit ? 'opacity-70 cursor-not-allowed' : 'cursor-pointer'}`}
+                    >
+                      <option value="">Select Stakeholder Owner</option>
+                      {staffList.map(staff => (
+                        <option key={staff.uid} value={staff.uid}>{staff.name} ({staff.role})</option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
               </div>
-              <div className="space-y-1">
-                <label className="text-xs text-slate-400 uppercase font-semibold">Phone Number</label>
-                <input 
-                  type="text" 
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  disabled={!canEdit}
-                  className={`w-full bg-dark-900/60 border border-slate-800 text-xs text-white rounded-lg p-2 focus:outline-none ${!canEdit ? 'opacity-70 cursor-not-allowed' : 'focus:border-primary/50'}`}
-                />
-              </div>
-              <div className="space-y-1">
-                <label className="text-xs text-slate-400 uppercase font-semibold">Stakeholder Owner</label>
-                <select 
-                  value={ownerId}
-                  onChange={(e) => {
-                    const selId = e.target.value;
-                    const selStaff = staffList.find(s => s.uid === selId);
-                    setOwnerId(selId);
-                    setOwnerName(selStaff ? selStaff.name : '');
-                  }}
-                  disabled={!canEdit}
-                  className={`w-full bg-dark-900/60 border border-slate-800 text-xs text-white rounded-lg p-2 focus:outline-none ${!canEdit ? 'opacity-70 cursor-not-allowed' : 'cursor-pointer'}`}
+              
+              <div className="flex justify-end pt-4 border-t border-slate-800/80 gap-3">
+                <button 
+                  type="button"
+                  onClick={() => setIsEditContactOpen(false)}
+                  className="px-5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-350 font-bold text-xs cursor-pointer transition-all"
                 >
-                  <option value="">Select Stakeholder Owner</option>
-                  {staffList.map(staff => (
-                    <option key={staff.uid} value={staff.uid}>{staff.name} ({staff.role})</option>
-                  ))}
-                </select>
-              </div>
-              {canEdit && (
-                <button type="submit" className="w-full bg-primary hover:bg-blue-600 text-xs text-white font-semibold rounded-lg py-2.5 mt-2 transition-all">
-                  Save Updates
+                  Cancel
                 </button>
-              )}
+                {canEdit && (
+                  <button 
+                    type="submit" 
+                    className="px-6 py-2 rounded-xl bg-primary hover:bg-blue-600 text-white font-bold text-xs cursor-pointer shadow-md transition-all"
+                  >
+                    Save Updates
+                  </button>
+                )}
+              </div>
             </form>
           </div>
         </div>

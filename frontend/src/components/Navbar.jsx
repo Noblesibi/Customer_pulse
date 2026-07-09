@@ -81,12 +81,26 @@ export default function Navbar() {
       
       {/* Brand Logo - click to go back to landing page */}
       <div className="flex items-center gap-3 cursor-pointer shrink-0" onClick={() => navigate('/')}>
-        <div className="bg-[#0f172a] rounded-xl px-3 py-1.5">
-          <img
-            src="/nest-digital-logo.png"
-            alt="Nest Digital"
-            className="h-8 w-auto object-contain"
-          />
+        <div className="flex items-center gap-2">
+          {/* Circular Nest Logo */}
+          <div className="h-8 w-11 overflow-hidden flex items-center justify-start shrink-0">
+            <img
+              src="/nest-digital-logo.png"
+              alt="Nest Digital Logo"
+              className="h-8 max-w-none object-cover object-left"
+            />
+          </div>
+          {/* Logo Text in HTML */}
+          <div className="flex items-center gap-2 shrink-0">
+            <div className="flex flex-col text-[#0f172a] leading-none text-left">
+              <span className="font-black text-xs tracking-tight">NeST</span>
+              <span className="font-extrabold text-[8px] tracking-widest text-[#0f172a]/70">DIGITAL</span>
+            </div>
+            <div className="h-6 w-px bg-slate-300/60 mx-1"></div>
+            <span className="text-[9px] font-black text-[#0f172a]/80 uppercase tracking-wider text-left leading-tight hidden md:block">
+              Engineering<br />Transformation
+            </span>
+          </div>
         </div>
         <div className="hidden sm:block border-l border-slate-300/40 pl-3">
           <span className="font-extrabold text-sm text-black tracking-wide block">CustomerPulse</span>
@@ -169,66 +183,64 @@ export default function Navbar() {
           )}
         </div>
 
-        {/* Risks Dropdown */}
-        {['Admin', 'Executive', 'Sales Manager'].includes(user?.role) && (
-          <div 
-            className={`relative flex items-center rounded-lg border whitespace-nowrap transition-colors ${
-              ['/risks', '/webhooks-demo'].includes(location.pathname)
-                ? 'bg-primary/10 border-primary/25 text-primary'
-                : 'bg-transparent border-transparent text-primary/70 hover:text-primary'
-            }`}
-            ref={risksDropdownRef}
+        {/* Risks Dropdown – visible to all users */}
+        <div 
+          className={`relative flex items-center rounded-lg border whitespace-nowrap transition-colors ${
+            ['/risks', '/webhooks-demo'].includes(location.pathname)
+              ? 'bg-primary/10 border-primary/25 text-primary'
+              : 'bg-transparent border-transparent text-primary/70 hover:text-primary'
+          }`}
+          ref={risksDropdownRef}
+        >
+          <NavLink
+            to="/risks"
+            className="px-3 py-1.5 text-sm font-semibold transition-colors"
+            onClick={() => setIsRisksOpen(false)}
           >
-            <NavLink
-              to="/risks"
-              className="px-3 py-1.5 text-sm font-semibold transition-colors"
-              onClick={() => setIsRisksOpen(false)}
-            >
-              Risks
-            </NavLink>
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                setIsRisksOpen(!isRisksOpen);
-                setIsAccountsOpen(false);
-              }}
-              className="pr-2.5 pl-1 py-1.5 cursor-pointer flex items-center justify-center hover:text-primary border-l border-transparent transition-colors"
-            >
-              <ChevronDown className="w-3.5 h-3.5 opacity-60" />
-            </button>
-            
-            {isRisksOpen && (
-              <div className="absolute left-0 mt-2 top-full w-48 glass border border-slate-800 rounded-xl shadow-2xl p-1.5 z-50 animate-soft-pulse duration-300">
-                <NavLink
-                  to="/risks"
-                  onClick={() => setIsRisksOpen(false)}
-                  className={({ isActive }) =>
-                    `flex items-center px-3 py-2.5 rounded-lg text-xs font-bold transition-all ${
-                      isActive
-                        ? 'bg-primary/10 text-primary'
-                        : 'text-slate-300 hover:text-primary'
-                    }`
-                  }
-                >
-                  Risks Center
-                </NavLink>
-                <NavLink
-                  to="/webhooks-demo"
-                  onClick={() => setIsRisksOpen(false)}
-                  className={({ isActive }) =>
-                    `flex items-center px-3 py-2.5 rounded-lg text-xs font-bold transition-all mt-0.5 ${
-                      isActive
-                        ? 'bg-primary/10 text-primary'
-                        : 'text-slate-300 hover:text-primary'
-                    }`
-                  }
-                >
-                  Email Ingestion
-                </NavLink>
-              </div>
-            )}
-          </div>
-        )}
+            Risks
+          </NavLink>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setIsRisksOpen(!isRisksOpen);
+              setIsAccountsOpen(false);
+            }}
+            className="pr-2.5 pl-1 py-1.5 cursor-pointer flex items-center justify-center hover:text-primary border-l border-transparent transition-colors"
+          >
+            <ChevronDown className="w-3.5 h-3.5 opacity-60" />
+          </button>
+          
+          {isRisksOpen && (
+            <div className="absolute left-0 mt-2 top-full w-48 glass border border-slate-800 rounded-xl shadow-2xl p-1.5 z-50 animate-soft-pulse duration-300">
+              <NavLink
+                to="/risks"
+                onClick={() => setIsRisksOpen(false)}
+                className={({ isActive }) =>
+                  `flex items-center px-3 py-2.5 rounded-lg text-xs font-bold transition-all ${
+                    isActive
+                      ? 'bg-primary/10 text-primary'
+                      : 'text-slate-300 hover:text-primary'
+                  }`
+                }
+              >
+                Risks Center
+              </NavLink>
+              <NavLink
+                to="/webhooks-demo"
+                onClick={() => setIsRisksOpen(false)}
+                className={({ isActive }) =>
+                  `flex items-center px-3 py-2.5 rounded-lg text-xs font-bold transition-all mt-0.5 ${
+                    isActive
+                      ? 'bg-primary/10 text-primary'
+                      : 'text-slate-300 hover:text-primary'
+                  }`
+                }
+              >
+                Email Ingestion
+              </NavLink>
+            </div>
+          )}
+        </div>
 
         {/* User Directory */}
         <NavLink
@@ -435,40 +447,38 @@ export default function Navbar() {
             </div>
           </div>
 
-          {/* Risks Group */}
-          {['Admin', 'Executive', 'Sales Manager'].includes(user?.role) && (
-            <div className="space-y-1.5">
-              <div className="px-4 text-[10px] font-black uppercase tracking-wider text-slate-500">Risks & Ingestion</div>
-              <div className="pl-4 space-y-1">
-                <NavLink
-                  to="/risks"
-                  onClick={() => setIsMobileMenuOpen(false)}
-                  className={({ isActive }) => 
-                    `block px-4 py-2.5 rounded-xl text-sm font-semibold border ${
-                      isActive 
-                        ? 'bg-primary/15 border-primary/25 text-primary' 
-                        : 'bg-transparent border-transparent text-primary/70 hover:text-primary'
-                    }`
-                  }
-                >
-                  Risks Center
-                </NavLink>
-                <NavLink
-                  to="/webhooks-demo"
-                  onClick={() => setIsMobileMenuOpen(false)}
-                  className={({ isActive }) => 
-                    `block px-4 py-2.5 rounded-xl text-sm font-semibold border ${
-                      isActive 
-                        ? 'bg-primary/15 border-primary/25 text-primary' 
-                        : 'bg-transparent border-transparent text-primary/70 hover:text-primary'
-                    }`
-                  }
-                >
-                  Email Ingestion
-                </NavLink>
-              </div>
+          {/* Risks Group – visible to all users */}
+          <div className="space-y-1.5">
+            <div className="px-4 text-[10px] font-black uppercase tracking-wider text-slate-500">Risks & Ingestion</div>
+            <div className="pl-4 space-y-1">
+              <NavLink
+                to="/risks"
+                onClick={() => setIsMobileMenuOpen(false)}
+                className={({ isActive }) => 
+                  `block px-4 py-2.5 rounded-xl text-sm font-semibold border ${
+                    isActive 
+                      ? 'bg-primary/15 border-primary/25 text-primary' 
+                      : 'bg-transparent border-transparent text-primary/70 hover:text-primary'
+                  }`
+                }
+              >
+                Risks Center
+              </NavLink>
+              <NavLink
+                to="/webhooks-demo"
+                onClick={() => setIsMobileMenuOpen(false)}
+                className={({ isActive }) => 
+                  `block px-4 py-2.5 rounded-xl text-sm font-semibold border ${
+                    isActive 
+                      ? 'bg-primary/15 border-primary/25 text-primary' 
+                      : 'bg-transparent border-transparent text-primary/70 hover:text-primary'
+                  }`
+                }
+              >
+                Email Ingestion
+              </NavLink>
             </div>
-          )}
+          </div>
 
           {/* User Directory */}
           <NavLink
