@@ -40,6 +40,15 @@ To configure local SQL Server connectivity, follow these configuration steps:
 ### Client Accounts Page Actions & Add Account Permissions
 
 - **[Accounts.jsx](file:///c:/Users/amina.rashad/Downloads/customer_pulse/frontend/src/pages/Accounts.jsx)**:
+  - We added clean, standardized top-level page padding (`p-6 md:p-8`) to maintain consistent alignment.
+
+---
+
+## 12. Fix Choose Files Button Hover Readability
+We resolved an issue on the Attachments card where hovering over the "Choose Files" button made the text and upload icon completely invisible (white text on a white background).
+- Replaced `hover:text-white` with `hover:bg-dark-700` in `LogActivity.jsx`, `AccountDetails.jsx`, and `Accounts.jsx`.
+- The button now transitions to a nice light gray background when hovered, keeping the text and icon fully black and legible.
+
   - Updated role guards on the "Add Account" button to allow `Executive`.
   - Updated role guards in the "Actions" column to allow `Executive` for both the Edit and Delete button views.
   - Allowed `Executive` to assign/update the Account Owner.

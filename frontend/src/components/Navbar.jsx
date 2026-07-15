@@ -70,7 +70,7 @@ export default function Navbar() {
       { path: '/risks',           label: 'Risks',      roles: ['Admin', 'Executive', 'Sales Manager'] },
       { path: '/webhooks-demo',   label: 'Email Ingestion',   roles: ['Admin', 'Executive', 'Sales Manager'] },
       { path: '/users',           label: 'User Directory',      roles: ['Admin', 'Executive', 'Sales Manager', 'Employee'] },
-      { path: '/activity-log',    label: 'Activity Log',   roles: ['Admin', 'Executive', 'Sales Manager', 'Employee'] }
+      { path: '/interaction-log',    label: 'Interaction Log',   roles: ['Admin', 'Executive', 'Sales Manager', 'Employee'] }
     ];
 
     return links.filter(link => link.roles.includes(role));
@@ -124,6 +124,34 @@ export default function Navbar() {
           Dashboard
         </NavLink>
 
+        {/* Interaction Log */}
+        <NavLink
+          to="/interaction-log"
+          className={({ isActive }) => 
+            `px-3 py-1.5 rounded-lg text-sm font-semibold border whitespace-nowrap transition-colors ${
+              isActive 
+                ? 'bg-primary/10 border-primary/25 text-primary' 
+                : 'bg-transparent border-transparent text-primary/70 hover:text-primary'
+            }`
+          }
+        >
+          Interaction Log
+        </NavLink>
+
+        {/* Staff Tasks */}
+        <NavLink
+          to="/staff-tasks"
+          className={({ isActive }) => 
+            `px-3 py-1.5 rounded-lg text-sm font-semibold border whitespace-nowrap transition-colors ${
+              isActive 
+                ? 'bg-primary/10 border-primary/25 text-primary' 
+                : 'bg-transparent border-transparent text-primary/70 hover:text-primary'
+            }`
+          }
+        >
+          Tasks
+        </NavLink>
+
         {/* Accounts Dropdown */}
         <div 
           className={`relative flex items-center rounded-lg border whitespace-nowrap transition-colors ${
@@ -160,7 +188,7 @@ export default function Navbar() {
                   `flex items-center px-3 py-2.5 rounded-lg text-xs font-bold transition-all ${
                     isActive
                       ? 'bg-primary/10 text-primary'
-                      : 'text-slate-300 hover:text-primary'
+                      : 'text-slate-350 hover:text-primary'
                   }`
                 }
               >
@@ -173,7 +201,7 @@ export default function Navbar() {
                   `flex items-center px-3 py-2.5 rounded-lg text-xs font-bold transition-all mt-0.5 ${
                     isActive
                       ? 'bg-primary/10 text-primary'
-                      : 'text-slate-300 hover:text-primary'
+                      : 'text-slate-350 hover:text-primary'
                   }`
                 }
               >
@@ -219,7 +247,7 @@ export default function Navbar() {
                   `flex items-center px-3 py-2.5 rounded-lg text-xs font-bold transition-all ${
                     isActive
                       ? 'bg-primary/10 text-primary'
-                      : 'text-slate-300 hover:text-primary'
+                      : 'text-slate-350 hover:text-primary'
                   }`
                 }
               >
@@ -232,7 +260,7 @@ export default function Navbar() {
                   `flex items-center px-3 py-2.5 rounded-lg text-xs font-bold transition-all mt-0.5 ${
                     isActive
                       ? 'bg-primary/10 text-primary'
-                      : 'text-slate-300 hover:text-primary'
+                      : 'text-slate-355 hover:text-primary'
                   }`
                 }
               >
@@ -254,20 +282,6 @@ export default function Navbar() {
           }
         >
           User Directory
-        </NavLink>
-
-        {/* Activity Log */}
-        <NavLink
-          to="/activity-log"
-          className={({ isActive }) => 
-            `px-3 py-1.5 rounded-lg text-sm font-semibold border whitespace-nowrap transition-colors ${
-              isActive 
-                ? 'bg-primary/10 border-primary/25 text-primary' 
-                : 'bg-transparent border-transparent text-primary/70 hover:text-primary'
-            }`
-          }
-        >
-          Activity Log
         </NavLink>
       </nav>
 
@@ -414,6 +428,36 @@ export default function Navbar() {
             Dashboard
           </NavLink>
 
+          {/* Interaction Log */}
+          <NavLink
+            to="/interaction-log"
+            onClick={() => setIsMobileMenuOpen(false)}
+            className={({ isActive }) => 
+              `px-4 py-3 rounded-xl text-sm font-semibold border ${
+                isActive 
+                  ? 'bg-primary/15 border-primary/25 text-primary' 
+                  : 'bg-transparent border-transparent text-primary/70 hover:text-primary'
+              }`
+            }
+          >
+            Interaction Log
+          </NavLink>
+
+          {/* Staff Tasks */}
+          <NavLink
+            to="/staff-tasks"
+            onClick={() => setIsMobileMenuOpen(false)}
+            className={({ isActive }) => 
+              `px-4 py-3 rounded-xl text-sm font-semibold border ${
+                isActive 
+                  ? 'bg-primary/15 border-primary/25 text-primary' 
+                  : 'bg-transparent border-transparent text-primary/70 hover:text-primary'
+              }`
+            }
+          >
+            Tasks
+          </NavLink>
+
           {/* Accounts Group */}
           <div className="space-y-1.5">
             <div className="px-4 text-[10px] font-black uppercase tracking-wider text-slate-500">Accounts & Contacts</div>
@@ -493,21 +537,6 @@ export default function Navbar() {
             }
           >
             User Directory
-          </NavLink>
-
-          {/* Activity Log */}
-          <NavLink
-            to="/activity-log"
-            onClick={() => setIsMobileMenuOpen(false)}
-            className={({ isActive }) => 
-              `px-4 py-3 rounded-xl text-sm font-semibold border ${
-                isActive 
-                  ? 'bg-primary/15 border-primary/25 text-primary' 
-                  : 'bg-transparent border-transparent text-primary/70 hover:text-primary'
-              }`
-            }
-          >
-            Activity Log
           </NavLink>
         </div>
       )}

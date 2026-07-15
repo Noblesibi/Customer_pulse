@@ -94,6 +94,19 @@
       "userType": "Functional Head",
       "name": "Quality Head",
       "department": "Quality"
+    },
+    "ldap-s4kicnat4": {
+      "uid": "ldap-s4kicnat4",
+      "email": "amina.rashad@nestgroup.net",
+      "name": "Amina Rashad",
+      "role": "Employee",
+      "position": "Intern",
+      "userType": "Employee",
+      "department": "NDA",
+      "ldap_provisioned": true,
+      "createdAt": "2026-07-09T09:29:22.219Z",
+      "id": "ldap-s4kicnat4",
+      "last_login": "2026-07-09T09:29:22.264Z"
     }
   },
   "accounts": {
@@ -212,54 +225,12 @@
       "createdAt": "2026-06-21T20:53:11.443Z"
     }
   },
-  "interactions": {
-    "int-dummy-all-users": {
-      "id": "int-dummy-all-users",
-      "interactionId": "int-dummy-all-users",
-      "accountId": "acc-1",
-      "contactId": "con-1",
-      "source": "Meeting",
-      "subject": "All-Hands Portfolio Review",
-      "messageText": "We held a portfolio review meeting with Acme Corporation. All team members must review their client updates and key deliverables.",
-      "date": "2026-07-09",
-      "time": "12:00",
-      "loggedByUid": "mock-admin-uid",
-      "loggedByName": "Admin User",
-      "sentiment": "Neutral",
-      "riskDetected": false,
-      "riskCategory": "",
-      "actionMentions": [
-        { "uid": "mock-admin-uid", "name": "Admin User", "task": "Review all accounts and verify global access permissions", "taskHeader": "Review Admin Access", "status": "Task Assigned", "dueDate": "2026-07-16", "priority": "High", "comments": "", "completionDate": null },
-        { "uid": "mock-nazneen-ceo-uid", "name": "Nazneen Jahangir", "task": "Review high-level executive dashboard and quarterly risk report", "taskHeader": "Review Exec Dashboard", "status": "Task Assigned", "dueDate": "2026-07-16", "priority": "High", "comments": "", "completionDate": null },
-        { "uid": "mock-exec-uid", "name": "Executive User", "task": "Approve project budget and review overall alignment", "taskHeader": "Approve Budget", "status": "Task Assigned", "dueDate": "2026-07-16", "priority": "High", "comments": "", "completionDate": null },
-        { "uid": "mock-finance-head-uid", "name": "Finance Head", "task": "Perform finance audit for Apex Financial Services and billing integration", "taskHeader": "Finance Audit", "status": "Task Assigned", "dueDate": "2026-07-16", "priority": "Medium", "comments": "", "completionDate": null },
-        { "uid": "mock-global-hr-head-uid", "name": "Global HR Head", "task": "Initiate performance appraisals and review Acme Corporation HR roadmap", "taskHeader": "Appraisal Review", "status": "Task Assigned", "dueDate": "2026-07-16", "priority": "Medium", "comments": "", "completionDate": null },
-        { "uid": "mock-itg-head-uid", "name": "ITG Head", "task": "Audit cybersecurity protocol and IT infrastructure on Global Logistics Inc", "taskHeader": "Security Audit", "status": "Task Assigned", "dueDate": "2026-07-16", "priority": "High", "comments": "", "completionDate": null },
-        { "uid": "mock-nda-head-uid", "name": "NDA Head", "task": "Review NDA agreements and compliance training roadmap", "taskHeader": "NDA Review", "status": "Task Assigned", "dueDate": "2026-07-16", "priority": "High", "comments": "", "completionDate": null },
-        { "uid": "mock-tc-head-uid", "name": "TC Head", "task": "Evaluate AI/ML platform R&D roadmap and quality gates", "taskHeader": "Evaluate Platform", "status": "Task Assigned", "dueDate": "2026-07-16", "priority": "Medium", "comments": "", "completionDate": null },
-        { "uid": "mock-quality-head-uid", "name": "Quality Head", "task": "Oversee performance regression suite results and quality audit", "taskHeader": "Quality Audit", "status": "Task Assigned", "dueDate": "2026-07-16", "priority": "Medium", "comments": "", "completionDate": null },
-        { "uid": "mock-manager-uid", "name": "Manager User", "task": "Sync with employee on frontend milestones and verify deliverables", "taskHeader": "Manager Sync", "status": "Task Assigned", "dueDate": "2026-07-16", "priority": "Medium", "comments": "", "completionDate": null },
-        { "uid": "mock-employee-uid", "name": "Employee User", "task": "Implement frontend components and run regression tests", "taskHeader": "Implement UI", "status": "Task Assigned", "dueDate": "2026-07-16", "priority": "Medium", "comments": "", "completionDate": null },
-        { "uid": "ldap-3cm36onhw", "name": "Albert S Joseph", "task": "Coordinate load testing and API stability check for dashboard widgets", "taskHeader": "Dashboard Load Test", "status": "Task Assigned", "dueDate": "2026-07-16", "priority": "High", "comments": "", "completionDate": null },
-        { "uid": "ldap-rhkufekom", "name": "Amina Rashad", "task": "Perform regression suite execution and validation of CRM flows", "taskHeader": "Run Regression", "status": "Task Assigned", "dueDate": "2026-07-16", "priority": "High", "comments": "", "completionDate": null },
-        { "uid": "ldap-2jm2pvhe0", "name": "Noble Sibi", "task": "Evaluate CRM security posture and RBAC policy definitions", "taskHeader": "Verify Security", "status": "Task Assigned", "dueDate": "2026-07-16", "priority": "High", "comments": "", "completionDate": null }
-      ],
-      "attachments": [],
-      "timestamp": "2026-07-09T08:50:41.000Z"
-    }
-  },
+  "interactions": {},
   "risks": {},
   "notifications": {},
   "summaries": {},
   "healthScores": {},
-  "activitylogs": {
-    "act-init-1": {
-      "logId": "act-init-1",
-      "userId": "mock-admin-uid",
-      "userName": "Admin User",
-      "action": "User Login",
-      "details": "Logged in successfully via mock credentials: admin@pulse.com",
-      "timestamp": "2026-06-21T20:08:11.443Z"
-    }
-  }
+  "activitylogs": {},
+  "interactions/int-dummy-all-users/replies": {},
+  "replies": {}
 }

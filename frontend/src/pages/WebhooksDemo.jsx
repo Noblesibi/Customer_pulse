@@ -80,7 +80,7 @@ export default function WebhooksDemo() {
   };
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 select-none">
+    <div className="p-6 md:p-8 grid grid-cols-1 lg:grid-cols-2 gap-8 select-none">
       
       {/* LEFT PANEL: WEBHOOK SIMULATOR CONSOLE */}
       <div className="glass p-6 rounded-2xl border border-slate-800/80 flex flex-col justify-between">

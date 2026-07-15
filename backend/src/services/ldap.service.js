@@ -243,7 +243,7 @@ function mapAdGroupsToRole(memberOf, username, domain) {
  */
 function simulateLdapAuth(username, password) {
   const MOCK_LDAP_USERS = {
-    'amina.rashad':       { email: 'amina.rashad@nestgroup.net', name: 'Amina Rashad',   role: 'Admin',        department: 'Engineering', position: 'CRM Administrator' },
+    'amina.rashad':       { email: 'amina.rashad@nestgroup.net', name: 'Amina Rashad',   role: 'Employee',     department: 'Engineering', position: 'CRM Professional' },
     'admin':              { email: 'admin@pulse.com',            name: 'Admin User',      role: 'Admin',        department: 'IT',          position: 'System Administrator' },
     'executive':          { email: 'executive@pulse.com',        name: 'Executive User',  role: 'Executive',    department: 'Management',  position: 'Chief Executive Officer' },
     'manager':            { email: 'manager@pulse.com',          name: 'Manager User',    role: 'Sales Manager',department: 'Sales',       position: 'Logistics Division Lead' },

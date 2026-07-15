@@ -436,13 +436,25 @@ router.post('/', async (req, res) => {
       })
     );
 
+    let cleanSubject = subject || '';
+    if (!cleanSubject || cleanSubject === 'Interaction Note' || cleanSubject.split(/\s+/).length > 4 || cleanSubject.length > 30) {
+      try {
+        const generated = await generateTaskHeader(messageText);
+        if (generated && generated !== 'Task Assignment') {
+          cleanSubject = generated;
+        }
+      } catch (e) {
+        console.error('Error generating clean subject:', e);
+      }
+    }
+
     const interactionId = 'int-' + Math.random().toString(36).substring(2, 11);
     const newInteraction = {
       interactionId,
       accountId,
       contactId,
       source,
-      subject: subject || '',
+      subject: cleanSubject,
       messageText,
       date: date || new Date().toISOString().split('T')[0],
       time: time || new Date().toTimeString().slice(0, 5),
@@ -453,7 +465,14 @@ router.post('/', async (req, res) => {
       riskDetected: analysis.riskLevel === 'High' || analysis.riskLevel === 'Medium',
       riskCategory: analysis.riskCategory || '',
       attachments: attachments || [],
-      timestamp: timestamp || new Date().toISOString()
+      timestamp: timestamp || (date && time ? (() => {
+        try {
+          const d = new Date(`${date}T${time}:00`);
+          return isNaN(d.getTime()) ? new Date().toISOString() : d.toISOString();
+        } catch (e) {
+          return new Date().toISOString();
+        }
+      })() : new Date().toISOString())
     };
 
     await db.collection('interactions').doc(interactionId).set(newInteraction);

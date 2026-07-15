@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { 
   Users, CheckCircle2, AlertTriangle, AlertOctagon, Activity, HelpCircle,
   ArrowUpRight, ArrowDownRight, Sparkles, ClipboardList, Send, Clock, CheckCheck,
-  MessageSquare, Building2, ArrowRight, Eye, CheckSquare, CalendarClock, X
+  MessageSquare, Building2, ArrowRight, Eye, CheckSquare, CalendarClock, X, FileText, ThumbsUp, ShieldAlert,
+  Plus
 } from 'lucide-react';
 
 import { 
@@ -22,7 +23,8 @@ export default function Dashboard() {
     activityLogs, activityLogsLoading, fetchActivityLogs,
     interactions, interactionsLoading, fetchInteractions,
     updateTaskStatus,
-    staffList, fetchStaff
+    staffList, fetchStaff,
+    staffTasks, fetchStaffTasks, updateStaffTaskStatus
   } = useStore();
 
   const [replyTexts, setReplyTexts] = useState({}); // { [interactionId]: string }
@@ -39,6 +41,14 @@ export default function Dashboard() {
   const [forwardToUid, setForwardToUid] = useState('');
   const [forwardReason, setForwardReason] = useState('');
 
+  // Decline Modal State
+  const [declineModalState, setDeclineModalState] = useState({ isOpen: false, task: null });
+  const [declineReason, setDeclineReason] = useState('');
+
+  // Accept Modal State
+  const [acceptModalState, setAcceptModalState] = useState({ isOpen: false, task: null });
+  const [acceptNote, setAcceptNote] = useState('');
+
   const handleForwardSubmit = async (e) => {
     e.preventDefault();
     const { task, newStatus } = forwardModalState;
@@ -46,18 +56,28 @@ export default function Dashboard() {
     const selectedUser = (staffList || []).find(s => s.uid === forwardToUid);
     if (!selectedUser) return;
     
-    const ok = await updateTaskStatus(task.interactionId, task.uid, newStatus, forwardReason.trim(), selectedUser.uid, selectedUser.name);
-    if (ok) {
-      if (forwardReason.trim()) {
-        await replyToInteraction(task.interactionId, `Forwarded Task Note: ${forwardReason}`);
+    const taskKey = task.isInteractionTask ? `${task.interactionId}-${task.uid}` : task.taskId;
+    
+    if (task.isInteractionTask) {
+      const ok = await updateTaskStatus(task.interactionId, task.uid, newStatus, forwardReason.trim(), selectedUser.uid, selectedUser.name);
+      if (ok) {
+        if (forwardReason.trim()) {
+          await replyToInteraction(task.interactionId, `Forwarded Task Note: ${forwardReason}`);
+        }
+        fetchInteractions();
       }
-      fetchInteractions();
+    } else {
+      const ok = await updateStaffTaskStatus(task.taskId, newStatus, '', forwardReason.trim(), selectedUser.uid, selectedUser.name);
+      if (ok) {
+        fetchStaffTasks('assigned-to-me');
+      }
     }
+    
     setTaskStatuses(prev => ({ 
       ...prev, 
-      [`${task.interactionId}-${task.uid}`]: newStatus,
-      [`${task.interactionId}-${task.uid}-forwardedToName`]: selectedUser.name,
-      [`${task.interactionId}-${task.uid}-note`]: forwardReason.trim()
+      [taskKey]: newStatus,
+      [`${taskKey}-forwardedToName`]: selectedUser.name,
+      [`${taskKey}-note`]: forwardReason.trim()
     }));
     setForwardModalState({ isOpen: false, task: null, newStatus: 'Forwarded' });
     setForwardToUid('');
@@ -68,6 +88,7 @@ export default function Dashboard() {
     fetchDashboardStats();
     fetchInteractions();
     fetchStaff();
+    fetchStaffTasks('assigned-to-me');
     if (user?.userType === 'CEO') {
       fetchUsersList();
     }
@@ -75,6 +96,7 @@ export default function Dashboard() {
       fetchDashboardStats();
       fetchInteractions();
       fetchStaff();
+      fetchStaffTasks('assigned-to-me');
       if (user?.userType === 'CEO') {
         fetchUsersList();
       }
@@ -138,9 +160,9 @@ export default function Dashboard() {
   ];
 
   return (
-    <div className="space-y-5">
+    <div className="p-6 md:p-8 space-y-5">
       {/* 0. Header Greeting */}
-      <div className="glass p-5 rounded-2xl border border-slate-800/80 flex items-center justify-between">
+      <div className="flex items-center justify-between">
         <div className="space-y-1">
           {user?.userType === 'BU Head' ? (
             <>
@@ -162,6 +184,22 @@ export default function Dashboard() {
             </>
           )}
         </div>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => navigate('/staff-tasks/new')}
+            className="flex items-center gap-2 px-4 py-2.5 bg-primary hover:bg-blue-600 text-xs text-white font-bold rounded-xl shadow-lg shadow-primary/20 active:scale-98 transition-all cursor-pointer shrink-0"
+          >
+            <Plus className="w-4 h-4 text-white" />
+            <span>Assign Task</span>
+          </button>
+          <button
+            onClick={() => navigate('/log-interaction')}
+            className="flex items-center gap-2 px-4 py-2.5 bg-primary hover:bg-blue-600 text-xs text-white font-bold rounded-xl shadow-lg shadow-primary/20 active:scale-98 transition-all cursor-pointer shrink-0"
+          >
+            <Plus className="w-4 h-4 text-white" />
+            <span>Log Interaction</span>
+          </button>
+        </div>
       </div>
 
       {/* ── TASKS ASSIGNED TO ME ── */}
@@ -177,21 +215,47 @@ export default function Dashboard() {
                 const cleanHeader = fallbackHeader.length <= 50 ? fallbackHeader : (fallbackHeader.slice(0, 47) + '...');
                 realMyTasks.push({
                   ...mention,
+                  taskId: mention.taskId || `${item.interactionId}-${mention.uid}`,
+                  title: mention.taskHeader || cleanHeader,
                   taskHeader: mention.taskHeader || cleanHeader,
-                  interactionId: item.interactionId,
+                  description: mention.task || item.messageText || item.subject,
+                  assignedToUid: mention.uid,
+                  assignedToName: mention.name,
+                  assignedByUid: item.loggedByUid,
+                  assignedByName: item.loggedByName || 'System Admin',
+                  priority: mention.priority || 'Medium',
+                  dueDate: mention.dueDate || null,
+                  status: mention.status || 'Pending',
                   accountId: item.accountId,
                   companyName: item.companyName || 'External Account',
                   loggedByName: item.loggedByName || 'System Admin',
                   subject: item.subject,
                   timestamp: item.timestamp,
-                  originalInteraction: item
+                  originalInteraction: item,
+                  isInteractionTask: true
                 });
               }
             });
           }
         });
 
-        const displayTasks = realMyTasks;
+        const myStaffTasks = (staffTasks || [])
+          .filter(t => t.assignedToUid === user?.uid)
+          .map(t => ({
+            ...t,
+            taskHeader: t.title,
+            task: t.description,
+            isInteractionTask: false
+          }));
+
+        const getTaskTime = (task) => {
+          if (task.timestamp) return new Date(task.timestamp);
+          if (task.createdAt) return new Date(task.createdAt);
+          if (task.date && task.time) return new Date(`${task.date}T${task.time}:00`);
+          return new Date(0);
+        };
+
+        const displayTasks = [...realMyTasks, ...myStaffTasks].sort((a, b) => getTaskTime(b) - getTaskTime(a));
 
         const getStatusStyle = (st) => {
           const s = (st || 'Pending').toLowerCase();
@@ -206,19 +270,24 @@ export default function Dashboard() {
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <CalendarClock className="w-5 h-5 text-primary" />
-                <div>
-                  <h3 className="text-sm font-extrabold uppercase tracking-wider text-slate-350">Tasks Assigned to Me</h3>
-                  <p className="text-xs text-slate-500">
-                    Your pending and active tasks — update status directly from here.
-                  </p>
-                </div>
+                <h3 className="text-sm font-extrabold uppercase tracking-wider text-slate-350">Tasks Assigned to Me</h3>
               </div>
-              <button
-                onClick={() => navigate('/activity-log')}
-                className="flex items-center gap-1 text-xs font-bold text-primary hover:text-blue-300 transition-colors cursor-pointer"
-              >
-                View All <ArrowRight className="w-3 h-3" />
-              </button>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => navigate('/staff-tasks/new')}
+                  className="flex items-center gap-1 text-xs font-bold text-primary hover:text-blue-300 transition-colors cursor-pointer"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Assign Task</span>
+                </button>
+                <span className="text-slate-700 text-xs">|</span>
+                <button
+                  onClick={() => navigate('/interaction-log')}
+                  className="flex items-center gap-1 text-xs font-bold text-primary hover:text-blue-300 transition-colors cursor-pointer"
+                >
+                  View All <ArrowRight className="w-3 h-3" />
+                </button>
+              </div>
             </div>
 
             {displayTasks.length === 0 ? (
@@ -226,8 +295,9 @@ export default function Dashboard() {
             ) : (
               <div className="space-y-3">
                 {displayTasks.slice(0, 5).map((task, idx) => {
-                  const currentStatus = taskStatuses[`${task.interactionId}-${task.uid}`] || task.status || 'Pending';
-                  const forwardedTo = taskStatuses[`${task.interactionId}-${task.uid}-forwardedToName`] || task.forwardedToName;
+                  const taskKey = task.isInteractionTask ? `${task.interactionId}-${task.uid}` : task.taskId;
+                  const currentStatus = taskStatuses[taskKey] || task.status || 'Pending';
+                  const forwardedTo = taskStatuses[`${taskKey}-forwardedToName`] || task.forwardedToName;
                   const today = new Date();
                   today.setHours(0,0,0,0);
                   const taskDue = task.dueDate ? new Date(task.dueDate) : null;
@@ -239,43 +309,126 @@ export default function Dashboard() {
                   const showAsOverdued = isTaskOverdue && isStatusUnchanged;
                   return (
                     <div 
-                      key={`${task.interactionId}-${idx}`} 
-                      onClick={() => navigate('/activity-log', { state: { selectedInteractionId: task.interactionId } })}
+                      key={task.isInteractionTask ? `${task.interactionId}-${idx}` : task.taskId} 
+                      onClick={() => {
+                        if (task.isInteractionTask) {
+                          navigate('/interaction-log', { state: { selectedInteractionId: task.interactionId, from: '/dashboard' } });
+                        } else {
+                          navigate('/staff-tasks', { state: { selectedTaskId: task.taskId } });
+                        }
+                      }}
                       className="bg-dark-900/60 border border-slate-800 p-4 rounded-xl hover:border-slate-700/60 cursor-pointer transition-all duration-200 space-y-3"
                     >
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-2 mb-1">
-                            <span 
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                navigate(`/accounts/${task.accountId}`);
-                              }}
-                              className="text-xs font-extrabold text-slate-200 hover:underline hover:text-primary cursor-pointer transition-colors"
-                            >
-                              {task.companyName}
-                            </span>
+                            {task.accountId ? (
+                              <span 
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  navigate(`/accounts/${task.accountId}`);
+                                }}
+                                className="text-xs font-extrabold text-slate-200 hover:text-primary cursor-pointer transition-colors"
+                              >
+                                {task.companyName}
+                              </span>
+                            ) : (
+                              <span className="text-xs font-extrabold text-slate-400">
+                                {task.companyName || 'Internal'}
+                              </span>
+                            )}
+                            <span className="text-slate-650 text-[10px]">·</span>
+                            {task.isInteractionTask ? (
+                              <span className="text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded bg-blue-500/10 border border-blue-500/20 text-blue-400">
+                                Interaction Log
+                              </span>
+                            ) : (
+                              <span className="text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded bg-indigo-500/10 border border-indigo-500/20 text-indigo-400">
+                                Staff Task
+                              </span>
+                            )}
                           </div>
-                          <p className="text-xs text-slate-355 font-semibold leading-relaxed">{task.taskHeader || task.task || task.originalInteraction?.messageText || task.originalInteraction?.subject || 'Task Assignment'}</p>
-                          {(currentStatus === 'Completed' || currentStatus === 'Decline' || currentStatus === 'Forwarded') && (taskStatuses[`${task.interactionId}-${task.uid}-note`] || task.comments || task.completionNote) && (
+                          <div className="relative group/task">
+                            <p 
+                              title={task.description || task.originalInteraction?.messageText || 'No task description available.'}
+                              className="text-xs text-slate-355 font-semibold leading-relaxed cursor-help hover:text-primary transition-colors inline-block"
+                            >
+                              {(() => {
+                                const shortHeader = task.taskHeader && task.taskHeader.split(/\s+/).length <= 5
+                                  ? task.taskHeader
+                                  : (() => {
+                                      const clean = (task.taskHeader || task.task || task.title || task.originalInteraction?.messageText || task.originalInteraction?.subject || 'Task Assignment').trim();
+                                      const lower = clean.toLowerCase();
+                                      if (lower.includes('call with') || lower.includes('conversation through call with')) {
+                                        const match = clean.match(/(?:call with|call|conversation with|conversation through call with)\s+([A-Za-z]+)/i);
+                                        if (match && match[1]) return `Call with ${match[1].charAt(0).toUpperCase() + match[1].slice(1)}`;
+                                      }
+                                      if (lower.includes('conversation with')) {
+                                        const match = clean.match(/conversation with\s+([A-Za-z]+)/i);
+                                        if (match && match[1]) return `Sync with ${match[1].charAt(0).toUpperCase() + match[1].slice(1)}`;
+                                      }
+                                      if (lower.includes('discussion on') || lower.includes('discussion about')) {
+                                        const match = clean.match(/discussion (?:on the|on|about the|about)\s+([^.!?,\n]+)/i);
+                                        if (match && match[1]) {
+                                          const topic = match[1].split(/\s+/).slice(0, 3).join(' ');
+                                          const cleanTopic = topic.replace(/(?:of|the|a|for|new)$/i, '').trim();
+                                          return `${cleanTopic.charAt(0).toUpperCase() + cleanTopic.slice(1)} Discussion`;
+                                        }
+                                      }
+                                      if (lower.includes('use case')) return 'Use Cases Discussion';
+                                      if (lower.includes('security') || lower.includes('rbac')) return 'Security Audit';
+                                      if (lower.includes('regression') || lower.includes('test')) return 'Regression Testing';
+                                      if (lower.includes('load test')) return 'Load Testing';
+                                      if (lower.includes('appraisal')) return 'Appraisal Review';
+                                      if (lower.includes('budget')) return 'Budget Review';
+
+                                      let stripped = clean.replace(/^(had a conversation through call with|had a conversation with|had the discussion on the|had the discussion on|discussion on the|discussion on|conversation with|conversation through call with)\s+/i, '');
+                                      stripped = stripped.replace(/\s+(based on the new project|based on the|based on|regarding|about)\s+.*/i, '');
+                                      stripped = stripped.charAt(0).toUpperCase() + stripped.slice(1);
+                                      const words = stripped.split(/\s+/);
+                                      if (words.length > 4) {
+                                        return words.slice(0, 4).join(' ') + '...';
+                                      }
+                                      return stripped;
+                                    })();
+                                return shortHeader;
+                              })()}
+                            </p>
+
+                            {/* Premium Custom Tooltip */}
+                            <div className="absolute left-0 bottom-full mb-2 w-80 p-4 bg-slate-900/95 border border-slate-700/80 text-slate-200 text-xs rounded-xl shadow-2xl backdrop-blur-md pointer-events-none transition-all duration-200 opacity-0 scale-95 translate-y-1 group-hover/task:opacity-100 group-hover/task:scale-100 group-hover/task:translate-y-0 z-50 origin-bottom-left">
+                              <div className="space-y-3">
+                                {/* Log Details Section */}
+                                <div>
+                                  <div className="font-bold text-slate-400 mb-1 flex items-center gap-1.5 border-b border-slate-800/60 pb-1">
+                                    <FileText className="w-3.5 h-3.5 text-slate-400" />
+                                    <span>Task Description</span>
+                                  </div>
+                                  <div className="leading-relaxed whitespace-pre-wrap font-medium text-slate-300">
+                                    {task.description || task.originalInteraction?.messageText || task.originalInteraction?.subject || 'No task description available.'}
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                          {(currentStatus === 'Completed' || currentStatus === 'Decline' || currentStatus === 'Forwarded') && (taskStatuses[`${taskKey}-note`] || task.comments || task.completionNote) && (
                             <p className="text-[11px] text-slate-405 italic mt-1 bg-slate-950/20 px-2.5 py-1 rounded border border-slate-800/60 w-fit">
-                              Note: "{taskStatuses[`${task.interactionId}-${task.uid}-note`] || task.comments || task.completionNote}"
+                              Note: "{taskStatuses[`${taskKey}-note`] || task.comments || task.completionNote}"
                             </p>
                           )}
                           <div className="flex items-center gap-2.5 mt-2 flex-wrap">
-                            <span className="text-xs text-slate-500 font-medium">Assigned by: <span className="text-slate-400 font-bold">{task.loggedByName}</span></span>
+                            <span className="text-xs text-slate-500 font-medium">Assigned by: <span className="text-slate-400 font-bold">{task.assignedByName || task.loggedByName}</span></span>
                             <span className="text-xs text-slate-600">·</span>
                             <span className="text-xs text-slate-500">{new Date(task.timestamp).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}</span>
-                            
-                            {task.priority && (
+                                               {task.priority && (
                               <>
                                 <span className="text-xs text-slate-600">·</span>
                                 <span className={`text-xs font-bold px-1.5 py-0.5 rounded border ${
-                                  task.priority === 'High' ? 'bg-rose-500/10 border-rose-500/20 text-rose-400' :
-                                  task.priority === 'Medium' ? 'bg-amber-500/10 border-amber-500/20 text-amber-400' :
-                                  'bg-slate-800 border-slate-700 text-slate-450'
+                                  task.priority === 'High' ? 'bg-rose-500/10 border-rose-500/20 text-rose-455' :
+                                  task.priority === 'Medium' ? 'bg-amber-500/10 border-amber-500/20 text-amber-455' :
+                                  'bg-slate-800 border-slate-700 text-slate-455'
                                 }`}>
-                                  {task.priority === 'High' ? '🔥 High' : task.priority === 'Medium' ? '⚡ Medium' : 'Low'}
+                                  {task.priority === 'High' ? 'High' : task.priority === 'Medium' ? 'Medium' : 'Low'}
                                 </span>
                               </>
                             )}
@@ -288,7 +441,7 @@ export default function Dashboard() {
                                     ? 'bg-rose-600 border-rose-500 text-white animate-pulse' 
                                     : 'bg-slate-800 border-slate-700 text-slate-300'
                                 }`}>
-                                  📅 Due: {new Date(task.dueDate).toLocaleDateString()} {isTaskOverdue && ' (OVERDUE)'}
+                                  Due: {new Date(task.dueDate).toLocaleDateString()} {isTaskOverdue && ' (OVERDUE)'}
                                 </span>
                               </>
                             )}
@@ -296,7 +449,9 @@ export default function Dashboard() {
                         </div>
                         {(() => {
                           let displayStatus = currentStatus === 'Pending' ? 'Task Assigned' : currentStatus;
-                          if (displayStatus === 'Accept/Decline') displayStatus = 'Accept';
+                          if (displayStatus === 'Accept/Decline') displayStatus = 'Accepted';
+                          if (displayStatus === 'Accept' || displayStatus === 'In Progress') displayStatus = 'Accepted';
+                          if (displayStatus === 'Decline' || displayStatus === 'Declined') displayStatus = 'Declined';
                           if (displayStatus === 'Completed/Forwarded') displayStatus = 'Completed';
                           if (showAsOverdued) {
                             displayStatus = 'Overdued';
@@ -314,15 +469,17 @@ export default function Dashboard() {
                         <div className="flex items-center gap-2">
                           <span className="text-xs text-slate-500 font-bold">Change Status:</span>
                           {(() => {
-                            let displayStatus = currentStatus === 'Pending' ? 'Task Assigned' : currentStatus;
-                            if (displayStatus === 'Accept/Decline') displayStatus = 'Accept';
-                            if (displayStatus === 'Completed/Forwarded') displayStatus = 'Completed';
+                            let selectValue = currentStatus === 'Pending' ? 'Task Assigned' : currentStatus;
+                            if (selectValue === 'Accept/Decline') selectValue = 'Accept';
+                            if (selectValue === 'Completed/Forwarded') selectValue = 'Completed';
+                            if (selectValue === 'Accepted' || selectValue === 'In Progress') selectValue = 'Accept';
+                            if (selectValue === 'Declined' || selectValue === 'Decline') selectValue = 'Decline';
                             if (showAsOverdued) {
-                              displayStatus = 'Overdued';
+                              selectValue = 'Overdued';
                             }
                             return (
                               <select
-                                value={displayStatus}
+                                value={selectValue}
                                 onChange={async (e) => {
                                   e.stopPropagation();
                                   const st = e.target.value;
@@ -330,19 +487,28 @@ export default function Dashboard() {
                                     setCompletionModalState({ isOpen: true, task, newStatus: st });
                                   } else if (st === 'Forwarded') {
                                     setForwardModalState({ isOpen: true, task, newStatus: st });
+                                  } else if (st === 'Decline') {
+                                    setDeclineModalState({ isOpen: true, task });
+                                  } else if (st === 'Accept') {
+                                    setAcceptModalState({ isOpen: true, task });
                                   } else {
-                                    const ok = await updateTaskStatus(task.interactionId, task.uid, st);
-                                    if (ok) fetchInteractions();
-                                    setTaskStatuses(prev => ({ ...prev, [`${task.interactionId}-${task.uid}`]: st }));
+                                    if (task.isInteractionTask) {
+                                      const ok = await updateTaskStatus(task.interactionId, task.uid, st);
+                                      if (ok) fetchInteractions();
+                                    } else {
+                                      const ok = await updateStaffTaskStatus(task.taskId, st);
+                                      if (ok) fetchStaffTasks('assigned-to-me');
+                                    }
+                                    setTaskStatuses(prev => ({ ...prev, [taskKey]: st }));
                                   }
                                 }}
                                 onClick={(e) => e.stopPropagation()}
                                 className="px-2 py-1 rounded-lg border border-slate-700 bg-slate-800 text-xs text-slate-300 font-bold outline-none cursor-pointer focus:border-indigo-500"
                               >
-                                {displayStatus === 'Overdued' && <option value="Overdued">Overdued</option>}
+                                {selectValue === 'Overdued' && <option value="Overdued">Overdued</option>}
                                 <option value="Task Assigned">Task Assigned</option>
-                                <option value="Accept">Accept</option>
-                                <option value="Decline">Decline</option>
+                                <option value="Accept">Accepted</option>
+                                <option value="Decline">Declined</option>
                                 <option value="Completed">Completed</option>
                                 <option value="Forwarded">Forwarded</option>
                               </select>
@@ -894,14 +1060,22 @@ export default function Dashboard() {
             <form onSubmit={async (e) => {
               e.preventDefault();
               const { task, newStatus } = completionModalState;
-              const ok = await updateTaskStatus(task.interactionId, task.uid, newStatus);
-              if (ok) {
-                if (completionNote.trim()) {
-                  await replyToInteraction(task.interactionId, `Task Completion Note: ${completionNote}`);
+              const taskKey = task.isInteractionTask ? `${task.interactionId}-${task.uid}` : task.taskId;
+              if (task.isInteractionTask) {
+                const ok = await updateTaskStatus(task.interactionId, task.uid, newStatus);
+                if (ok) {
+                  if (completionNote.trim()) {
+                    await replyToInteraction(task.interactionId, `Task Completion Note: ${completionNote}`);
+                  }
+                  fetchInteractions();
                 }
-                fetchInteractions();
+              } else {
+                const ok = await updateStaffTaskStatus(task.taskId, newStatus, completionNote.trim(), `Task Completion Note: ${completionNote.trim()}`);
+                if (ok) {
+                  fetchStaffTasks('assigned-to-me');
+                }
               }
-              setTaskStatuses(prev => ({ ...prev, [`${task.interactionId}-${task.uid}`]: newStatus }));
+              setTaskStatuses(prev => ({ ...prev, [taskKey]: newStatus }));
               setCompletionModalState({ isOpen: false, task: null, newStatus: '' });
               setCompletionNote('');
               setCompletionFile(null);
@@ -996,6 +1170,147 @@ export default function Dashboard() {
                   className="px-5 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-bold rounded-xl transition-all"
                 >
                   Forward Task
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Accept Task Modal */}
+      {acceptModalState.isOpen && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
+          <div className="bg-dark-900 border border-slate-800 w-full max-w-md rounded-2xl p-6 shadow-2xl relative">
+            <button
+              onClick={() => {
+                setAcceptModalState({ isOpen: false, task: null });
+                setAcceptNote('');
+              }}
+              className="absolute top-4 right-4 p-1.5 rounded-lg bg-slate-800 text-slate-400 hover:text-slate-200"
+            >
+              <X className="w-4 h-4" />
+            </button>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-full bg-amber-500/20 flex items-center justify-center">
+                <ThumbsUp className="w-5 h-5 text-amber-400" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-white">Accept Task</h3>
+                <p className="text-xs text-slate-400">Confirm acceptance and optionally add a note</p>
+              </div>
+            </div>
+
+            <form
+              onSubmit={async (e) => {
+                e.preventDefault();
+                const { task } = acceptModalState;
+                const taskKey = task.isInteractionTask ? `${task.interactionId}-${task.uid}` : task.taskId;
+                if (task.isInteractionTask) {
+                  const ok = await updateTaskStatus(task.interactionId, task.uid, 'Accept');
+                  if (ok) {
+                    if (acceptNote.trim()) {
+                      await replyToInteraction(task.interactionId, `Acceptance Note: ${acceptNote}`);
+                    }
+                    fetchInteractions();
+                  }
+                } else {
+                  const ok = await updateStaffTaskStatus(task.taskId, 'Accept', '', acceptNote.trim());
+                  if (ok) {
+                    fetchStaffTasks('assigned-to-me');
+                  }
+                }
+                setTaskStatuses(prev => ({ ...prev, [taskKey]: 'Accept' }));
+                setAcceptModalState({ isOpen: false, task: null });
+                setAcceptNote('');
+              }}
+              className="space-y-4"
+            >
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1.5">Acceptance Note (Optional)</label>
+                <textarea
+                  value={acceptNote}
+                  onChange={(e) => setAcceptNote(e.target.value)}
+                  className="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-sm text-slate-200 outline-none focus:border-amber-500 min-h-[100px]"
+                  placeholder="E.g., I will begin working on this task immediately."
+                />
+              </div>
+              <div className="flex justify-end pt-2">
+                <button
+                  type="submit"
+                  className="px-5 py-2 bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold rounded-xl transition-all"
+                >
+                  Accept Task
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Decline Task Modal */}
+      {declineModalState.isOpen && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
+          <div className="bg-dark-900 border border-slate-800 w-full max-w-md rounded-2xl p-6 shadow-2xl relative">
+            <button
+              onClick={() => {
+                setDeclineModalState({ isOpen: false, task: null });
+                setDeclineReason('');
+              }}
+              className="absolute top-4 right-4 p-1.5 rounded-lg bg-slate-800 text-slate-400 hover:text-slate-200"
+            >
+              <X className="w-4 h-4" />
+            </button>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-full bg-rose-500/20 flex items-center justify-center">
+                <ShieldAlert className="w-5 h-5 text-rose-400" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-white">Decline Task</h3>
+                <p className="text-xs text-slate-400">Provide a reason for declining this task</p>
+              </div>
+            </div>
+
+            <form
+              onSubmit={async (e) => {
+                e.preventDefault();
+                const { task } = declineModalState;
+                const taskKey = task.isInteractionTask ? `${task.interactionId}-${task.uid}` : task.taskId;
+                if (task.isInteractionTask) {
+                  const ok = await updateTaskStatus(task.interactionId, task.uid, 'Decline');
+                  if (ok) {
+                    if (declineReason.trim()) {
+                      await replyToInteraction(task.interactionId, `Decline Reason: ${declineReason}`);
+                    }
+                    fetchInteractions();
+                  }
+                } else {
+                  const ok = await updateStaffTaskStatus(task.taskId, 'Decline', '', declineReason.trim());
+                  if (ok) {
+                    fetchStaffTasks('assigned-to-me');
+                  }
+                }
+                setTaskStatuses(prev => ({ ...prev, [taskKey]: 'Decline' }));
+                setDeclineModalState({ isOpen: false, task: null });
+                setDeclineReason('');
+              }}
+              className="space-y-4"
+            >
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1.5">Reason for Declining</label>
+                <textarea
+                  value={declineReason}
+                  onChange={(e) => setDeclineReason(e.target.value)}
+                  className="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-sm text-slate-200 outline-none focus:border-rose-500 min-h-[100px]"
+                  placeholder="E.g., Unable to complete due to conflicting priorities or missing resources."
+                  required
+                />
+              </div>
+              <div className="flex justify-end pt-2">
+                <button
+                  type="submit"
+                  className="px-5 py-2 bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold rounded-xl transition-all"
+                >
+                  Submit Decline
                 </button>
               </div>
             </form>

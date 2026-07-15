@@ -40,7 +40,9 @@ class MockFirestore {
       notifications: {},
       summaries: {},
       healthScores: {},
-      activitylogs: {}
+      activitylogs: {},
+      tasks: {},
+      taskreplies: {}
     };
     this.loadData();
   }

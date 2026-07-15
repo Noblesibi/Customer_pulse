@@ -1,12 +1,12 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import dotenv from 'dotenv';
 
-dotenv.config();
+dotenv.config({ override: true });
 
 const apiKey = process.env.GEMINI_API_KEY;
 let genAI = null;
 
-if (apiKey) {
+if (apiKey && apiKey.trim() !== '' && apiKey !== 'your_gemini_api_key_here') {
   try {
     genAI = new GoogleGenerativeAI(apiKey);
     console.log('🤖 Gemini AI API client initialized successfully.');
@@ -14,7 +14,7 @@ if (apiKey) {
     console.error('Failed to initialize Gemini AI client:', error.message);
   }
 } else {
-  console.log('⚠️ GEMINI_API_KEY not found in env. Running with local NLP analyzer fallback.');
+  console.log('⚠️ GEMINI_API_KEY is unset or using default placeholder. Running with local NLP analyzer fallback.');
 }
 
 /**
@@ -96,7 +96,7 @@ export async function analyzeCommunication(text) {
   }
 
   try {
-    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-3.5-flash' });
     const prompt = `
       You are an AI-powered CRM analysis agent. Analyze this customer communication text:
       "${text}"
@@ -146,7 +146,7 @@ export async function generateExecutiveSummary(companyName, recentInteractionsTe
   }
 
   try {
-    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-3.5-flash' });
     const prompt = `
       Create a professional executive relationship summary for company: ${companyName}.
       
@@ -172,12 +172,62 @@ export async function generateExecutiveSummary(companyName, recentInteractionsTe
  */
 function localGenerateTaskHeader(text) {
   if (!text) return 'Task Assignment';
-  const cleanText = text.trim();
-  // Take first sentence
-  const sentence = cleanText.split(/[.!?]/)[0].trim();
-  if (sentence.length <= 50) return sentence;
-  // Fall back to truncating the first 47 chars
-  return sentence.slice(0, 47) + '...';
+  const clean = text.trim();
+  const lower = clean.toLowerCase();
+
+  // Pattern matching for calls, conversation, discussion with name
+  if (lower.includes('call with') || lower.includes('conversation through call with')) {
+    const match = clean.match(/(?:call with|call|conversation with|conversation through call with)\s+([A-Za-z]+)/i);
+    if (match && match[1]) {
+      return `Call with ${match[1].charAt(0).toUpperCase() + match[1].slice(1)}`;
+    }
+  }
+  if (lower.includes('conversation with')) {
+    const match = clean.match(/conversation with\s+([A-Za-z]+)/i);
+    if (match && match[1]) {
+      return `Sync with ${match[1].charAt(0).toUpperCase() + match[1].slice(1)}`;
+    }
+  }
+
+  // discussion / conversation triggers
+  if (lower.includes('discussion on') || lower.includes('discussion about')) {
+    const match = clean.match(/discussion (?:on the|on|about the|about)\s+([^.!?,\n]+)/i);
+    if (match && match[1]) {
+      const topic = match[1].split(/\s+/).slice(0, 3).join(' ');
+      const cleanTopic = topic.replace(/(?:of|the|a|for|new)$/i, '').trim();
+      return `${cleanTopic.charAt(0).toUpperCase() + cleanTopic.slice(1)} Discussion`;
+    }
+  }
+
+  if (lower.includes('shared') && lower.includes('proposal')) return 'Shared Proposal';
+  if (lower.includes('strategic') && lower.includes('discussion')) return 'Strategic Discussion';
+  if (lower.includes('conducted') && lower.includes('discussion')) return 'Conducted Discussion';
+  if (lower.includes('stability')) return 'Stability Feedback';
+  if (lower.includes('feedback')) return 'Client Feedback';
+  if (lower.includes('onboard')) return 'Customer Onboarding';
+  if (lower.includes('review') && lower.includes('account')) return 'Review Accounts';
+
+  // Developer / Finance task keywords
+  if (lower.includes('use case')) return 'Use Cases Discussion';
+  if (lower.includes('security') || lower.includes('rbac')) return 'Security Audit';
+  if (lower.includes('regression') || lower.includes('test')) return 'Regression Testing';
+  if (lower.includes('load test')) return 'Load Testing';
+  if (lower.includes('appraisal')) return 'Appraisal Review';
+  if (lower.includes('budget')) return 'Budget Review';
+  if (lower.includes('pending invoice') || lower.includes('verify pending invoices')) return 'Verify Pending Invoices';
+  if (lower.includes('shared financial file') || lower.includes('files that have been shared by the finance')) return 'Review Shared Financial Files';
+
+  // Verbose prefixes/suffixes stripping fallback
+  let stripped = clean.replace(/^(had a conversation through call with|had a conversation with|had the discussion on the|had the discussion on|discussion on the|discussion on|conversation with|conversation through call with|please take a look at the|please take a look at|take a look at the|take a look at|take a look)\s+/i, '');
+  stripped = stripped.replace(/\s+(based on the new project|based on the|based on|regarding|about)\s+.*/i, '');
+  
+  stripped = stripped.charAt(0).toUpperCase() + stripped.slice(1);
+  const sentence = stripped.split(/[.!?\n]/)[0].trim();
+  const words = sentence.split(/\s+/);
+  if (words.length > 5) {
+    return words.slice(0, 5).join(' ') + '...';
+  }
+  return sentence;
 }
 
 /**
@@ -193,15 +243,24 @@ export async function generateTaskHeader(text) {
   }
 
   try {
-    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-3.5-flash' });
     const prompt = `
-      You are an AI assistant in a CRM system. Your job is to read a task description and generate a very short, concise task header/title (maximum 5 words) that summarizes the action.
-      Do not include extra explanations or punctuation.
-      
-      Task Description:
-      "${text}"
-      
-      Response:
+      You are an AI assistant that generates concise, professional activity titles for an enterprise CRM activity log.
+
+      Your task is to summarize the activity description into a clear, meaningful title.
+
+      Rules:
+      - Generate a title containing 3 to 6 words.
+      - Use Title Case.
+      - Focus on the primary action or outcome.
+      - Start with an action verb when appropriate (e.g., Reviewed, Updated, Created, Fixed, Discussed, Implemented, Verified).
+      - Do not include employee names, customer names, company names, dates, times, or unnecessary details.
+      - Do not use punctuation unless absolutely necessary.
+      - Avoid generic titles like "Task Completed" or "Work Update".
+      - Return ONLY the title. Do not include explanations, quotes, markdown, or extra text.
+
+      Activity Description:
+      ${text}
     `;
 
     const result = await model.generateContent(prompt);
