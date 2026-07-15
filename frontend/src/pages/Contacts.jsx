@@ -188,7 +188,7 @@ export default function Contacts() {
   };
 
   return (
-    <div className="space-y-8 select-none">
+    <div className="p-6 md:p-8 space-y-8 select-none">
       
       {/* 1. Matrix Visualizer */}
       <div className="glass p-6 rounded-2xl border border-slate-800/80">
@@ -334,7 +334,7 @@ export default function Contacts() {
                     {account ? (
                       <span 
                         onClick={() => navigate(`/accounts/${account.accountId || account.id}`)}
-                        className="text-xs text-slate-400 block font-semibold hover:underline hover:text-primary cursor-pointer transition-colors"
+                        className="text-xs text-slate-400 block font-semibold hover:text-primary cursor-pointer transition-colors"
                       >
                         {account.companyName}
                       </span>

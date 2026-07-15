@@ -42,7 +42,7 @@
 }
 
 html {
-  font-size: 19px;
+  font-size: 16px;
   scroll-behavior: smooth;
 }
 
@@ -84,12 +84,12 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(15, 23, 42, 0.1);
+  background: rgba(15, 23, 42, 0.25);
   border-radius: 9999px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(37, 99, 235, 0.4);
+  background: rgba(37, 99, 235, 0.5);
 }
 
 /* Form Controls styling overrides for Light mode readability */

@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { 
   Plus, Search, Edit2, Trash2, Globe, Building2, ShieldAlert, UserPlus, Send, X, 
   MessageSquare, Mail, Calendar, Clock, Users, AtSign, CheckSquare, Square, Mic, Video,
-  CheckCheck, Phone, Paperclip, Upload, FileText, Loader2, ArrowLeft, BrainCircuit
+  CheckCheck, Phone, Paperclip, Upload, FileText, Loader2, ArrowLeft, BrainCircuit, ChevronLeft
 } from 'lucide-react';
 import { useStore } from '../store/index.js';
 
@@ -50,7 +50,7 @@ export default function AccountDetails() {
   const [explanationData, setExplanationData] = useState(null);
   const [explanationLoading, setExplanationLoading] = useState(false);
 
-  // Log Activity Form States
+  // Log Interaction Form States
   const [interactionSource, setInteractionSource] = useState('Outlook Mail');
   const [interactionText, setInteractionText] = useState('');
   const [interactionDate, setInteractionDate] = useState(new Date().toISOString().split('T')[0]);
@@ -289,16 +289,16 @@ export default function AccountDetails() {
   }
 
   return (
-    <div className="space-y-6 w-full mx-auto py-4 px-4 h-auto overflow-y-auto">
+    <div className="space-y-6 w-full mx-auto py-4 px-4 h-auto">
       {/* 1. Header Toolbar */}
       <div className="glass p-6 rounded-2xl border border-slate-800/80 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-xl">
         <div className="flex items-center gap-4">
           <button 
             onClick={() => navigate('/accounts')}
-            className="p-2.5 rounded-xl bg-dark-900/40 border border-slate-800 hover:bg-slate-800/60 text-slate-400 hover:text-white transition-all cursor-pointer"
-            title="Back to portfolio"
+            className="flex items-center gap-1.5 cursor-pointer text-black hover:bg-dark-700 transition-colors font-bold text-base px-3.5 py-1.5 rounded-full"
           >
-            <ArrowLeft className="w-5 h-5" />
+            <ChevronLeft className="w-5 h-5" />
+            <span>Back</span>
           </button>
           <div>
             <div className="flex items-center gap-3">
@@ -331,7 +331,7 @@ export default function AccountDetails() {
             className="bg-primary hover:bg-blue-600 px-5 py-3 rounded-xl text-xs font-bold text-white flex items-center gap-2 cursor-pointer transition-all shadow-lg shadow-primary/20"
           >
             <MessageSquare className="w-4 h-4" />
-            Log Activity
+            Log Interaction
           </button>
         </div>
       </div>
@@ -502,8 +502,14 @@ export default function AccountDetails() {
               {interactions.length === 0 ? (
                 <div className="text-center py-12 text-xs text-slate-500 font-bold">No interaction records logged yet against this client account.</div>
               ) : (
-                interactions.map(item => {
-                  const replies = repliesByInteraction[item.interactionId] || item.replies || [];
+                [...interactions]
+                  .sort((a, b) => {
+                    const timeA = a.timestamp ? new Date(a.timestamp) : (a.date && a.time ? new Date(`${a.date}T${a.time}:00`) : new Date(0));
+                    const timeB = b.timestamp ? new Date(b.timestamp) : (b.date && b.time ? new Date(`${b.date}T${b.time}:00`) : new Date(0));
+                    return timeB - timeA;
+                  })
+                  .map(item => {
+                    const replies = repliesByInteraction[item.interactionId] || item.replies || [];
                   return (
                     <div key={item.interactionId} className="bg-dark-900/60 p-5 rounded-2xl border border-slate-800/80 space-y-3 relative shadow-md">
                       <div className="flex items-center justify-between text-xs font-black">
@@ -684,8 +690,8 @@ export default function AccountDetails() {
                   <CheckSquare className="w-4 h-4 text-primary" />
                 </div>
                 <div>
-                  <h3 className="font-bold text-white text-sm">Log Activity</h3>
-                  <p className="text-xs text-slate-500">Record an interaction activity for this account</p>
+                  <h3 className="font-bold text-white text-sm">Log Interaction</h3>
+                  <p className="text-xs text-slate-500">Record an interaction for this account</p>
                 </div>
               </div>
               <button onClick={() => { setIsLogInteractionOpen(false); resetInteractionForm(); }} className="text-slate-400 hover:text-white transition-colors cursor-pointer">
@@ -776,7 +782,7 @@ export default function AccountDetails() {
                     onChange={(e) => setInteractionText(e.target.value)}
                     rows={5}
                     className="w-full bg-dark-900/60 border border-slate-700 text-xs text-white rounded-xl p-3 focus:outline-none focus:border-primary/50 resize-none leading-relaxed"
-                    placeholder="Enter activity log text..."
+                    placeholder="Enter interaction log text..."
                   />
                 </div>
 
@@ -787,7 +793,7 @@ export default function AccountDetails() {
                   </label>
                   <div className="flex flex-col gap-3">
                     <div className="flex items-center gap-3">
-                      <label className="flex items-center justify-center gap-2 px-4 py-3 bg-dark-900 border border-slate-700/80 hover:border-slate-500 rounded-xl text-xs font-semibold text-slate-350 hover:text-white cursor-pointer active:scale-98 transition-all w-fit">
+                      <label className="flex items-center justify-center gap-2 px-4 py-3 bg-dark-900 border border-slate-700/80 hover:border-slate-500 rounded-xl text-xs font-semibold text-slate-350 hover:bg-dark-700 cursor-pointer active:scale-98 transition-all w-fit">
                         <Upload className="w-4 h-4" />
                         <span>Choose Files</span>
                         <input
@@ -916,9 +922,9 @@ export default function AccountDetails() {
                         onChange={(e) => setTaskPriority(e.target.value)}
                         className="w-full bg-dark-900/60 border border-slate-700 text-xs text-white rounded-xl p-2.5 focus:outline-none focus:border-primary/50 cursor-pointer"
                       >
-                        <option value="High">🔥 High</option>
-                        <option value="Medium">⚡ Medium</option>
-                        <option value="Low">💤 Low</option>
+                        <option value="High">High</option>
+                        <option value="Medium">Medium</option>
+                        <option value="Low">Low</option>
                       </select>
                     </div>
                   </div>

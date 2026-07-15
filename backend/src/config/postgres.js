@@ -28,7 +28,9 @@ const tableMap = {
   notifications: 'Notifications',
   healthscores: 'HealthScores',
   summaries: 'Summaries',
-  activitylogs: 'ActivityLogs'
+  activitylogs: 'ActivityLogs',
+  tasks: 'Tasks',
+  taskreplies: 'TaskReplies'
 };
 
 // Map collection names to primary key fields
@@ -42,7 +44,9 @@ const keyFields = {
   notifications: 'notificationId',
   healthscores: 'id',
   summaries: 'summaryId',
-  activitylogs: 'logId'
+  activitylogs: 'logId',
+  tasks: 'taskId',
+  taskreplies: 'replyId'
 };
 
 /**
@@ -299,6 +303,10 @@ class PostgreSQLSubCollection {
     this.parentTableName = parentTableName;
     this.parentId = parentId;
     this.subColName = subColName;
+    this.isTaskReply = parentTableName === 'Tasks';
+    this.targetTable = this.isTaskReply ? 'TaskReplies' : 'Replies';
+    this.keyField = 'replyId';
+    this.parentField = this.isTaskReply ? 'taskId' : 'interactionId';
   }
   
   doc(replyId) {
@@ -307,7 +315,7 @@ class PostgreSQLSubCollection {
     return {
       id,
       get: async () => {
-        const row = await getRow('Replies', 'replyId', id);
+        const row = await getRow(self.targetTable, self.keyField, id);
         return {
           exists: !!row,
           id,
@@ -315,17 +323,19 @@ class PostgreSQLSubCollection {
         };
       },
       set: async (val) => {
-        const data = { ...val, interactionId: self.parentId, replyId: id };
-        await upsertRow('Replies', 'replyId', id, data);
+        const data = { ...val };
+        data[self.parentField] = self.parentId;
+        data[self.keyField] = id;
+        await upsertRow(self.targetTable, self.keyField, id, data);
         return { id };
       },
       update: async (val) => {
-        await updateRow('Replies', 'replyId', id, val);
+        await updateRow(self.targetTable, self.keyField, id, val);
         return { id };
       },
       delete: async () => {
         const connection = await getPool();
-        await connection.query('DELETE FROM "Replies" WHERE "replyId" = $1', [id]);
+        await connection.query(`DELETE FROM "${self.targetTable}" WHERE "${self.keyField}" = $1`, [id]);
         return { id };
       }
     };
@@ -333,11 +343,11 @@ class PostgreSQLSubCollection {
   
   async get() {
     const connection = await getPool();
-    const res = await connection.query('SELECT * FROM "Replies" WHERE "interactionId" = $1', [this.parentId]);
+    const res = await connection.query(`SELECT * FROM "${this.targetTable}" WHERE "${this.parentField}" = $1`, [this.parentId]);
     const docs = res.rows.map(row => {
-      const dataObj = parseRow('Replies', row);
+      const dataObj = parseRow(this.targetTable, row);
       return {
-        id: dataObj.replyId,
+        id: dataObj[this.keyField],
         exists: true,
         data: () => dataObj
       };
@@ -490,7 +500,9 @@ async function initializeDatabase() {
       `ALTER TABLE "Contacts" ADD COLUMN IF NOT EXISTS "ownerName" VARCHAR(150) NULL`,
       `ALTER TABLE "Contacts" ADD COLUMN IF NOT EXISTS "birthday" VARCHAR(50) NULL`,
       `ALTER TABLE "Contacts" ADD COLUMN IF NOT EXISTS "projectType" VARCHAR(100) NULL`,
-      `ALTER TABLE "Interactions" ADD COLUMN IF NOT EXISTS "attachments" TEXT NULL`
+      `ALTER TABLE "Interactions" ADD COLUMN IF NOT EXISTS "attachments" TEXT NULL`,
+      `ALTER TABLE "Tasks" ADD COLUMN IF NOT EXISTS "accountId" VARCHAR(50) NULL`,
+      `ALTER TABLE "Tasks" ADD COLUMN IF NOT EXISTS "contactId" VARCHAR(50) NULL`
     ];
     for (const migration of migrations) {
       try {

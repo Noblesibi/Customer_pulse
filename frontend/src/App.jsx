@@ -1,5 +1,6 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { useStore } from './store/index.js';
 
 // Layouts & Pages
 import AppLayout from './layouts/AppLayout.jsx';
@@ -14,16 +15,21 @@ import Contacts from './pages/Contacts.jsx';
 import Risks from './pages/Risks.jsx';
 import WebhooksDemo from './pages/WebhooksDemo.jsx';
 import Users from './pages/Users.jsx';
-import ActivityLog from './pages/ActivityLog.jsx';
-import LogActivity from './pages/LogActivity.jsx';
+import InteractionLog from './pages/InteractionLog.jsx';
+import LogInteraction from './pages/LogInteraction.jsx';
+import StaffTasks from './pages/StaffTasks.jsx';
+import AssignStaffTask from './pages/AssignStaffTask.jsx';
 
 export default function App() {
+  const { user } = useStore();
+
   return (
     <BrowserRouter>
       <Routes>
         {/* Public pages */}
-        <Route path="/" element={<Landing />} />
-        <Route path="/login" element={<Login />} />
+        <Route path="/" element={user ? <Navigate to="/dashboard" replace /> : <Navigate to="/login" replace />} />
+        <Route path="/login" element={user ? <Navigate to="/dashboard" replace /> : <Login />} />
+        <Route path="/landing" element={<Landing />} />
 
         {/* Protected Dashboard and CRM modules */}
         <Route element={<AppLayout />}>
@@ -36,8 +42,10 @@ export default function App() {
           <Route path="/risks" element={<Risks />} />
           <Route path="/webhooks-demo" element={<WebhooksDemo />} />
           <Route path="/users" element={<Users />} />
-          <Route path="/activity-log" element={<ActivityLog />} />
-          <Route path="/log-activity" element={<LogActivity />} />
+          <Route path="/interaction-log" element={<InteractionLog />} />
+          <Route path="/log-interaction" element={<LogInteraction />} />
+          <Route path="/staff-tasks" element={<StaffTasks />} />
+          <Route path="/staff-tasks/new" element={<AssignStaffTask />} />
         </Route>
 
         {/* Fallback routing */}

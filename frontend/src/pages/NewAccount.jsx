@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Building2, UserPlus, ArrowRight, ArrowLeft, Plus, X, Briefcase } from 'lucide-react';
+import { Building2, UserPlus, ArrowRight, ArrowLeft, Plus, X, Briefcase, ChevronLeft } from 'lucide-react';
 import { useStore } from '../store/index.js';
 import { useNavigate } from 'react-router-dom';
 
@@ -155,15 +155,16 @@ export default function NewAccount() {
   };
 
   return (
-    <div className="max-w-4xl mx-auto py-8 px-4 h-auto lg:h-[calc(100vh-10rem)] overflow-y-auto animate-soft-pulse duration-1000">
+    <div className="max-w-4xl mx-auto py-8 px-4 h-auto animate-soft-pulse duration-1000">
       
       {/* Header */}
       <div className="flex items-center gap-4 mb-8">
         <button 
           onClick={() => navigate('/accounts')}
-          className="p-2 rounded-xl bg-dark-900/40 border border-slate-800 hover:bg-slate-800/60 text-slate-400 hover:text-white transition-all"
+          className="flex items-center gap-1.5 cursor-pointer text-black hover:bg-dark-700 transition-colors font-bold text-base px-3.5 py-1.5 rounded-full"
         >
-          <ArrowLeft className="w-5 h-5" />
+          <ChevronLeft className="w-5 h-5" />
+          <span>Back</span>
         </button>
         <div>
           <h1 className="text-2xl font-bold text-white tracking-wide flex items-center gap-3">

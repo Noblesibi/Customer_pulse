@@ -3,7 +3,7 @@ import {
   Users as UsersIcon, Shield, Mail, Calendar, Key, Plus, X, Lock, 
   User, Briefcase, Trash2, ArrowLeft, PlusCircle, MinusCircle, Upload, CheckCircle2,
   ChevronDown, ChevronRight, FolderOpen, Folder, UserCheck, Building2, GitBranch,
-  Activity, Send, Eye, MessageSquare, CheckCheck
+  Activity, Send, Eye, MessageSquare, CheckCheck, ChevronLeft
 } from 'lucide-react';
 import { useStore } from '../store/index.js';
 
@@ -722,18 +722,18 @@ export default function Users() {
   };
 
   return (
-    <div className="space-y-6 select-none animate-soft-pulse duration-1000">
+    <div className="p-6 md:p-8 space-y-6 select-none animate-soft-pulse duration-1000">
 
       {isAddUserOpen ? (
-        <div className="glass p-6 md:p-8 rounded-2xl border border-slate-800/80 space-y-6">
+        <div className="space-y-6">
           {/* Header */}
           <div className="flex items-center justify-between pb-4 border-b border-slate-800">
             <button 
               onClick={() => setIsAddUserOpen(false)}
-              className="text-xs font-bold text-slate-500 hover:text-primary transition-colors flex items-center gap-1.5 cursor-pointer bg-slate-100 px-3.5 py-2 rounded-lg border border-slate-200"
+              className="flex items-center gap-1.5 cursor-pointer text-black hover:bg-dark-700 transition-colors font-bold text-base px-3.5 py-1.5 rounded-full"
             >
-              <ArrowLeft className="w-4 h-4" />
-              Back to Client Tree
+              <ChevronLeft className="w-5 h-5" />
+              <span>Back</span>
             </button>
             <h2 className="text-base font-extrabold text-white tracking-wide">Register Platform User</h2>
           </div>
@@ -1308,7 +1308,7 @@ export default function Users() {
       ) : (
         <div className="space-y-6 animate-fade-in duration-300">
           {/* Page Header */}
-          <div className="glass p-5 rounded-2xl border border-slate-800/80 flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
               <h2 className="text-base font-extrabold text-white uppercase tracking-wider">User Directory</h2>
               <p className="text-xs text-slate-500 mt-1">All platform users grouped by their business unit and role.</p>
