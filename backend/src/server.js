@@ -16,6 +16,7 @@ import summaryRouter from './routes/summary.routes.js';
 import notificationRouter from './routes/notification.routes.js';
 import activityRouter from './routes/activity.routes.js';
 import aiRouter from './routes/ai.routes.js';
+import employeeRouter from './routes/employee.routes.js';
 
 // Webhook imports
 import { handleOutlookWebhook, handleTeamsWebhook } from './controllers/webhook.controller.js';
@@ -57,6 +58,7 @@ app.use('/api/summary', summaryRouter);
 app.use('/api/notifications', notificationRouter);
 app.use('/api/activity-logs', activityRouter);
 app.use('/api/ai', aiRouter);
+app.use('/api/employees', employeeRouter);
 
 // Service Health check
 app.get('/api/health', (req, res) => {

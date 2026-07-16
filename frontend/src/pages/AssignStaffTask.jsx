@@ -288,17 +288,7 @@ export default function AssignStaffTask() {
             />
           </div>
 
-          {/* Task Header */}
-          <div className="space-y-2 w-full">
-            <label className="text-slate-500 block uppercase tracking-wider text-[10px]">Task Header</label>
-            <input
-              type="text"
-              placeholder="e.g. Assign Support Tickets (Auto-generated from description details)"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              className="w-full bg-dark-700/50 border border-slate-350 rounded-xl px-4 py-3 text-black placeholder-slate-455 focus:outline-none focus:border-primary/50 text-xs font-semibold"
-            />
-          </div>
+
 
           {/* Description */}
           <div className="space-y-2 w-full">

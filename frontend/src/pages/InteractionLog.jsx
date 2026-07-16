@@ -622,9 +622,9 @@ export default function InteractionLog() {
                             <span className={`inline-block px-2 py-0.5 rounded border text-[10px] font-black uppercase tracking-wider ${
                               displayStatus.toLowerCase() === 'completed' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' :
                               displayStatus.toLowerCase() === 'forwarded' ? 'bg-sky-500/10 border-sky-500/20 text-sky-400' :
-                              displayStatus.toLowerCase() === 'accept' ? 'bg-amber-500/10 border-amber-500/20 text-amber-400' :
-                              displayStatus.toLowerCase() === 'decline' ? 'bg-rose-500/10 border-rose-500/20 text-rose-400' :
-                              displayStatus.toLowerCase() === 'overdued' || displayStatus.toLowerCase() === 'overdue' ? 'bg-rose-500/10 border-rose-500/20 text-rose-455' :
+                              displayStatus.toLowerCase() === 'accept' || displayStatus.toLowerCase() === 'accepted' ? 'bg-amber-500/10 border-amber-500/20 text-amber-400' :
+                              displayStatus.toLowerCase() === 'decline' || displayStatus.toLowerCase() === 'declined' ? 'bg-rose-500/10 border-rose-500/20 text-rose-400' :
+                              displayStatus.toLowerCase() === 'overdued' || displayStatus.toLowerCase() === 'overdue' ? 'bg-purple-500/10 border-purple-500/20 text-purple-500' :
                               'bg-slate-800 border-slate-700 text-slate-400'
                             }`}>
                               {displayStatus === 'Forwarded' && forwardedTo ? `Forwarded to @${forwardedTo}` : displayStatus}
@@ -816,9 +816,9 @@ export default function InteractionLog() {
                                 <span className={`inline-block px-2.5 py-1 rounded-lg border text-xs font-black uppercase tracking-wider w-fit ${
                                   displayStatus.toLowerCase() === 'completed' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600' :
                                   displayStatus.toLowerCase() === 'forwarded' ? 'bg-sky-500/10 border-sky-500/20 text-sky-600' :
-                                  displayStatus.toLowerCase() === 'accept' ? 'bg-amber-500/10 border-amber-500/20 text-amber-600' :
-                                  displayStatus.toLowerCase() === 'decline' ? 'bg-rose-500/10 border-rose-500/20 text-rose-600' :
-                                  displayStatus.toLowerCase() === 'overdued' || displayStatus.toLowerCase() === 'overdue' ? 'bg-rose-500/10 border-rose-500/20 text-rose-600' :
+                                  displayStatus.toLowerCase() === 'accept' || displayStatus.toLowerCase() === 'accepted' ? 'bg-amber-500/10 border-amber-500/20 text-amber-600' :
+                                  displayStatus.toLowerCase() === 'decline' || displayStatus.toLowerCase() === 'declined' ? 'bg-rose-500/10 border-rose-500/20 text-rose-600' :
+                                  displayStatus.toLowerCase() === 'overdued' || displayStatus.toLowerCase() === 'overdue' ? 'bg-purple-500/10 border-purple-500/20 text-purple-600' :
                                   'bg-slate-400/10 border-slate-400/20 text-slate-500'
                                 }`}>
                                   {displayStatus === 'Forwarded' && forwardedTo ? `Forwarded to @${forwardedTo}` : displayStatus}
@@ -888,7 +888,7 @@ export default function InteractionLog() {
                 const s = (st || 'Pending').toLowerCase();
                 if (s.includes('complete') || s.includes('forward')) return 'bg-emerald-500/10 border-emerald-500/25 text-emerald-400';
                 if (s.includes('progress') || s.includes('accept') || s.includes('decline')) return 'bg-amber-500/10 border-amber-500/25 text-amber-400';
-                if (s.includes('overdued') || s.includes('overdue')) return 'bg-rose-500/10 border-rose-500/25 text-rose-400';
+                if (s.includes('overdued') || s.includes('overdue')) return 'bg-purple-500/10 border-purple-500/25 text-purple-400';
                 return 'bg-slate-800 border-slate-700 text-slate-400';
               };
 

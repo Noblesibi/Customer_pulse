@@ -261,7 +261,7 @@ export default function Dashboard() {
           const s = (st || 'Pending').toLowerCase();
           if (s.includes('complete') || s.includes('forward')) return 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400';
           if (s.includes('progress') || s.includes('accept') || s.includes('decline')) return 'bg-amber-500/10 border-amber-500/20 text-amber-400';
-          if (s.includes('overdued') || s.includes('overdue')) return 'bg-rose-500/10 border-rose-500/20 text-rose-600';
+          if (s.includes('overdued') || s.includes('overdue')) return 'bg-purple-500/10 border-purple-500/20 text-purple-600';
           return 'bg-slate-500/10 border-slate-600/30 text-slate-400';
         };
 
