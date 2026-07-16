@@ -29,8 +29,14 @@ CREATE TABLE IF NOT EXISTS "Users" (
     "userType" VARCHAR(100),
     "department" VARCHAR(100),
     "password" VARCHAR(150),
-    "reportingTo" VARCHAR(50),
+    "reportingTo" VARCHAR(150),
+    "reportingManagerName" VARCHAR(150),
     "bu" VARCHAR(100),
+    "buHeadName" VARCHAR(150),
+    "buHeadEmail" VARCHAR(150),
+    "phone" VARCHAR(50),
+    "employeeId" VARCHAR(50),
+    "jobRole" VARCHAR(150),
     "project" VARCHAR(150),
     "projects" TEXT,
     "employees" TEXT,
@@ -138,5 +144,33 @@ CREATE TABLE IF NOT EXISTS "ActivityLogs" (
     "userName" VARCHAR(150),
     "action" VARCHAR(100) NOT NULL,
     "details" TEXT,
+    "timestamp" TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Tasks Table
+CREATE TABLE IF NOT EXISTS "Tasks" (
+    "taskId" VARCHAR(50) PRIMARY KEY,
+    "title" VARCHAR(250) NOT NULL,
+    "description" TEXT NOT NULL,
+    "assignedByUid" VARCHAR(50) NOT NULL,
+    "assignedByName" VARCHAR(150),
+    "assignedToUid" VARCHAR(50) NOT NULL,
+    "assignedToName" VARCHAR(150),
+    "priority" VARCHAR(50) DEFAULT 'Medium',
+    "status" VARCHAR(50) DEFAULT 'Pending',
+    "dueDate" VARCHAR(50),
+    "completionNote" TEXT,
+    "accountId" VARCHAR(50) NULL,
+    "contactId" VARCHAR(50) NULL,
+    "timestamp" TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- TaskReplies Table
+CREATE TABLE IF NOT EXISTS "TaskReplies" (
+    "replyId" VARCHAR(50) PRIMARY KEY,
+    "taskId" VARCHAR(50) REFERENCES "Tasks"("taskId") ON DELETE CASCADE,
+    "authorUid" VARCHAR(50) NOT NULL,
+    "authorName" VARCHAR(150) NOT NULL,
+    "text" TEXT NOT NULL,
     "timestamp" TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );

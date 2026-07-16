@@ -1,21 +1,33 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { 
   Users as UsersIcon, Shield, Mail, Calendar, Key, Plus, X, Lock, 
   User, Briefcase, Trash2, ArrowLeft, PlusCircle, MinusCircle, Upload, CheckCircle2,
   ChevronDown, ChevronRight, FolderOpen, Folder, UserCheck, Building2, GitBranch,
-  Activity, Send, Eye, MessageSquare, CheckCheck
+  Activity, Send, Eye, MessageSquare, CheckCheck, ChevronLeft
 } from 'lucide-react';
 import { useStore } from '../store/index.js';
 
 export default function Users() {
   const { 
-    usersList, usersLoading, fetchUsersList, addUser, user, deleteUser,
+    usersList, usersLoading, fetchUsersList, staffList, fetchStaff, addUser, user, deleteUser,
     accounts, accountsLoading, fetchAccounts,
     contacts, contactsLoading, fetchContacts,
-    interactions, interactionsLoading, fetchInteractions
+    interactions, interactionsLoading, fetchInteractions,
+    hrEmployeeData, hrEmployeeLoading, hrEmployeeError, fetchHREmployeeData,
+    syncDirectoryWithHR
   } = useStore();
 
+  const allCompanyStaff = useMemo(() => {
+    return Array.from(
+      new Map([
+        ...(Array.isArray(usersList) ? usersList : []),
+        ...(Array.isArray(staffList) ? staffList : [])
+      ].map(u => [u.uid || u.id || u.email?.toLowerCase(), u])).values()
+    );
+  }, [usersList, staffList]);
+
   const [activeTab, setActiveTab] = useState('clients'); // 'clients' or 'directory'
+  const [syncing, setSyncing] = useState(false);
   const [clientSearch, setClientSearch] = useState('');
   const [expandedAccounts, setExpandedAccounts] = useState({});
   const [isAddUserOpen, setIsAddUserOpen] = useState(false);
@@ -57,6 +69,9 @@ export default function Users() {
 
   // Deletion modal state
   const [userToDelete, setUserToDelete] = useState(null);
+
+  // Selected Directory User for HR Details Modal
+  const [selectedDirUser, setSelectedDirUser] = useState(null);
 
   // Client stakeholders expansion state
   const [expandedUserStakeholders, setExpandedUserStakeholders] = useState({});
@@ -120,7 +135,7 @@ export default function Users() {
   };
 
   const renderOrgNode = (title, matchType, details = {}, matchFn = null, colorClasses = {}) => {
-    const matched = usersList.filter(u => {
+    const matched = allCompanyStaff.filter(u => {
       const uType = (u.userType || u.role);
       if (uType !== matchType) return false;
       if (matchFn) return matchFn(u);
@@ -141,7 +156,11 @@ export default function Users() {
             const isExpanded = !!expandedUserStakeholders[u.uid || u.id];
             
             return (
-              <div key={u.uid || u.id} className={`${bgClass} border ${isCurrentUser ? 'border-primary ring-2 ring-primary/45 shadow-primary/20' : borderClass} p-3 rounded-xl shadow-lg flex flex-col items-center justify-between w-56 text-center hover:border-primary/50 transition-all shrink-0 relative overflow-hidden`}>
+              <div 
+                key={u.uid || u.id} 
+                onClick={() => { setSelectedDirUser(u); fetchHREmployeeData(u.email); }}
+                className={`${bgClass} border ${isCurrentUser ? 'border-primary ring-2 ring-primary/45 shadow-primary/20' : borderClass} p-3 rounded-xl shadow-lg flex flex-col items-center justify-between w-56 text-center hover:border-primary/50 cursor-pointer transition-all shrink-0 relative overflow-hidden`}
+              >
                 {isCurrentUser && (
                   <div className="absolute top-0 left-0 bg-primary text-white text-xs font-black uppercase tracking-wider px-1.5 py-0.5 rounded-br-lg z-10">
                     You
@@ -250,7 +269,7 @@ export default function Users() {
   };
 
   const renderManagersList = (title, matchType, details = {}) => {
-    const matched = usersList.filter(u => (u.userType || u.role) === matchType);
+    const matched = allCompanyStaff.filter(u => (u.userType || u.role) === matchType);
 
     return (
       <div className="flex flex-col gap-2 bg-dark-900/40 p-4 rounded-2xl border border-slate-800/80 w-76 shadow-md shrink-0">
@@ -263,7 +282,11 @@ export default function Users() {
               const isExpanded = !!expandedUserStakeholders[u.uid || u.id];
               
               return (
-                <div key={u.uid || u.id} className={`glass border ${isCurrentUser ? 'border-primary' : 'border-slate-700/60'} p-3 rounded-xl flex flex-col gap-2 relative overflow-hidden`}>
+                <div 
+                  key={u.uid || u.id} 
+                  onClick={() => { setSelectedDirUser(u); fetchHREmployeeData(u.email); }}
+                  className={`glass border ${isCurrentUser ? 'border-primary' : 'border-slate-700/60'} p-3 rounded-xl flex flex-col gap-2 cursor-pointer hover:border-primary/50 transition-all relative overflow-hidden`}
+                >
                   {isCurrentUser && (
                     <span className="absolute top-0 left-0 bg-primary text-white text-xs font-bold px-1.5 py-0.5 rounded-br-lg z-10">You</span>
                   )}
@@ -358,10 +381,22 @@ export default function Users() {
 
   useEffect(() => {
     fetchUsersList();
+    fetchStaff();
     fetchAccounts(1, '');
     fetchContacts();
     fetchInteractions();
   }, []);
+
+  const handleSyncHR = async () => {
+    setSyncing(true);
+    const result = await syncDirectoryWithHR();
+    setSyncing(false);
+    if (result && result.success) {
+      alert(result.message || 'Directory synchronized successfully!');
+    } else {
+      alert(result?.error || 'Failed to synchronize directory.');
+    }
+  };
 
   const toggleAccountExpand = (accountId) => {
     setExpandedAccounts(prev => ({ ...prev, [accountId]: !prev[accountId] }));
@@ -722,18 +757,18 @@ export default function Users() {
   };
 
   return (
-    <div className="space-y-6 select-none animate-soft-pulse duration-1000">
+    <div className="p-6 md:p-8 space-y-6 select-none animate-soft-pulse duration-1000">
 
       {isAddUserOpen ? (
-        <div className="glass p-6 md:p-8 rounded-2xl border border-slate-800/80 space-y-6">
+        <div className="space-y-6">
           {/* Header */}
           <div className="flex items-center justify-between pb-4 border-b border-slate-800">
             <button 
               onClick={() => setIsAddUserOpen(false)}
-              className="text-xs font-bold text-slate-500 hover:text-primary transition-colors flex items-center gap-1.5 cursor-pointer bg-slate-100 px-3.5 py-2 rounded-lg border border-slate-200"
+              className="flex items-center gap-1.5 cursor-pointer text-black hover:bg-dark-700 transition-colors font-bold text-base px-3.5 py-1.5 rounded-full"
             >
-              <ArrowLeft className="w-4 h-4" />
-              Back to Client Tree
+              <ChevronLeft className="w-5 h-5" />
+              <span>Back</span>
             </button>
             <h2 className="text-base font-extrabold text-white tracking-wide">Register Platform User</h2>
           </div>
@@ -843,11 +878,11 @@ export default function Users() {
                     />
                     {showReportingSuggestions && (
                       <div className="absolute left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-xl max-h-48 overflow-y-auto z-50 divide-y divide-slate-100">
-                        {usersList.filter(u => {
+                        {allCompanyStaff.filter(u => {
                           const searchString = `${u.name} ${u.position || ''} ${u.userType || ''} ${u.role || ''}`.toLowerCase();
                           return searchString.includes(reportingTo.toLowerCase());
                         }).length > 0 ? (
-                          usersList.filter(u => {
+                          allCompanyStaff.filter(u => {
                             const searchString = `${u.name} ${u.position || ''} ${u.userType || ''} ${u.role || ''}`.toLowerCase();
                             return searchString.includes(reportingTo.toLowerCase());
                           }).map(u => (
@@ -1308,7 +1343,7 @@ export default function Users() {
       ) : (
         <div className="space-y-6 animate-fade-in duration-300">
           {/* Page Header */}
-          <div className="glass p-5 rounded-2xl border border-slate-800/80 flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
               <h2 className="text-base font-extrabold text-white uppercase tracking-wider">User Directory</h2>
               <p className="text-xs text-slate-500 mt-1">All platform users grouped by their business unit and role.</p>
@@ -1323,6 +1358,18 @@ export default function Users() {
                   className="w-full bg-dark-900/60 border border-slate-800 text-xs text-white rounded-xl py-2.5 pl-4 pr-10 focus:outline-none focus:border-primary/50 placeholder-slate-500 font-semibold"
                 />
               </div>
+              <button
+                onClick={handleSyncHR}
+                disabled={syncing}
+                className="bg-dark-900 border border-slate-800 hover:border-slate-500 px-4 py-2.5 rounded-xl text-xs font-semibold flex items-center gap-2 text-slate-350 hover:text-white active:scale-98 transition-all cursor-pointer shrink-0 disabled:opacity-50"
+              >
+                {syncing ? (
+                  <div className="animate-spin rounded-full h-3.5 w-3.5 border-b-2 border-slate-400"></div>
+                ) : (
+                  <Building2 className="w-4 h-4" />
+                )}
+                {syncing ? 'Syncing...' : 'Sync HR Data'}
+              </button>
               {user?.role === 'Admin' && (
                 <button
                   onClick={() => {
@@ -1348,7 +1395,7 @@ export default function Users() {
             </div>
           ) : (() => {
             const q = clientSearch.toLowerCase();
-            const filtered = usersList.filter(u =>
+            const filtered = allCompanyStaff.filter(u =>
               !q ||
               (u.name || '').toLowerCase().includes(q) ||
               (u.email || '').toLowerCase().includes(q) ||
@@ -1410,7 +1457,10 @@ export default function Users() {
               const initials = u.name ? u.name.substring(0,2).toUpperCase() : 'US';
               const type = u.userType || u.role;
               return (
-                <div className={`glass border ${isMe ? 'border-primary/60 ring-1 ring-primary/30' : 'border-slate-700/50'} rounded-xl p-3 flex items-center gap-3 relative hover:border-slate-600/70 transition-all group`}>
+                <div 
+                  onClick={() => { setSelectedDirUser(u); fetchHREmployeeData(u.email); }}
+                  className={`glass border ${isMe ? 'border-primary/60 ring-1 ring-primary/30' : 'border-slate-700/50'} rounded-xl p-3 flex items-center gap-3 relative hover:border-primary/50 cursor-pointer transition-all group`}
+                >
                   {isMe && (
                     <span className="absolute top-0 left-0 bg-primary text-white text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded-br-lg rounded-tl-xl">You</span>
                   )}
@@ -1430,11 +1480,11 @@ export default function Users() {
                         </button>
                       )}
                     </div>
-                    <span className="text-[10px] text-slate-500 block truncate">{u.email}</span>
+                    <span className="text-[10px] text-black block truncate">{u.email}</span>
                     <div className="flex items-center gap-1.5 mt-1 flex-wrap">
                       <RoleChip type={type} />
                       {u.position && u.position !== type && (
-                        <span className="text-[10px] text-slate-500 italic truncate">{u.position}</span>
+                        <span className="text-[10px] text-black italic truncate">{u.position}</span>
                       )}
                     </div>
                   </div>
@@ -1522,6 +1572,69 @@ export default function Users() {
           })()}
         </div>
       )}
+      {/* ========================================================
+          EMPLOYEE PROFILE & HR DETAILS MODAL
+          ======================================================== */}
+      {selectedDirUser && (
+        <div className="fixed inset-0 bg-dark-950/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="glass max-w-lg w-full rounded-2xl p-6 border border-slate-800 shadow-2xl space-y-6 relative select-text">
+            {/* Close Button */}
+            <button 
+              type="button" 
+              onClick={() => setSelectedDirUser(null)}
+              className="absolute top-4 right-4 text-slate-500 hover:text-white hover:bg-slate-800 transition-colors p-1.5 rounded-lg cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            {/* Profile Header */}
+            <div className="flex items-center gap-4">
+              <div className="bg-primary/20 border border-primary/30 text-primary w-12 h-12 rounded-xl flex items-center justify-center font-extrabold text-base shrink-0">
+                {selectedDirUser.name ? selectedDirUser.name.substring(0, 2).toUpperCase() : 'US'}
+              </div>
+              <div className="min-w-0">
+                <h3 className="text-base font-extrabold text-white leading-tight">{selectedDirUser.name}</h3>
+                <span className="text-xs text-black font-semibold">{selectedDirUser.email}</span>
+              </div>
+            </div>
+
+            {/* CRM Profile Details */}
+            <div className="bg-slate-900/40 p-4 rounded-xl border border-slate-800/80 space-y-3">
+              <span className="text-[10px] text-black font-black uppercase tracking-wider block border-b border-slate-800 pb-1.5">CRM Local Record</span>
+              <div className="grid grid-cols-2 gap-4 text-xs">
+                <div>
+                  <span className="text-black font-medium block">Position</span>
+                  <span className="text-slate-200 font-bold">{selectedDirUser.position || selectedDirUser.userType || selectedDirUser.role || '—'}</span>
+                </div>
+                <div>
+                  <span className="text-black font-medium block">Department</span>
+                  <span className="text-slate-200 font-bold">{selectedDirUser.department || '—'}</span>
+                </div>
+                <div>
+                  <span className="text-black font-medium block">Access Role</span>
+                  <span className="text-slate-200 font-bold">{selectedDirUser.userType || selectedDirUser.role || 'Employee'}</span>
+                </div>
+                <div>
+                  <span className="text-black font-medium block">Reporting To</span>
+                  <span className="text-slate-200 font-bold">{selectedDirUser.reportingTo || '—'}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="pt-2 flex justify-end">
+              <button 
+                type="button" 
+                onClick={() => setSelectedDirUser(null)}
+                className="bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-lg px-6 py-2.5 border border-slate-700/50 cursor-pointer active:scale-98 transition-all"
+              >
+                Close Profile
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ========================================================
           DELETE USER CONFIRMATION MODAL
           ======================================================== */}

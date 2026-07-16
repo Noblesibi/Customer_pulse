@@ -54,10 +54,10 @@ export default function Risks() {
   });
 
   return (
-    <div className="space-y-8 select-none">
+    <div className="p-6 md:p-8 space-y-8 select-none">
       
       {/* 1. Header with Filters */}
-      <div className="glass p-6 rounded-2xl border border-slate-800/80 flex flex-wrap gap-4 items-center justify-between">
+      <div className="flex flex-wrap gap-4 items-center justify-between">
         <div>
           <h2 className="text-lg font-bold text-white tracking-wide">Risk Center Control Panel</h2>
           <p className="text-xs text-slate-400 mt-1">Monitor, evaluate and mitigate active client alerts</p>
@@ -104,7 +104,7 @@ export default function Risks() {
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
         </div>
       ) : filteredRisks.length === 0 ? (
-        <div className="glass p-12 text-center text-xs text-slate-500 rounded-2xl border border-slate-800/80">
+        <div className="p-12 text-center text-xs text-slate-500">
           No alarms found matching parameters. System is safe!
         </div>
       ) : (
@@ -137,7 +137,7 @@ export default function Risks() {
                   <Building2 className="w-3.5 h-3.5 text-slate-500" />
                   <span 
                     onClick={() => navigate(`/accounts/${risk.accountId}`)}
-                    className="hover:underline hover:text-primary cursor-pointer transition-colors"
+                    className="hover:text-primary cursor-pointer transition-colors"
                   >
                     {risk.companyName}
                   </span>

@@ -352,7 +352,7 @@ export default function Accounts() {
   };
 
   return (
-    <div className="flex flex-col lg:flex-row gap-6 lg:gap-8 relative select-none h-auto lg:h-[calc(100vh-10rem)]">
+    <div className="p-6 md:p-8 flex flex-col lg:flex-row gap-6 lg:gap-8 relative select-none h-auto lg:h-[calc(100vh-10rem)]">
       
       {/* LEFT PANEL: ACCOUNTS TABLE LIST */}
       <div className={`w-full lg:flex-1 flex flex-col justify-between glass p-4 md:p-6 rounded-2xl border border-slate-800/80 transition-all duration-300 ${
@@ -424,7 +424,7 @@ export default function Accounts() {
         </div>
 
         {/* Data Table */}
-        <div className="flex-1 overflow-y-auto mb-4 border border-slate-800/60 rounded-xl">
+        <div className="flex-1 overflow-auto mb-4 border border-slate-800/60 rounded-xl">
           {accountsLoading ? (
             <div className="h-48 flex items-center justify-center">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
@@ -450,7 +450,7 @@ export default function Accounts() {
                     >
                       <div className="flex justify-between items-start gap-3">
                         <div className="min-w-0 flex-1">
-                          <h3 className="font-bold text-xs text-white hover:underline hover:text-primary transition-colors truncate">
+                          <h3 className="font-bold text-xs text-white hover:text-primary transition-colors truncate">
                             {acc.companyName}
                           </h3>
                           <div className="flex flex-col gap-0.5 mt-1.5 text-[10px] text-slate-400">
@@ -496,32 +496,34 @@ export default function Accounts() {
               </div>
 
               {/* Table for Desktop */}
-              <div className="hidden md:block overflow-x-auto">
+              <div className="hidden md:block">
                 <table className="w-full text-left text-xs border-collapse">
                   <thead>
-                    <tr className="bg-dark-900/40 border-b border-slate-800 text-slate-400 font-semibold uppercase tracking-wider">
-                      <th className="p-4">Company</th>
-                      <th className="p-4">Nest BU</th>
-                      <th className="p-4">Region</th>
-                      <th className="p-4 text-center">Health</th>
+                    <tr className="bg-dark-900 border-b border-slate-800 text-slate-400 font-semibold uppercase tracking-wider">
+                      <th className="p-4 sticky top-0 bg-dark-900 z-10 text-left">Company</th>
+                      <th className="p-4 sticky top-0 bg-dark-900 z-10 text-left">Nest BU</th>
+                      <th className="p-4 sticky top-0 bg-dark-900 z-10 text-left">Region</th>
+                      <th className="p-4 text-center sticky top-0 bg-dark-900 z-10">Health</th>
                       {(user?.role === 'Admin' || user?.position?.toLowerCase().includes('ceo') || user?.userType === 'CEO' || user?.email === 'nj@gmail.com') && (
-                        <th className="p-4 text-right">Actions</th>
+                        <th className="p-4 text-right sticky top-0 bg-dark-900 z-10">Actions</th>
                       )}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-800/40">
-                    {accounts.map(acc => {
+                    {accounts.map((acc, index) => {
                       const id = acc.accountId || acc.id;
                       const isSelected = selectedAccount && (selectedAccount.accountId === id || selectedAccount.id === id);
                       return (
                         <tr 
                           key={id}
                           onClick={() => navigate(`/accounts/${id}`)}
-                          className={`hover:bg-slate-800/20 cursor-pointer transition-colors duration-150 ${
+                          className={`hover:bg-blue-50/80 cursor-pointer transition-colors duration-150 ${
+                            index % 2 === 0 ? 'bg-blue-50/30' : 'bg-white'
+                          } ${
                             isSelected ? 'bg-primary/5 border-l-2 border-l-primary' : ''
                           }`}
                         >
-                          <td className="p-4 font-bold text-white hover:underline hover:text-primary transition-colors">{acc.companyName}</td>
+                          <td className="p-4 font-bold text-white hover:text-primary transition-colors">{acc.companyName}</td>
                           <td className="p-4 text-slate-300">{acc.domain || '—'}</td>
                           <td className="p-4 text-slate-300">{acc.region}</td>
                           <td className="p-4 text-center whitespace-nowrap">
@@ -761,13 +763,13 @@ export default function Accounts() {
                   className="bg-primary/10 border border-primary/20 hover:bg-primary/20 rounded-lg text-xs font-bold text-black px-2.5 py-1.5 flex items-center gap-1.5"
                 >
                   <MessageSquare className="w-3.5 h-3.5 text-primary" />
-                  Log Activity
+                  Log Interaction
                 </button>
               </div>
 
               <div className="space-y-4 max-h-72 overflow-y-auto pr-1">
                 {interactions.length === 0 ? (
-                  <span className="text-xs text-slate-500 block py-2">No activity logged yet.</span>
+                  <span className="text-xs text-slate-500 block py-2">No interaction logged yet.</span>
                 ) : (
                   interactions.map(item => {
                     const replies = repliesByInteraction[item.interactionId] || [];
@@ -958,7 +960,7 @@ export default function Accounts() {
                   <CheckSquare className="w-4 h-4 text-primary" />
                 </div>
                 <div>
-                  <h3 className="font-bold text-white text-sm">Log Activity</h3>
+                  <h3 className="font-bold text-white text-sm">Log Interaction</h3>
                   <p className="text-xs text-slate-500">Record a client interaction for AI analysis & tracking</p>
                 </div>
               </div>
@@ -1090,7 +1092,7 @@ export default function Accounts() {
                   </label>
                   <div className="flex flex-col gap-3">
                     <div className="flex items-center gap-3">
-                      <label className="flex items-center justify-center gap-2 px-4 py-3 bg-dark-900 border border-slate-700/80 hover:border-slate-500 rounded-xl text-xs font-semibold text-slate-350 hover:text-white cursor-pointer active:scale-98 transition-all w-fit">
+                      <label className="flex items-center justify-center gap-2 px-4 py-3 bg-dark-900 border border-slate-700/80 hover:border-slate-500 rounded-xl text-xs font-semibold text-slate-350 hover:bg-dark-700 cursor-pointer active:scale-98 transition-all w-fit">
                         <Upload className="w-4 h-4" />
                         <span>Choose Files</span>
                         <input
@@ -1235,9 +1237,9 @@ export default function Accounts() {
                         onChange={(e) => setTaskPriority(e.target.value)}
                         className="w-full bg-dark-900/60 border border-slate-700 text-xs text-white rounded-xl p-2.5 focus:outline-none focus:border-primary/50 cursor-pointer"
                       >
-                        <option value="High">🔥 High</option>
-                        <option value="Medium">⚡ Medium</option>
-                        <option value="Low">💤 Low</option>
+                        <option value="High">High</option>
+                        <option value="Medium">Medium</option>
+                        <option value="Low">Low</option>
                       </select>
                     </div>
                   </div>

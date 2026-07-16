@@ -9,11 +9,14 @@ import authRouter from './routes/auth.routes.js';
 import accountRouter from './routes/account.routes.js';
 import contactRouter from './routes/contact.routes.js';
 import interactionRouter from './routes/interaction.routes.js';
+import taskRouter from './routes/task.routes.js';
 import riskRouter from './routes/risk.routes.js';
 import dashboardRouter from './routes/dashboard.routes.js';
 import summaryRouter from './routes/summary.routes.js';
 import notificationRouter from './routes/notification.routes.js';
 import activityRouter from './routes/activity.routes.js';
+import aiRouter from './routes/ai.routes.js';
+import employeeRouter from './routes/employee.routes.js';
 
 // Webhook imports
 import { handleOutlookWebhook, handleTeamsWebhook } from './controllers/webhook.controller.js';
@@ -21,7 +24,7 @@ import { handleOutlookWebhook, handleTeamsWebhook } from './controllers/webhook.
 // Sync scheduler import
 import { startSyncScheduler } from './services/userSync.service.js';
 
-dotenv.config();
+dotenv.config({ override: true });
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -48,11 +51,14 @@ app.use('/api/auth', authRouter);
 app.use('/api/accounts', accountRouter);
 app.use('/api/contacts', contactRouter);
 app.use('/api/interactions', interactionRouter);
+app.use('/api/tasks', taskRouter);
 app.use('/api/risks', riskRouter);
 app.use('/api/dashboard', dashboardRouter);
 app.use('/api/summary', summaryRouter);
 app.use('/api/notifications', notificationRouter);
 app.use('/api/activity-logs', activityRouter);
+app.use('/api/ai', aiRouter);
+app.use('/api/employees', employeeRouter);
 
 // Service Health check
 app.get('/api/health', (req, res) => {
