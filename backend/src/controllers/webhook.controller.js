@@ -1,5 +1,5 @@
 import { db } from '../config/database.js';
-import { analyzeCommunication } from '../services/ai.service.js';
+import { analyzeCommunication, generateTaskHeader } from '../services/ai.service.js';
 import { calculateAccountHealth } from '../services/health.service.js';
 
 /**
@@ -53,6 +53,18 @@ export async function handleOutlookWebhook(req, res) {
     // AI Analysis
     const analysis = await analyzeCommunication(bodyText);
 
+    let cleanSubject = subject || '';
+    if (!cleanSubject || cleanSubject === 'No Subject' || cleanSubject.split(/\s+/).length > 4 || cleanSubject.length > 30) {
+      try {
+        const generated = await generateTaskHeader(bodyText);
+        if (generated && generated !== 'Task Assignment') {
+          cleanSubject = generated;
+        }
+      } catch (e) {
+        console.error('Error generating email subject:', e);
+      }
+    }
+
     // Save interaction
     const interactionId = 'int-' + Math.random().toString(36).substring(2, 11);
     const newInteraction = {
@@ -60,6 +72,7 @@ export async function handleOutlookWebhook(req, res) {
       accountId,
       contactId,
       source: 'Email',
+      subject: cleanSubject,
       messageText: `Subject: ${subject || 'No Subject'}\n\n${bodyText}`,
       sentiment: analysis.sentiment,
       riskDetected: analysis.riskLevel === 'High' || analysis.riskLevel === 'Medium',
@@ -135,6 +148,16 @@ export async function handleTeamsWebhook(req, res) {
     // AI Analysis
     const analysis = await analyzeCommunication(messageText);
 
+    let cleanSubject = '';
+    try {
+      const generated = await generateTaskHeader(messageText);
+      if (generated && generated !== 'Task Assignment') {
+        cleanSubject = generated;
+      }
+    } catch (e) {
+      console.error('Error generating Teams subject:', e);
+    }
+
     // Save interaction
     const interactionId = 'int-' + Math.random().toString(36).substring(2, 11);
     const newInteraction = {
@@ -142,6 +165,7 @@ export async function handleTeamsWebhook(req, res) {
       accountId,
       contactId,
       source: 'Teams Chat',
+      subject: cleanSubject || 'Teams Chat',
       messageText,
       sentiment: analysis.sentiment,
       riskDetected: analysis.riskLevel === 'High' || analysis.riskLevel === 'Medium',

@@ -3,20 +3,16 @@ import { create } from 'zustand';
 const API_BASE = 'http://localhost:5000/api';
 
 export const useStore = create((set, get) => ({
-  // Authentication State
-  user: (() => {
-    const raw = localStorage.getItem('cp_user');
-    if (!raw) return null;
-    try {
-      const u = JSON.parse(raw);
-      return u;
-    } catch (_) {
-      return null;
-    }
-  })(),
-  token: localStorage.getItem('cp_token') || null,
+  // Authentication State — always start unauthenticated so the login page shows first
+  user: null,
+  token: null,
   authError: null,
   authLoading: false,
+
+  // HR Employee State
+  hrEmployeeData: null,
+  hrEmployeeLoading: false,
+  hrEmployeeError: null,
 
   login: async (email, password) => {
     set({ authLoading: true, authError: null });
@@ -534,19 +530,31 @@ export const useStore = create((set, get) => ({
     const token = get().token;
     if (!token) return;
     try {
-      const res = await fetch(`${API_BASE}/auth/staff`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      const data = await res.json();
-      if (res.ok) {
-        set({ staffList: data });
-      }
+      const [resStaff, resUsers, resEmployees] = await Promise.all([
+        fetch(`${API_BASE}/auth/staff`, { headers: { 'Authorization': `Bearer ${token}` } }),
+        fetch(`${API_BASE}/auth/users`, { headers: { 'Authorization': `Bearer ${token}` } }),
+        fetch(`${API_BASE}/employees`, { headers: { 'Authorization': `Bearer ${token}` } })
+      ]);
+      let staffData = [];
+      let usersData = [];
+      let employeesData = [];
+      if (resStaff.ok) staffData = await resStaff.json();
+      if (resUsers.ok) usersData = await resUsers.json();
+      if (resEmployees.ok) employeesData = await resEmployees.json();
+      const combined = Array.from(
+        new Map([
+          ...(Array.isArray(staffData) ? staffData : []),
+          ...(Array.isArray(usersData) ? usersData : []),
+          ...(Array.isArray(employeesData) ? employeesData : [])
+        ].map(u => [u.uid || u.id || u.email?.toLowerCase(), u])).values()
+      );
+      set({ staffList: combined });
     } catch (err) {
       console.error(err);
     }
   },
 
-  // Users List (Admin Only)
+  // Users & Employees List
   usersList: [],
   usersLoading: false,
   fetchUsersList: async () => {
@@ -554,15 +562,25 @@ export const useStore = create((set, get) => ({
     if (!token) return;
     set({ usersLoading: true });
     try {
-      const res = await fetch(`${API_BASE}/auth/users`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      const data = await res.json();
-      if (res.ok) {
-        set({ usersList: data, usersLoading: false });
-      } else {
-        set({ usersLoading: false });
-      }
+      const [resUsers, resStaff, resEmployees] = await Promise.all([
+        fetch(`${API_BASE}/auth/users`, { headers: { 'Authorization': `Bearer ${token}` } }),
+        fetch(`${API_BASE}/auth/staff`, { headers: { 'Authorization': `Bearer ${token}` } }),
+        fetch(`${API_BASE}/employees`, { headers: { 'Authorization': `Bearer ${token}` } })
+      ]);
+      let usersData = [];
+      let staffData = [];
+      let employeesData = [];
+      if (resUsers.ok) usersData = await resUsers.json();
+      if (resStaff.ok) staffData = await resStaff.json();
+      if (resEmployees.ok) employeesData = await resEmployees.json();
+      const combined = Array.from(
+        new Map([
+          ...(Array.isArray(usersData) ? usersData : []),
+          ...(Array.isArray(staffData) ? staffData : []),
+          ...(Array.isArray(employeesData) ? employeesData : [])
+        ].map(u => [u.uid || u.id || u.email?.toLowerCase(), u])).values()
+      );
+      set({ usersList: combined, usersLoading: false });
     } catch (err) {
       console.error(err);
       set({ usersLoading: false });
@@ -693,6 +711,12 @@ export const useStore = create((set, get) => ({
             t.interactionId === interactionId
               ? { ...t, replyStatus: 'Replied', replies: [...(t.replies || []), data] }
               : t
+          ),
+          // Update interactions list with new reply
+          interactions: state.interactions.map(i =>
+            i.interactionId === interactionId
+              ? { ...i, replies: [...(i.replies || []), data] }
+              : i
           )
         }));
         get().fetchNotifications();
@@ -763,6 +787,206 @@ export const useStore = create((set, get) => ({
     } catch (err) {
       console.error('Error fetching activity logs:', err);
       set({ activityLogsLoading: false });
+    }
+  },
+
+  // ── STAFF TASKS CRUD ──
+  staffTasks: [],
+  staffTasksLoading: false,
+
+  fetchStaffTasks: async (filter = 'all') => {
+    const token = get().token;
+    if (!token) return;
+    set({ staffTasksLoading: true });
+    try {
+      const res = await fetch(`${API_BASE}/tasks?filter=${filter}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (res.ok) {
+        set({ staffTasks: data, staffTasksLoading: false });
+      } else {
+        set({ staffTasksLoading: false });
+      }
+    } catch (err) {
+      console.error('Error fetching staff tasks:', err);
+      set({ staffTasksLoading: false });
+    }
+  },
+
+  createStaffTask: async (taskData) => {
+    const token = get().token;
+    if (!token) return null;
+    try {
+      const res = await fetch(`${API_BASE}/tasks`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(taskData)
+      });
+      const data = await res.json();
+      if (res.ok) {
+        set(state => ({ staffTasks: [data, ...state.staffTasks] }));
+        return data;
+      }
+      return null;
+    } catch (err) {
+      console.error('Error creating staff task:', err);
+      return null;
+    }
+  },
+
+  updateStaffTaskStatus: async (taskId, status, completionNote = '', note = '', forwardToUid = '', forwardToName = '') => {
+    const token = get().token;
+    if (!token) return false;
+    try {
+      const res = await fetch(`${API_BASE}/tasks/${taskId}/status`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ status, completionNote, note, forwardToUid, forwardToName })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        set(state => ({
+          staffTasks: state.staffTasks.map(t => {
+            if (t.taskId === taskId) {
+              const updated = { 
+                ...t, 
+                status: data.status,
+                assignedToUid: data.assignedToUid || t.assignedToUid,
+                assignedToName: data.assignedToName || t.assignedToName
+              };
+              if (completionNote !== undefined) {
+                updated.completionNote = completionNote;
+              }
+              return updated;
+            }
+            return t;
+          })
+        }));
+        return true;
+      }
+      return false;
+    } catch (err) {
+      console.error('Error updating staff task status:', err);
+      return false;
+    }
+  },
+
+  fetchStaffTaskReplies: async (taskId) => {
+    const token = get().token;
+    if (!token) return [];
+    try {
+      const res = await fetch(`${API_BASE}/tasks/${taskId}/replies`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (res.ok) {
+        return data;
+      }
+      return [];
+    } catch (err) {
+      console.error('Error fetching staff task replies:', err);
+      return [];
+    }
+  },
+
+  addStaffTaskReply: async (taskId, text) => {
+    const token = get().token;
+    if (!token) return null;
+    try {
+      const res = await fetch(`${API_BASE}/tasks/${taskId}/reply`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ text })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        return data;
+      }
+      return null;
+    } catch (err) {
+      console.error('Error adding staff task reply:', err);
+      return null;
+    }
+  },
+
+  generateTaskHeader: async (description) => {
+    const token = get().token;
+    if (!token) return null;
+    try {
+      const res = await fetch(`${API_BASE}/ai/generate-task-header`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ description })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        return data.header;
+      }
+      return null;
+    } catch (err) {
+      console.error('Error generating task header:', err);
+      return null;
+    }
+  },
+
+  fetchHREmployeeData: async (email) => {
+    const token = get().token;
+    if (!token) return null;
+    set({ hrEmployeeLoading: true, hrEmployeeError: null, hrEmployeeData: null });
+    try {
+      const res = await fetch(`${API_BASE}/employees/hr-data`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ email })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to fetch HR data');
+      set({ hrEmployeeData: data, hrEmployeeLoading: false });
+      return data;
+    } catch (err) {
+      console.error('Error fetching HR employee data:', err);
+      set({ hrEmployeeError: err.message, hrEmployeeLoading: false });
+      return null;
+    }
+  },
+
+  syncDirectoryWithHR: async () => {
+    const token = get().token;
+    if (!token) return { success: false, error: 'Authentication required' };
+    try {
+      const res = await fetch(`${API_BASE}/employees/sync`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      const data = await res.json();
+      if (res.ok) {
+        await get().fetchUsersList();
+        await get().fetchStaff();
+        return data;
+      }
+      return { success: false, error: data.error || 'Sync failed' };
+    } catch (err) {
+      console.error('Error syncing directory with HR:', err);
+      return { success: false, error: err.message };
     }
   }
 }));

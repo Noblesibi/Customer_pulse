@@ -28,7 +28,9 @@ const tableMap = {
   notifications: 'Notifications',
   healthscores: 'HealthScores',
   summaries: 'Summaries',
-  activitylogs: 'ActivityLogs'
+  activitylogs: 'ActivityLogs',
+  tasks: 'Tasks',
+  taskreplies: 'TaskReplies'
 };
 
 // Map collection names to primary key fields
@@ -42,7 +44,9 @@ const keyFields = {
   notifications: 'notificationId',
   healthscores: 'id',
   summaries: 'summaryId',
-  activitylogs: 'logId'
+  activitylogs: 'logId',
+  tasks: 'taskId',
+  taskreplies: 'replyId'
 };
 
 /**
@@ -299,6 +303,10 @@ class PostgreSQLSubCollection {
     this.parentTableName = parentTableName;
     this.parentId = parentId;
     this.subColName = subColName;
+    this.isTaskReply = parentTableName === 'Tasks';
+    this.targetTable = this.isTaskReply ? 'TaskReplies' : 'Replies';
+    this.keyField = 'replyId';
+    this.parentField = this.isTaskReply ? 'taskId' : 'interactionId';
   }
   
   doc(replyId) {
@@ -307,7 +315,7 @@ class PostgreSQLSubCollection {
     return {
       id,
       get: async () => {
-        const row = await getRow('Replies', 'replyId', id);
+        const row = await getRow(self.targetTable, self.keyField, id);
         return {
           exists: !!row,
           id,
@@ -315,17 +323,19 @@ class PostgreSQLSubCollection {
         };
       },
       set: async (val) => {
-        const data = { ...val, interactionId: self.parentId, replyId: id };
-        await upsertRow('Replies', 'replyId', id, data);
+        const data = { ...val };
+        data[self.parentField] = self.parentId;
+        data[self.keyField] = id;
+        await upsertRow(self.targetTable, self.keyField, id, data);
         return { id };
       },
       update: async (val) => {
-        await updateRow('Replies', 'replyId', id, val);
+        await updateRow(self.targetTable, self.keyField, id, val);
         return { id };
       },
       delete: async () => {
         const connection = await getPool();
-        await connection.query('DELETE FROM "Replies" WHERE "replyId" = $1', [id]);
+        await connection.query(`DELETE FROM "${self.targetTable}" WHERE "${self.keyField}" = $1`, [id]);
         return { id };
       }
     };
@@ -333,11 +343,11 @@ class PostgreSQLSubCollection {
   
   async get() {
     const connection = await getPool();
-    const res = await connection.query('SELECT * FROM "Replies" WHERE "interactionId" = $1', [this.parentId]);
+    const res = await connection.query(`SELECT * FROM "${this.targetTable}" WHERE "${this.parentField}" = $1`, [this.parentId]);
     const docs = res.rows.map(row => {
-      const dataObj = parseRow('Replies', row);
+      const dataObj = parseRow(this.targetTable, row);
       return {
-        id: dataObj.replyId,
+        id: dataObj[this.keyField],
         exists: true,
         data: () => dataObj
       };
@@ -484,13 +494,22 @@ async function initializeDatabase() {
     const migrations = [
       `ALTER TABLE "Users" ADD COLUMN IF NOT EXISTS ldap_provisioned BOOLEAN DEFAULT FALSE`,
       `ALTER TABLE "Users" ADD COLUMN IF NOT EXISTS last_login TIMESTAMP NULL`,
+      `ALTER TABLE "Users" ADD COLUMN IF NOT EXISTS "reportingManagerName" VARCHAR(150) NULL`,
+      `ALTER TABLE "Users" ADD COLUMN IF NOT EXISTS "buHeadName" VARCHAR(150) NULL`,
+      `ALTER TABLE "Users" ADD COLUMN IF NOT EXISTS "buHeadEmail" VARCHAR(150) NULL`,
+      `ALTER TABLE "Users" ADD COLUMN IF NOT EXISTS "phone" VARCHAR(50) NULL`,
+      `ALTER TABLE "Users" ADD COLUMN IF NOT EXISTS "employeeId" VARCHAR(50) NULL`,
+      `ALTER TABLE "Users" ADD COLUMN IF NOT EXISTS "jobRole" VARCHAR(150) NULL`,
+      `ALTER TABLE "Users" ALTER COLUMN "reportingTo" TYPE VARCHAR(150)`,
       `ALTER TABLE "Accounts" ADD COLUMN IF NOT EXISTS "ownerId" VARCHAR(50) NULL`,
       `ALTER TABLE "Accounts" ADD COLUMN IF NOT EXISTS "ownerName" VARCHAR(150) NULL`,
       `ALTER TABLE "Contacts" ADD COLUMN IF NOT EXISTS "ownerId" VARCHAR(50) NULL`,
       `ALTER TABLE "Contacts" ADD COLUMN IF NOT EXISTS "ownerName" VARCHAR(150) NULL`,
       `ALTER TABLE "Contacts" ADD COLUMN IF NOT EXISTS "birthday" VARCHAR(50) NULL`,
       `ALTER TABLE "Contacts" ADD COLUMN IF NOT EXISTS "projectType" VARCHAR(100) NULL`,
-      `ALTER TABLE "Interactions" ADD COLUMN IF NOT EXISTS "attachments" TEXT NULL`
+      `ALTER TABLE "Interactions" ADD COLUMN IF NOT EXISTS "attachments" TEXT NULL`,
+      `ALTER TABLE "Tasks" ADD COLUMN IF NOT EXISTS "accountId" VARCHAR(50) NULL`,
+      `ALTER TABLE "Tasks" ADD COLUMN IF NOT EXISTS "contactId" VARCHAR(50) NULL`
     ];
     for (const migration of migrations) {
       try {
@@ -577,99 +596,7 @@ async function seedPostgresData(connection) {
   // 1. Users
   const users = [
     { uid: 'mock-admin-uid', email: 'admin@pulse.com', role: 'Admin', position: 'System Administrator', userType: 'Admin', name: 'Admin User', password: 'admin123' },
-    { uid: 'mock-nazneen-ceo-uid', email: 'nj@gmail.com', role: 'Executive', position: 'CEO', userType: 'CEO', name: 'Nazneen Jahangir', department: 'Executive Office', password: 'nj123' },
     { uid: 'mock-exec-uid', email: 'executive@pulse.com', role: 'Executive', position: 'Chief Executive Officer', userType: 'CEO', name: 'Executive User', password: 'exec123' },
-    {
-      uid: 'mock-finance-head-uid',
-      email: 'financehead@gmail.com',
-      role: 'Executive',
-      position: 'Finance Head',
-      userType: 'Functional Head',
-      name: 'Finance Head',
-      department: 'Finance',
-      projects: JSON.stringify([
-        { name: 'Apex Financial Services', projectManagers: [], employees: ['John Smith', 'Alice Cooper'] },
-        { name: 'Quarterly Financial Planning', projectManagers: [], employees: ['John Smith'] },
-        { name: 'Billing Integration', projectManagers: [], employees: ['Alice Cooper'] }
-      ]),
-      employees: JSON.stringify(['John Smith', 'Alice Cooper']),
-      password: 'financehead123'
-    },
-    {
-      uid: 'mock-global-hr-head-uid',
-      email: 'globalhrhead@gmail.com',
-      role: 'Executive',
-      position: 'Global HR Head',
-      userType: 'Functional Head',
-      name: 'Global HR Head',
-      department: 'HR',
-      projects: JSON.stringify([
-        { name: 'Acme Corporation', projectManagers: [], employees: ['Jane Doe'] },
-        { name: 'Annual Appraisal System', projectManagers: [], employees: ['Bob Marley'] }
-      ]),
-      employees: JSON.stringify(['Jane Doe', 'Bob Marley']),
-      password: 'globalhrhead123'
-    },
-    {
-      uid: 'mock-itg-head-uid',
-      email: 'itghead@gmail.com',
-      role: 'Executive',
-      position: 'ITG Head',
-      userType: 'Functional Head',
-      name: 'ITG Head',
-      department: 'ITG',
-      projects: JSON.stringify([
-        { name: 'Global Logistics Inc', projectManagers: [], employees: ['Linus Torvalds'] },
-        { name: 'Cybersecurity Audit', projectManagers: [], employees: ['Steve Wozniak'] }
-      ]),
-      employees: JSON.stringify(['Linus Torvalds', 'Steve Wozniak']),
-      password: 'itghead123'
-    },
-    {
-      uid: 'mock-nda-head-uid',
-      email: 'ndahead@gmail.com',
-      role: 'Executive',
-      position: 'NDA Head',
-      userType: 'Functional Head',
-      name: 'NDA Head',
-      department: 'Legal',
-      projects: JSON.stringify([
-        { name: 'Acme Corporation', projectManagers: [], employees: ['Harvey Specter'] },
-        { name: 'Compliance Training', projectManagers: [], employees: ['Mike Ross'] }
-      ]),
-      employees: JSON.stringify(['Harvey Specter', 'Mike Ross']),
-      password: 'ndahead123'
-    },
-    {
-      uid: 'mock-tc-head-uid',
-      email: 'tchead@gmail.com',
-      role: 'Executive',
-      position: 'TC Head',
-      userType: 'Functional Head',
-      name: 'TC Head',
-      department: 'TC',
-      projects: JSON.stringify([
-        { name: 'Global Logistics Inc', projectManagers: [], employees: ['Alan Turing'] },
-        { name: 'AI/ML Platform R&D', projectManagers: [], employees: ['Grace Hopper'] }
-      ]),
-      employees: JSON.stringify(['Alan Turing', 'Grace Hopper']),
-      password: 'tchead123'
-    },
-    {
-      uid: 'mock-quality-head-uid',
-      email: 'qualityhead@gmail.com',
-      role: 'Executive',
-      position: 'Quality Head',
-      userType: 'Functional Head',
-      name: 'Quality Head',
-      department: 'Quality',
-      projects: JSON.stringify([
-        { name: 'Apex Financial Services', projectManagers: [], employees: ['Dennis Ritchie'] },
-        { name: 'Performance Regression Suite', projectManagers: [], employees: ['Ken Thompson'] }
-      ]),
-      employees: JSON.stringify(['Dennis Ritchie', 'Ken Thompson']),
-      password: 'qualityhead123'
-    },
     { uid: 'mock-manager-uid', email: 'manager@pulse.com', role: 'Sales Manager', position: 'Logistics Division Lead', userType: 'BU Head', name: 'Manager User', password: 'manager123' },
     { uid: 'mock-employee-uid', email: 'employee@pulse.com', role: 'Employee', position: 'Frontend Engineer', userType: 'Employee', name: 'Employee User', password: 'employee123' }
   ];
