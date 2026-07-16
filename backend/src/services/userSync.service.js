@@ -1,5 +1,6 @@
 import { executeSecQuery } from '../config/secDatabase.js';
 import { db } from '../config/database.js';
+import { ensureNestGroupEmployees } from './nestgroup.seed.js';
 import dotenv from 'dotenv';
 
 dotenv.config();
@@ -26,12 +27,17 @@ function determineUserType(role, position) {
  * Runs the employee synchronization logic
  */
 export async function syncEmployees() {
-  console.log('🔄 [UserSyncService] Starting employee synchronization from secondary database...');
+  console.log('🔄 [UserSyncService] Starting employee synchronization...');
   
   try {
-    // NOTE: Update this SQL query to match the exact schema of your company database
-    // For example, if your table is named `employees` or `staff` in MySQL Workbench:
-    const selectQuery = `
+    await ensureNestGroupEmployees(db);
+    
+    // Fetch existing database users to check for UID reuse
+    const snap = await db.collection('users').get();
+    const currentUsers = snap.docs ? snap.docs.map(doc => doc.data ? doc.data() : doc) : [];
+
+    // Check sentrifugo schema first, then fallback to current database schema
+    let employees = await executeSecQuery(`
       SELECT 
         emprole_name, 
         userfullname, 
@@ -39,9 +45,19 @@ export async function syncEmployees() {
         contactnumber 
       FROM sentrifugo.main_employees_summary 
       WHERE isactive = 1
-    `;
-    
-    const employees = await executeSecQuery(selectQuery);
+    `);
+
+    if (!employees || employees.length === 0) {
+      employees = await executeSecQuery(`
+        SELECT 
+          emprole_name, 
+          userfullname, 
+          emailaddress, 
+          contactnumber 
+        FROM main_employees_summary 
+        WHERE isactive = 1
+      `);
+    }
     
     if (!employees || employees.length === 0) {
       console.warn('⚠️ [UserSyncService] No active employees fetched from Sentrifugo database.');
@@ -51,20 +67,23 @@ export async function syncEmployees() {
     console.log(`📥 [UserSyncService] Fetched ${employees.length} employees from secondary database. Syncing with local PostgreSQL...`);
     
     let syncedCount = 0;
+    const processedSyncedEmails = new Set();
     
     for (const emp of employees) {
-      const email = emp.emailaddress || emp.email;
+      const email = (emp.emailaddress || emp.email || '').toLowerCase().trim();
       const name = emp.userfullname || emp.name;
       const role = emp.emprole_name || emp.role || 'Employee';
       const position = emp.emprole_name || emp.position || 'Staff Member';
       const phone = emp.contactnumber || emp.phone || '';
       
-      if (!email || !name) {
+      if (!email || !name || processedSyncedEmails.has(email)) {
         continue;
       }
+      processedSyncedEmails.add(email);
       
-      // Generate a stable unique uid based on email address to prevent duplicate sync entries
-      const uid = 'sec-' + email.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
+      // Find if user already exists in PostgreSQL and reuse UID to avoid unique constraint violations
+      const existingUser = currentUsers.find(u => u && typeof u.email === 'string' && u.email.toLowerCase() === email);
+      const uid = existingUser ? existingUser.uid : 'sec-' + email.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
       
       // Determine appropriate user type
       const userType = determineUserType(role, position);
@@ -79,7 +98,7 @@ export async function syncEmployees() {
         userType,
         phone,
         department: emp.department || 'Corporate',
-        ldap_provisioned: false
+        ldap_provisioned: existingUser?.ldap_provisioned || false
       });
       
       syncedCount++;
@@ -88,7 +107,6 @@ export async function syncEmployees() {
     console.log(`✅ [UserSyncService] Synchronization complete. Synced ${syncedCount} users successfully.`);
   } catch (err) {
     console.error('❌ [UserSyncService] Error during employee synchronization:', err.message);
-    console.error('💡 TIP: Check if the table "sentrifugo.main_employees_summary" is accessible and connection parameters are correct.');
   }
 }
 

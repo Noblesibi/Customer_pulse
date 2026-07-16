@@ -37,14 +37,7 @@ export default function Login() {
       admin: { email: 'admin@pulse.com', pass: 'admin123' },
       exec: { email: 'executive@pulse.com', pass: 'exec123' },
       manager: { email: 'manager@pulse.com', pass: 'manager123' },
-      employee: { email: 'employee@pulse.com', pass: 'employee123' },
-      ceo: { email: 'nj@gmail.com', pass: 'nj123' },
-      finance: { email: 'financehead@gmail.com', pass: 'financehead123' },
-      hr: { email: 'globalhrhead@gmail.com', pass: 'globalhrhead123' },
-      itg: { email: 'itghead@gmail.com', pass: 'itghead123' },
-      nda: { email: 'ndahead@gmail.com', pass: 'ndahead123' },
-      tc: { email: 'tchead@gmail.com', pass: 'tchead123' },
-      quality: { email: 'qualityhead@gmail.com', pass: 'qualityhead123' }
+      employee: { email: 'employee@pulse.com', pass: 'employee123' }
     };
     const creds = presets[userType];
     if (creds) {
@@ -145,15 +138,11 @@ export default function Login() {
                 onChange={(e) => handlePresetSelect(e.target.value)}
                 className="w-full bg-slate-900 border border-slate-800 focus:border-primary/50 text-slate-350 rounded-lg py-2 px-3 text-xs font-bold focus:outline-none cursor-pointer"
               >
-                <option value="">-- Choose corporate head preset --</option>
+                <option value="">-- Choose corporate preset --</option>
                 <option value="admin">Admin</option>
-                <option value="ceo">CEO (Nazneen Jahangir)</option>
-                <option value="finance">Finance Head</option>
-                <option value="hr">Global HR Head</option>
-                <option value="itg">ITG Head</option>
-                <option value="nda">NDA Head</option>
-                <option value="tc">TC Head</option>
-                <option value="quality">Quality Head</option>
+                <option value="exec">Executive User</option>
+                <option value="manager">Delivery Manager</option>
+                <option value="employee">Employee</option>
               </select>
             </div>
           </div>

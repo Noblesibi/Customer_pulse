@@ -9,6 +9,11 @@ export const useStore = create((set, get) => ({
   authError: null,
   authLoading: false,
 
+  // HR Employee State
+  hrEmployeeData: null,
+  hrEmployeeLoading: false,
+  hrEmployeeError: null,
+
   login: async (email, password) => {
     set({ authLoading: true, authError: null });
     try {
@@ -525,19 +530,31 @@ export const useStore = create((set, get) => ({
     const token = get().token;
     if (!token) return;
     try {
-      const res = await fetch(`${API_BASE}/auth/staff`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      const data = await res.json();
-      if (res.ok) {
-        set({ staffList: data });
-      }
+      const [resStaff, resUsers, resEmployees] = await Promise.all([
+        fetch(`${API_BASE}/auth/staff`, { headers: { 'Authorization': `Bearer ${token}` } }),
+        fetch(`${API_BASE}/auth/users`, { headers: { 'Authorization': `Bearer ${token}` } }),
+        fetch(`${API_BASE}/employees`, { headers: { 'Authorization': `Bearer ${token}` } })
+      ]);
+      let staffData = [];
+      let usersData = [];
+      let employeesData = [];
+      if (resStaff.ok) staffData = await resStaff.json();
+      if (resUsers.ok) usersData = await resUsers.json();
+      if (resEmployees.ok) employeesData = await resEmployees.json();
+      const combined = Array.from(
+        new Map([
+          ...(Array.isArray(staffData) ? staffData : []),
+          ...(Array.isArray(usersData) ? usersData : []),
+          ...(Array.isArray(employeesData) ? employeesData : [])
+        ].map(u => [u.uid || u.id || u.email?.toLowerCase(), u])).values()
+      );
+      set({ staffList: combined });
     } catch (err) {
       console.error(err);
     }
   },
 
-  // Users List (Admin Only)
+  // Users & Employees List
   usersList: [],
   usersLoading: false,
   fetchUsersList: async () => {
@@ -545,15 +562,25 @@ export const useStore = create((set, get) => ({
     if (!token) return;
     set({ usersLoading: true });
     try {
-      const res = await fetch(`${API_BASE}/auth/users`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      const data = await res.json();
-      if (res.ok) {
-        set({ usersList: data, usersLoading: false });
-      } else {
-        set({ usersLoading: false });
-      }
+      const [resUsers, resStaff, resEmployees] = await Promise.all([
+        fetch(`${API_BASE}/auth/users`, { headers: { 'Authorization': `Bearer ${token}` } }),
+        fetch(`${API_BASE}/auth/staff`, { headers: { 'Authorization': `Bearer ${token}` } }),
+        fetch(`${API_BASE}/employees`, { headers: { 'Authorization': `Bearer ${token}` } })
+      ]);
+      let usersData = [];
+      let staffData = [];
+      let employeesData = [];
+      if (resUsers.ok) usersData = await resUsers.json();
+      if (resStaff.ok) staffData = await resStaff.json();
+      if (resEmployees.ok) employeesData = await resEmployees.json();
+      const combined = Array.from(
+        new Map([
+          ...(Array.isArray(usersData) ? usersData : []),
+          ...(Array.isArray(staffData) ? staffData : []),
+          ...(Array.isArray(employeesData) ? employeesData : [])
+        ].map(u => [u.uid || u.id || u.email?.toLowerCase(), u])).values()
+      );
+      set({ usersList: combined, usersLoading: false });
     } catch (err) {
       console.error(err);
       set({ usersLoading: false });
@@ -912,6 +939,54 @@ export const useStore = create((set, get) => ({
     } catch (err) {
       console.error('Error generating task header:', err);
       return null;
+    }
+  },
+
+  fetchHREmployeeData: async (email) => {
+    const token = get().token;
+    if (!token) return null;
+    set({ hrEmployeeLoading: true, hrEmployeeError: null, hrEmployeeData: null });
+    try {
+      const res = await fetch(`${API_BASE}/employees/hr-data`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ email })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to fetch HR data');
+      set({ hrEmployeeData: data, hrEmployeeLoading: false });
+      return data;
+    } catch (err) {
+      console.error('Error fetching HR employee data:', err);
+      set({ hrEmployeeError: err.message, hrEmployeeLoading: false });
+      return null;
+    }
+  },
+
+  syncDirectoryWithHR: async () => {
+    const token = get().token;
+    if (!token) return { success: false, error: 'Authentication required' };
+    try {
+      const res = await fetch(`${API_BASE}/employees/sync`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      const data = await res.json();
+      if (res.ok) {
+        await get().fetchUsersList();
+        await get().fetchStaff();
+        return data;
+      }
+      return { success: false, error: data.error || 'Sync failed' };
+    } catch (err) {
+      console.error('Error syncing directory with HR:', err);
+      return { success: false, error: err.message };
     }
   }
 }));

@@ -1,5 +1,6 @@
 import dotenv from 'dotenv';
 import { db as postgresDb, initializeDatabase as initPostgres } from './postgres.js';
+import { NESTGROUP_EMPLOYEES } from '../services/nestgroup.seed.js';
 import fs from 'fs';
 import path from 'path';
 
@@ -239,16 +240,13 @@ class MockAuth {
 // ─────────────────────────────────────────────────────────
 function seedMockData(mockDb) {
   mockDb.data.users['mock-admin-uid'] = { uid: 'mock-admin-uid', email: 'admin@pulse.com', role: 'Admin', position: 'System Administrator', userType: 'Admin', name: 'Admin User' };
-  mockDb.data.users['mock-nazneen-ceo-uid'] = { uid: 'mock-nazneen-ceo-uid', email: 'nj@gmail.com', role: 'Executive', position: 'CEO', userType: 'CEO', name: 'Nazneen Jahangir', department: 'Executive Office' };
   mockDb.data.users['mock-exec-uid'] = { uid: 'mock-exec-uid', email: 'executive@pulse.com', role: 'Executive', position: 'Chief Executive Officer', userType: 'CEO', name: 'Executive User' };
   mockDb.data.users['mock-manager-uid'] = { uid: 'mock-manager-uid', email: 'manager@pulse.com', role: 'Sales Manager', position: 'Logistics Division Lead', userType: 'BU Head', name: 'Manager User' };
   mockDb.data.users['mock-employee-uid'] = { uid: 'mock-employee-uid', email: 'employee@pulse.com', role: 'Employee', position: 'Frontend Engineer', userType: 'Employee', name: 'Employee User' };
-  mockDb.data.users['mock-finance-head-uid'] = { uid: 'mock-finance-head-uid', email: 'financehead@gmail.com', role: 'Executive', position: 'Finance Head', userType: 'Functional Head', name: 'Finance Head', department: 'Finance' };
-  mockDb.data.users['mock-global-hr-head-uid'] = { uid: 'mock-global-hr-head-uid', email: 'globalhrhead@gmail.com', role: 'Executive', position: 'Global HR Head', userType: 'Functional Head', name: 'Global HR Head', department: 'HR' };
-  mockDb.data.users['mock-itg-head-uid'] = { uid: 'mock-itg-head-uid', email: 'itghead@gmail.com', role: 'Executive', position: 'ITG Head', userType: 'Functional Head', name: 'ITG Head', department: 'ITG' };
-  mockDb.data.users['mock-nda-head-uid'] = { uid: 'mock-nda-head-uid', email: 'ndahead@gmail.com', role: 'Executive', position: 'NDA Head', userType: 'Functional Head', name: 'NDA Head', department: 'Legal' };
-  mockDb.data.users['mock-tc-head-uid'] = { uid: 'mock-tc-head-uid', email: 'tchead@gmail.com', role: 'Executive', position: 'TC Head', userType: 'Functional Head', name: 'TC Head', department: 'TC' };
-  mockDb.data.users['mock-quality-head-uid'] = { uid: 'mock-quality-head-uid', email: 'qualityhead@gmail.com', role: 'Executive', position: 'Quality Head', userType: 'Functional Head', name: 'Quality Head', department: 'Quality' };
+
+  NESTGROUP_EMPLOYEES.forEach(emp => {
+    mockDb.data.users[emp.uid] = { ...emp };
+  });
 
   const abcAnniv = new Date();
   abcAnniv.setFullYear(abcAnniv.getFullYear() - 5);

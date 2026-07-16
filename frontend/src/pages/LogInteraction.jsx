@@ -444,17 +444,7 @@ export default function LogInteraction() {
             </div>
           </div>
 
-          {/* Log Header / Subject */}
-          <div className="space-y-1.5">
-            <label className="text-xs text-slate-500 uppercase font-bold tracking-wider">Log Header (Subject)</label>
-            <input
-              type="text"
-              value={subject}
-              onChange={(e) => setSubject(e.target.value)}
-              placeholder="e.g. Platform Stability Feedback (Auto-generated from message notes)"
-              className="w-full bg-dark-700/50 border border-slate-350 text-xs rounded-xl p-3 focus:outline-none focus:border-primary/50 text-black font-semibold"
-            />
-          </div>
+
 
           {/* Section 4: Notes / Message */}
           <div className="space-y-1.5">
@@ -627,19 +617,7 @@ export default function LogInteraction() {
                     </div>
                   )}
 
-                  {/* Task Header */}
-                  <div className="space-y-1.5">
-                    <label className="text-xs text-slate-500 uppercase font-bold tracking-wider">
-                      Task Header
-                    </label>
-                    <input
-                      type="text"
-                      value={t.taskHeader || ''}
-                      onChange={(e) => setTaskField(taskIdx, 'taskHeader', e.target.value)}
-                      placeholder="e.g. Prepare Proposal (Auto-generated from description details)"
-                      className="w-full bg-dark-700/50 border border-slate-350 text-xs rounded-xl p-3 focus:outline-none focus:border-primary/50 text-black font-semibold"
-                    />
-                  </div>
+
 
                   {/* Description Box */}
                   <div className="space-y-1.5">

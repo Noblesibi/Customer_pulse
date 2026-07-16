@@ -3,6 +3,7 @@ import { db, isMock, logActivity } from '../config/database.js';
 import { PERMISSIONS, ROLES, userTypeToRole } from '../config/rbac.js';
 import { authenticateToken, requirePermission } from '../middleware/auth.middleware.js';
 import { authenticateLdapUser } from '../services/ldap.service.js';
+import { ensureNestGroupEmployees } from '../services/nestgroup.seed.js';
 import jwt from 'jsonwebtoken';
 
 const router = Router();
@@ -236,16 +237,30 @@ router.post('/microsoft-login', async (req, res) => {
 // ─────────────────────────────────────────────────────────
 router.get('/staff', authenticateToken, requirePermission(PERMISSIONS.VIEW_STAFF_DIRECTORY), async (req, res) => {
   try {
+    await ensureNestGroupEmployees(db);
     const snap = await db.collection('users').get();
     const staff = snap.docs.map(doc => {
       const u = doc.data();
       return {
-        uid:        u.uid,
-        name:       u.name,
-        email:      u.email,
-        role:       u.role,
-        position:   u.position   || '',
-        department: u.department || ''
+        ...u,
+        uid:                  u.uid,
+        name:                 u.name,
+        email:                u.email,
+        role:                 u.role,
+        position:             u.position             || '',
+        userType:             u.userType             || '',
+        department:           u.department           || '',
+        reportingTo:          u.reportingTo          || '',
+        reportingManagerName: u.reportingManagerName || '',
+        bu:                   u.bu                   || '',
+        buHeadName:           u.buHeadName           || '',
+        buHeadEmail:          u.buHeadEmail          || '',
+        phone:                u.phone                || '',
+        employeeId:           u.employeeId           || '',
+        jobRole:              u.jobRole              || '',
+        project:              u.project              || '',
+        projects:             u.projects             || [],
+        employees:            u.employees            || []
       };
     });
     return res.json(staff);
@@ -261,25 +276,33 @@ router.get('/staff', authenticateToken, requirePermission(PERMISSIONS.VIEW_STAFF
 // ─────────────────────────────────────────────────────────
 router.get('/users', authenticateToken, requirePermission(PERMISSIONS.VIEW_ALL_USERS), async (req, res) => {
   try {
+    await ensureNestGroupEmployees(db);
     const snap = await db.collection('users').get();
     const users = snap.docs.map(doc => {
       const u = doc.data();
       return {
-        uid:              u.uid,
-        email:            u.email,
-        name:             u.name,
-        role:             u.role,
-        position:         u.position         || '',
-        userType:         u.userType         || '',
-        department:       u.department       || '',
-        reportingTo:      u.reportingTo      || '',
-        bu:               u.bu               || '',
-        project:          u.project          || '',
-        projects:         u.projects         || [],
-        employees:        u.employees        || [],
-        ldap_provisioned: u.ldap_provisioned || false,
-        last_login:       u.last_login       || null,
-        createdAt:        u.createdAt        || new Date().toISOString()
+        ...u,
+        uid:                  u.uid,
+        email:                u.email,
+        name:                 u.name,
+        role:                 u.role,
+        position:             u.position             || '',
+        userType:             u.userType             || '',
+        department:           u.department           || '',
+        reportingTo:          u.reportingTo          || '',
+        reportingManagerName: u.reportingManagerName || '',
+        bu:                   u.bu                   || '',
+        buHeadName:           u.buHeadName           || '',
+        buHeadEmail:          u.buHeadEmail          || '',
+        phone:                u.phone                || '',
+        employeeId:           u.employeeId           || '',
+        jobRole:              u.jobRole              || '',
+        project:              u.project              || '',
+        projects:             u.projects             || [],
+        employees:            u.employees            || [],
+        ldap_provisioned:     u.ldap_provisioned     || false,
+        last_login:           u.last_login           || null,
+        createdAt:            u.createdAt            || new Date().toISOString()
       };
     });
     return res.json(users);

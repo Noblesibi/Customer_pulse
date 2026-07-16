@@ -21,7 +21,7 @@ export default function Sidebar() {
       { path: '/staff-tasks', label: 'Tasks', icon: <CheckSquare className="w-5 h-5" />, roles: ['Admin', 'Executive', 'Sales Manager', 'Employee'] },
       { path: '/risks', label: 'Risk Center', icon: <AlertOctagon className="w-5 h-5" />, roles: ['Admin', 'Executive', 'Sales Manager'] },
       { path: '/webhooks-demo', label: 'Email Ingestion', icon: <Terminal className="w-5 h-5" />, roles: ['Admin', 'Executive', 'Sales Manager'] },
-      { path: '/users', label: 'User Directory', icon: <Shield className="w-5 h-5" />, roles: ['Admin', 'Executive'] }
+      { path: '/users', label: 'User Directory', icon: <Shield className="w-5 h-5" />, roles: ['Admin', 'Executive', 'Sales Manager', 'Employee'] }
     ];
 
     return links.filter(link => link.roles.includes(role));
