@@ -50,10 +50,16 @@ export default function AccountDetails() {
   const [explanationData, setExplanationData] = useState(null);
   const [explanationLoading, setExplanationLoading] = useState(false);
 
+  const getLocalDateString = () => {
+    const d = new Date();
+    const offset = d.getTimezoneOffset() * 60000;
+    return new Date(d.getTime() - offset).toISOString().split('T')[0];
+  };
+
   // Log Interaction Form States
   const [interactionSource, setInteractionSource] = useState('Outlook Mail');
   const [interactionText, setInteractionText] = useState('');
-  const [interactionDate, setInteractionDate] = useState(new Date().toISOString().split('T')[0]);
+  const [interactionDate, setInteractionDate] = useState(getLocalDateString());
   const [interactionTime, setInteractionTime] = useState(new Date().toTimeString().slice(0, 5));
   const [interactionContactId, setInteractionContactId] = useState('');
   const [selectedMentions, setSelectedMentions] = useState([]);
@@ -67,7 +73,7 @@ export default function AccountDetails() {
   const resetInteractionForm = () => {
     setInteractionSource('Outlook Mail');
     setInteractionText('');
-    setInteractionDate(new Date().toISOString().split('T')[0]);
+    setInteractionDate(getLocalDateString());
     setInteractionTime(new Date().toTimeString().slice(0, 5));
     setInteractionContactId('');
     setSelectedMentions([]);
@@ -732,7 +738,7 @@ export default function AccountDetails() {
                 {/* Client contact selection */}
                 <div className="space-y-1.5">
                   <label className="text-xs text-slate-450 uppercase font-bold tracking-wider flex items-center gap-1.5">
-                    <Users className="w-3 h-3" /> Client Contact / Staff Member
+                    <Users className="w-3 h-3" /> Client Contact
                   </label>
                   <select
                     value={interactionContactId}

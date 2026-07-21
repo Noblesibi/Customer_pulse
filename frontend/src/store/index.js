@@ -1,4 +1,4 @@
-import { create } from 'zustand';
+﻿import { create } from 'zustand';
 
 const API_BASE = 'http://localhost:5000/api';
 
@@ -988,6 +988,158 @@ export const useStore = create((set, get) => ({
       console.error('Error syncing directory with HR:', err);
       return { success: false, error: err.message };
     }
+
+  },
+
+  // ─── Email Engine ─────────────────────────────────────────────────────────
+  emailEngineStats: null,
+  emailEngineStatsLoading: false,
+  emailQueue: [],
+  emailQueueLoading: false,
+  emailLogs: [],
+  emailLogsLoading: false,
+  emailTemplates: [],
+  notificationPreferences: null,
+
+  fetchEmailEngineStats: async () => {
+    const token = get().token;
+    if (!token) return;
+    set({ emailEngineStatsLoading: true });
+    try {
+      const res = await fetch(`${API_BASE}/email-engine/stats`, { headers: { 'Authorization': `Bearer ${token}` } });
+      const data = await res.json();
+      if (res.ok) set({ emailEngineStats: data });
+    } catch (err) { console.error('fetchEmailEngineStats:', err); }
+    finally { set({ emailEngineStatsLoading: false }); }
+  },
+
+  fetchEmailQueue: async (status = '') => {
+    const token = get().token;
+    if (!token) return;
+    set({ emailQueueLoading: true });
+    try {
+      const url = status ? `${API_BASE}/email-engine/queue?status=${status}` : `${API_BASE}/email-engine/queue`;
+      const res = await fetch(url, { headers: { 'Authorization': `Bearer ${token}` } });
+      const data = await res.json();
+      if (res.ok) set({ emailQueue: data });
+    } catch (err) { console.error('fetchEmailQueue:', err); }
+    finally { set({ emailQueueLoading: false }); }
+  },
+
+  fetchEmailLogs: async (filters = {}) => {
+    const token = get().token;
+    if (!token) return;
+    set({ emailLogsLoading: true });
+    try {
+      const params = new URLSearchParams(filters).toString();
+      const url = params ? `${API_BASE}/email-engine/logs?${params}` : `${API_BASE}/email-engine/logs`;
+      const res = await fetch(url, { headers: { 'Authorization': `Bearer ${token}` } });
+      const data = await res.json();
+      if (res.ok) set({ emailLogs: data });
+    } catch (err) { console.error('fetchEmailLogs:', err); }
+    finally { set({ emailLogsLoading: false }); }
+  },
+
+  fetchEmailTemplates: async () => {
+    const token = get().token;
+    if (!token) return;
+    try {
+      const res = await fetch(`${API_BASE}/email-engine/templates`, { headers: { 'Authorization': `Bearer ${token}` } });
+      const data = await res.json();
+      if (res.ok) set({ emailTemplates: data });
+    } catch (err) { console.error('fetchEmailTemplates:', err); }
+  },
+
+  retryEmail: async (queueId) => {
+    const token = get().token;
+    if (!token) return false;
+    try {
+      const res = await fetch(`${API_BASE}/email-engine/retry/${queueId}`, { method: 'POST', headers: { 'Authorization': `Bearer ${token}` } });
+      return res.ok;
+    } catch (err) { return false; }
+  },
+
+  retryAllEmails: async () => {
+    const token = get().token;
+    if (!token) return null;
+    try {
+      const res = await fetch(`${API_BASE}/email-engine/retry-all`, { method: 'POST', headers: { 'Authorization': `Bearer ${token}` } });
+      return await res.json();
+    } catch (err) { return null; }
+  },
+
+  cancelQueuedEmail: async (queueId) => {
+    const token = get().token;
+    if (!token) return false;
+    try {
+      const res = await fetch(`${API_BASE}/email-engine/queue/${queueId}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } });
+      return res.ok;
+    } catch (err) { return false; }
+  },
+
+  bulkCancelEmails: async () => {
+    const token = get().token;
+    if (!token) return null;
+    try {
+      const res = await fetch(`${API_BASE}/email-engine/bulk-cancel`, { method: 'POST', headers: { 'Authorization': `Bearer ${token}` } });
+      return await res.json();
+    } catch (err) { return null; }
+  },
+
+  previewEmailTemplate: async (templateId) => {
+    const token = get().token;
+    if (!token) return null;
+    try {
+      const res = await fetch(`${API_BASE}/email-engine/templates/${templateId}/preview`, { headers: { 'Authorization': `Bearer ${token}` } });
+      return res.ok ? await res.json() : null;
+    } catch (err) { return null; }
+  },
+
+  fetchNotificationPreferences: async (uid) => {
+    const token = get().token;
+    if (!token) return null;
+    try {
+      const res = await fetch(`${API_BASE}/email-engine/preferences/${uid}`, { headers: { 'Authorization': `Bearer ${token}` } });
+      const data = await res.json();
+      if (res.ok) { set({ notificationPreferences: data }); return data; }
+      return null;
+    } catch (err) { return null; }
+  },
+
+  updateNotificationPreferences: async (uid, updates) => {
+    const token = get().token;
+    if (!token) return false;
+    try {
+      const res = await fetch(`${API_BASE}/email-engine/preferences/${uid}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify(updates)
+      });
+      const data = await res.json();
+      if (res.ok) { set({ notificationPreferences: data }); return true; }
+      return false;
+    } catch (err) { return false; }
+  },
+
+  sendTestEmail: async (templateId, recipientUid) => {
+    const token = get().token;
+    if (!token) return false;
+    try {
+      const res = await fetch(`${API_BASE}/email-engine/test`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ templateId, recipientUid })
+      });
+      return res.ok;
+    } catch (err) { return false; }
+  },
+
+  fetchSmtpStatus: async () => {
+    const token = get().token;
+    if (!token) return null;
+    try {
+      const res = await fetch(`${API_BASE}/email-engine/smtp-status`, { headers: { 'Authorization': `Bearer ${token}` } });
+      return res.ok ? await res.json() : null;
+    } catch (err) { return null; }
   }
 }));
-

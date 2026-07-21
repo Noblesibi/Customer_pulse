@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { 
   ClipboardList, Search, RefreshCw, X, Eye, Plus, CheckSquare, 
-  Send, ShieldAlert, Check, Ban, HelpCircle, ChevronLeft, Calendar, ThumbsUp, MessageSquare, ExternalLink
+  Send, ShieldAlert, Check, Ban, HelpCircle, ChevronLeft, Calendar, ThumbsUp, MessageSquare, ExternalLink, FileText
 } from 'lucide-react';
 import { useStore } from '../store/index.js';
 
@@ -98,13 +98,21 @@ export default function StaffTasks() {
   const [selectedTask, setSelectedTask] = useState(null);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [replies, setReplies] = useState([]);
+
+  const isSelectedTaskOverdue = selectedTask && 
+                                selectedTask.dueDate && 
+                                new Date(selectedTask.dueDate).setHours(0,0,0,0) < new Date().setHours(0,0,0,0) && 
+                                selectedTask.status?.toLowerCase() !== 'completed' && 
+                                selectedTask.status?.toLowerCase() !== 'decline' && 
+                                selectedTask.status?.toLowerCase() !== 'declined';
   const [replyText, setReplyText] = useState('');
   const [repliesLoading, setRepliesLoading] = useState(false);
 
   // Completion Dialog State
   const [isCompletionDialogOpen, setIsCompletionDialogOpen] = useState(false);
-  const [completionTaskId, setCompletionTaskId] = useState(null);
+  const [completionTask, setCompletionTask] = useState(null);
   const [completionNote, setCompletionNote] = useState('');
+  const [completionFile, setCompletionFile] = useState(null);
 
   // Accept Modal State
   const [acceptModalState, setAcceptModalState] = useState({ isOpen: false, task: null });
@@ -118,6 +126,45 @@ export default function StaffTasks() {
   const [forwardModalState, setForwardModalState] = useState({ isOpen: false, task: null });
   const [forwardToUid, setForwardToUid] = useState('');
   const [forwardReason, setForwardReason] = useState('');
+  const [forwardFile, setForwardFile] = useState(null);
+
+  // Tooltip state
+  const [hoveredTaskTooltip, setHoveredTaskTooltip] = useState(null);
+
+  const uploadFile = async (file) => {
+    if (!file) return null;
+    try {
+      const base64 = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = (error) => reject(error);
+      });
+
+      const token = useStore.getState().token;
+      const res = await fetch('http://localhost:5000/api/interactions/upload', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          name: file.name,
+          type: file.type,
+          base64
+        })
+      });
+
+      if (res.ok) {
+        return await res.json();
+      } else {
+        console.error('File upload failed:', await res.json());
+      }
+    } catch (err) {
+      console.error('Error uploading file:', err);
+    }
+    return null;
+  };
 
   // Load staff list & tasks
   useEffect(() => {
@@ -197,7 +244,7 @@ export default function StaffTasks() {
   const handleStatusChange = async (task, newStatus) => {
     const taskId = task.taskId;
     if (newStatus === 'Completed') {
-      setCompletionTaskId(taskId);
+      setCompletionTask(task);
       setCompletionNote('');
       setIsCompletionDialogOpen(true);
     } else if (newStatus === 'Accept') {
@@ -233,23 +280,32 @@ export default function StaffTasks() {
 
   const submitCompletion = async (e) => {
     if (e) e.preventDefault();
-    if (!completionTaskId) return;
-    const task = selectedTask;
-    if (!task) return;
+    if (!completionTask) return;
+    const task = completionTask;
+
+    let finalNote = `Task Completion Note: ${completionNote.trim() || 'No note provided'}`;
+    if (completionFile) {
+      const uploaded = await uploadFile(completionFile);
+      if (uploaded && uploaded.url) {
+        finalNote += `\n\n📎 Attached: [${uploaded.name}](${uploaded.url})`;
+      }
+    }
+
     if (task.isInteractionTask) {
       const ok = await updateTaskStatus(
         task.originalInteraction.interactionId,
         task.uid,
         'Completed',
-        completionNote.trim(),
-        `Task Completion Note: ${completionNote.trim()}`
+        finalNote
       );
       if (ok) {
+        await replyToInteraction(task.originalInteraction.interactionId, finalNote);
         setIsCompletionDialogOpen(false);
-        setCompletionTaskId(null);
+        setCompletionTask(null);
         setCompletionNote('');
+        setCompletionFile(null);
         fetchInteractions();
-        if (selectedTask && selectedTask.taskId === completionTaskId) {
+        if (selectedTask && selectedTask.taskId === task.taskId) {
           setSelectedTask(prev => ({ ...prev, status: 'Completed', completionNote: completionNote.trim() }));
           const updatedReplies = await fetchReplies(task.originalInteraction.interactionId);
           setReplies(updatedReplies || []);
@@ -257,19 +313,20 @@ export default function StaffTasks() {
       }
     } else {
       const ok = await updateStaffTaskStatus(
-        completionTaskId, 
-        'Completed', 
-        completionNote.trim(), 
-        `Task Completion Note: ${completionNote.trim()}`
+        task.taskId,
+        'Completed',
+        '',
+        finalNote
       );
       if (ok) {
         setIsCompletionDialogOpen(false);
-        setCompletionTaskId(null);
+        setCompletionTask(null);
         setCompletionNote('');
+        setCompletionFile(null);
         fetchStaffTasks(activeTab);
-        if (selectedTask && selectedTask.taskId === completionTaskId) {
+        if (selectedTask && selectedTask.taskId === task.taskId) {
           setSelectedTask(prev => ({ ...prev, status: 'Completed', completionNote: completionNote.trim() }));
-          const updatedReplies = await fetchStaffTaskReplies(completionTaskId);
+          const updatedReplies = await fetchStaffTaskReplies(task.taskId);
           setReplies(updatedReplies);
         }
       }
@@ -367,17 +424,27 @@ export default function StaffTasks() {
     const targetUser = (staffList || []).find(s => s.uid === forwardToUid);
     if (!targetUser) return;
     
+    let finalNote = `Forwarded Task Note: ${forwardReason.trim() || 'No note provided'}`;
+    if (forwardFile) {
+      const uploaded = await uploadFile(forwardFile);
+      if (uploaded && uploaded.url) {
+        finalNote += `\n\n📎 Attached: [${uploaded.name}](${uploaded.url})`;
+      }
+    }
+
     if (task.isInteractionTask) {
       const ok = await updateTaskStatus(
         task.originalInteraction.interactionId,
         task.uid,
         'Forwarded',
-        '',
-        forwardReason.trim() ? `Forwarded Task Note: ${forwardReason.trim()}` : '',
+        forwardReason.trim(),
         targetUser.uid,
         targetUser.name
       );
       if (ok) {
+        if (forwardReason.trim() || forwardFile) {
+          await replyToInteraction(task.originalInteraction.interactionId, finalNote);
+        }
         fetchInteractions();
         if (selectedTask && selectedTask.taskId === task.taskId) {
           setSelectedTask(null);
@@ -386,13 +453,14 @@ export default function StaffTasks() {
         setForwardModalState({ isOpen: false, task: null });
         setForwardToUid('');
         setForwardReason('');
+        setForwardFile(null);
       }
     } else {
       const ok = await updateStaffTaskStatus(
         task.taskId, 
         'Forwarded', 
         '', 
-        forwardReason.trim() ? `Forwarded Task Note: ${forwardReason.trim()}` : '', 
+        finalNote, 
         targetUser.uid, 
         targetUser.name
       );
@@ -405,6 +473,7 @@ export default function StaffTasks() {
         setForwardModalState({ isOpen: false, task: null });
         setForwardToUid('');
         setForwardReason('');
+        setForwardFile(null);
       }
     }
   };
@@ -621,7 +690,14 @@ export default function StaffTasks() {
                   const isAssignedToMe = task.assignedToUid === user?.uid;
                   
                   const lowerStatus = (task.status || 'Pending').toLowerCase();
-                  const displayStatus = task.status === 'Pending' ? 'Task Assigned' : task.status === 'In Progress' ? 'Accept' : task.status === 'Declined' ? 'Decline' : task.status;
+                  const isOverdue = task.dueDate && 
+                                    new Date(task.dueDate).setHours(0,0,0,0) < new Date().setHours(0,0,0,0) && 
+                                    lowerStatus !== 'completed' && 
+                                    lowerStatus !== 'decline' && 
+                                    lowerStatus !== 'declined';
+                  const displayStatus = isOverdue
+                    ? 'Overdue'
+                    : (task.status === 'Pending' ? 'Task Assigned' : task.status === 'In Progress' ? 'Accept' : task.status === 'Declined' ? 'Decline' : task.status);
 
                   return (
                     <tr 
@@ -649,9 +725,25 @@ export default function StaffTasks() {
                       {/* Task Header */}
                       <td className="py-2.5 px-4 max-w-xs break-words">
                         <div className="flex flex-col gap-0.5">
-                          <span className="font-bold text-black hover:text-primary transition-colors text-xs">
-                            {task.title}
-                          </span>
+                          <div
+                            title={task.description || task.title}
+                            className="cursor-help hover:text-primary transition-colors inline-block"
+                            onMouseEnter={(e) => {
+                              const rect = e.currentTarget.getBoundingClientRect();
+                              const showBelow = rect.top < 220;
+                              setHoveredTaskTooltip({
+                                text: task.description || task.title || 'No task description available.',
+                                x: rect.left + rect.width / 2,
+                                y: showBelow ? rect.bottom : rect.top,
+                                showBelow
+                              });
+                            }}
+                            onMouseLeave={() => setHoveredTaskTooltip(null)}
+                          >
+                            <span className="font-bold text-black hover:text-primary transition-colors text-xs">
+                              {task.title}
+                            </span>
+                          </div>
                           {task.isInteractionTask && (
                             <span className="inline-flex items-center gap-1 text-[10px] font-bold text-sky-600 bg-sky-50 border border-sky-200 rounded px-1.5 py-0.5 w-fit">
                               <ExternalLink className="w-2.5 h-2.5" />
@@ -702,10 +794,16 @@ export default function StaffTasks() {
                       <td className="py-2.5 px-4" onClick={(e) => e.stopPropagation()}>
                         {activeTab === 'assigned-to-me' ? (
                           <select
+                            disabled={isOverdue}
                             value={displayStatus}
                             onChange={(e) => handleStatusChange(task, e.target.value)}
-                            className="px-2 py-1 rounded-lg border border-slate-350 bg-white text-xs text-black font-black outline-none cursor-pointer focus:border-primary/50 w-fit"
+                            className={`px-2 py-1 rounded-lg border text-xs font-black outline-none w-fit ${
+                              isOverdue 
+                                ? 'border-rose-500 bg-rose-50 text-rose-600 cursor-not-allowed opacity-75' 
+                                : 'border-slate-350 bg-white text-black cursor-pointer focus:border-primary/50'
+                            }`}
                           >
+                            {isOverdue && <option value="Overdue">Overdue</option>}
                             <option value="Task Assigned">Task Assigned</option>
                             <option value="Accept">Accepted</option>
                             <option value="Decline">Declined</option>
@@ -714,15 +812,17 @@ export default function StaffTasks() {
                           </select>
                         ) : (
                           <span className={`inline-block px-2.5 py-1 rounded-lg border text-xs font-black uppercase tracking-wider w-fit ${
+                            isOverdue ? 'bg-rose-500/10 border-rose-500/20 text-rose-600 animate-pulse' :
                             lowerStatus === 'completed' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600' :
                             lowerStatus === 'forwarded' ? 'bg-sky-500/10 border-sky-500/20 text-sky-600' :
                             lowerStatus === 'accept' || lowerStatus === 'in progress' ? 'bg-amber-500/10 border-amber-500/20 text-amber-600' :
                             lowerStatus === 'decline' || lowerStatus === 'declined' ? 'bg-rose-500/10 border-rose-500/20 text-rose-600' :
                             'bg-slate-400/10 border-slate-400/20 text-slate-500'
                           }`}>
-                            {displayStatus === 'Accept' || displayStatus === 'In Progress' ? 'Accepted' :
-                             displayStatus === 'Decline' || displayStatus === 'Declined' ? 'Declined' :
-                             displayStatus}
+                            {isOverdue ? 'Overdue' :
+                             (displayStatus === 'Accept' || displayStatus === 'In Progress' ? 'Accepted' :
+                              displayStatus === 'Decline' || displayStatus === 'Declined' ? 'Declined' :
+                              displayStatus)}
                           </span>
                         )}
                       </td>
@@ -785,7 +885,7 @@ export default function StaffTasks() {
 
                     <div className="grid grid-cols-2 gap-y-4 gap-x-6">
                       <div className="flex flex-col gap-1.5">
-                        <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Company Account</span>
+                        <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Account</span>
                         <span className="text-sm font-extrabold text-black truncate" title={selectedTask.companyName}>{selectedTask.companyName || 'Internal'}</span>
                       </div>
                       <div className="flex flex-col gap-1.5">
@@ -808,66 +908,69 @@ export default function StaffTasks() {
                     </div>
                   </div>
 
-                  {/* Assigned By */}
-                  <div className="bg-dark-900 border border-dark-800 p-5 rounded-xl shadow-sm">
-                    <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest border-b border-dark-800 pb-2 block mb-3">Assigned By</h4>
-                    <div className="flex items-center gap-3">
-                      <div className="bg-primary/20 border border-primary/30 text-primary w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm shrink-0">
-                        {selectedTask.assignedByName ? selectedTask.assignedByName.substring(0, 2).toUpperCase() : 'US'}
-                      </div>
-                      <div className="min-w-0">
-                        <span className="font-bold text-black block text-sm truncate">{selectedTask.assignedByName || 'Admin User'}</span>
-                        <span className="text-xs text-slate-400 font-bold block mt-0.5">Staff Member</span>
-                      </div>
-                    </div>
-                  </div>
-
-
-
                 </div>
 
                 {/* Right Column */}
                 <div className="lg:col-span-7 space-y-6 flex flex-col">
                   
-                  {/* Task Assigned To Card */}
+                  {/* Task Assignment details Card */}
                   <div className="bg-dark-900 border border-dark-800 rounded-xl p-5 shadow-sm space-y-4">
                     <div className="flex items-center justify-between border-b border-dark-800 pb-2">
-                      <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest">Task Assigned To</h4>
+                      <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest">Task Assignment</h4>
                     </div>
-                    <div className="p-4 rounded-xl bg-dark-700/40 border border-dark-800 flex flex-col gap-2">
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-2">
-                          <div className="w-8 h-8 rounded-full bg-amber-500/20 border border-amber-500/30 text-amber-500 flex items-center justify-center font-bold text-xs">
-                            {selectedTask.assignedToName ? selectedTask.assignedToName.substring(0, 2).toUpperCase() : 'US'}
+                    <div className="p-4 rounded-xl bg-dark-700/40 border border-dark-800 flex flex-col gap-3">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        {/* Assigned By */}
+                        <div className="flex flex-col gap-1.5">
+                          <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Assigned By</span>
+                          <div className="flex items-center gap-2">
+                            <div className="bg-primary/20 border border-primary/30 text-primary w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs shrink-0">
+                              {selectedTask.assignedByName ? selectedTask.assignedByName.substring(0, 2).toUpperCase() : 'US'}
+                            </div>
+                            <span className="font-bold text-black text-xs block truncate">
+                              {selectedTask.assignedByName || 'Admin User'}
+                            </span>
                           </div>
-                          <div>
-                            <span className="font-bold text-black text-xs block">
+                        </div>
+
+                        {/* Assigned To */}
+                        <div className="flex flex-col gap-1.5 border-t sm:border-t-0 sm:border-l border-dark-800 pt-3 sm:pt-0 sm:pl-4">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Assigned To</span>
+                            <span className={`inline-block px-2.5 py-0.5 rounded-lg border text-[9px] font-black uppercase tracking-wider ${
+                              (selectedTask.status || '').toLowerCase() === 'completed' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600' :
+                              (selectedTask.status || '').toLowerCase() === 'forwarded' ? 'bg-sky-500/10 border-sky-500/20 text-sky-600' :
+                              (selectedTask.status || '').toLowerCase() === 'accept' || (selectedTask.status || '').toLowerCase() === 'in progress' ? 'bg-amber-500/10 border-amber-500/20 text-amber-600' :
+                              (selectedTask.status || '').toLowerCase() === 'decline' || (selectedTask.status || '').toLowerCase() === 'declined' ? 'bg-rose-500/10 border-rose-500/20 text-rose-600' :
+                              'bg-slate-400/10 border-slate-400/20 text-slate-500'
+                            }`}>
+                              {selectedTask.status === 'Pending' ? 'Task Assigned' : 
+                               (selectedTask.status === 'Accept' || selectedTask.status === 'In Progress') ? 'Accepted' :
+                               (selectedTask.status === 'Decline' || selectedTask.status === 'Declined') ? 'Declined' :
+                               selectedTask.status || 'Task Assigned'}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2 mt-1">
+                            <div className="w-8 h-8 rounded-full bg-amber-500/20 border border-amber-500/30 text-amber-500 flex items-center justify-center font-bold text-xs shrink-0">
+                              {selectedTask.assignedToName ? selectedTask.assignedToName.substring(0, 2).toUpperCase() : 'US'}
+                            </div>
+                            <span className="font-bold text-black text-xs block truncate">
                               @{selectedTask.assignedToName || 'Staff Member'}
                             </span>
                           </div>
                         </div>
-                        <span className={`inline-block px-2.5 py-1 rounded-lg border text-[10px] font-black uppercase tracking-wider ${
-                          (selectedTask.status || '').toLowerCase() === 'completed' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600' :
-                          (selectedTask.status || '').toLowerCase() === 'forwarded' ? 'bg-sky-500/10 border-sky-500/20 text-sky-600' :
-                          (selectedTask.status || '').toLowerCase() === 'accept' || (selectedTask.status || '').toLowerCase() === 'in progress' ? 'bg-amber-500/10 border-amber-500/20 text-amber-600' :
-                          (selectedTask.status || '').toLowerCase() === 'decline' || (selectedTask.status || '').toLowerCase() === 'declined' ? 'bg-rose-500/10 border-rose-500/20 text-rose-600' :
-                          'bg-slate-400/10 border-slate-400/20 text-slate-500'
-                        }`}>
-                          {selectedTask.status === 'Pending' ? 'Task Assigned' : 
-                           (selectedTask.status === 'Accept' || selectedTask.status === 'In Progress') ? 'Accepted' :
-                           (selectedTask.status === 'Decline' || selectedTask.status === 'Declined') ? 'Declined' :
-                           selectedTask.status || 'Task Assigned'}
-                        </span>
                       </div>
+
+                      {/* Due Date & Priority */}
                       {(selectedTask.priority || selectedTask.dueDate) && (
-                        <div className="flex items-center gap-2 pl-1 mt-1.5 flex-wrap">
+                        <div className="flex items-center gap-2 mt-1.5 flex-wrap pt-2 border-t border-dark-800">
                           {selectedTask.priority && (
                             <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${
                               selectedTask.priority === 'High' ? 'bg-rose-500/10 border-rose-500/20 text-rose-600' :
                               selectedTask.priority === 'Medium' ? 'bg-amber-500/10 border-amber-500/20 text-amber-600' :
                               'bg-slate-400/10 border-slate-400/20 text-slate-500'
                             }`}>
-                              {selectedTask.priority}
+                              Priority: {selectedTask.priority}
                             </span>
                           )}
                           {selectedTask.dueDate && (
@@ -883,13 +986,19 @@ export default function StaffTasks() {
                           <div className="flex items-center gap-2">
                             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Change Status:</span>
                             <select
+                              disabled={isSelectedTaskOverdue}
                               value={selectedTask.status === 'Pending' ? 'Task Assigned' : (selectedTask.status === 'In Progress' || selectedTask.status === 'Accept') ? 'Accept' : (selectedTask.status === 'Declined' || selectedTask.status === 'Decline') ? 'Decline' : selectedTask.status}
                               onChange={async (e) => {
                                 const newStatus = e.target.value;
                                 await handleStatusChange(selectedTask, newStatus);
                               }}
-                              className="px-2 py-1 rounded-lg border border-dark-800 bg-dark-700/50 text-[11px] text-black font-bold outline-none cursor-pointer focus:border-primary"
+                              className={`px-2 py-1 rounded-lg border text-[11px] font-bold outline-none w-fit ${
+                                isSelectedTaskOverdue
+                                  ? 'border-rose-500 bg-rose-50 text-rose-600 cursor-not-allowed opacity-75'
+                                  : 'border-dark-800 bg-dark-700/50 text-black cursor-pointer focus:border-primary'
+                              }`}
                             >
+                              {isSelectedTaskOverdue && <option value="Overdue">Overdue</option>}
                               <option value="Task Assigned">Task Assigned</option>
                               <option value="Accept">Accepted</option>
                               <option value="Decline">Declined</option>
@@ -915,7 +1024,7 @@ export default function StaffTasks() {
                         {(() => {
                           const noteTexts = [
                             selectedTask.acceptNote ? `Acceptance Note: ${selectedTask.acceptNote}` : null,
-                            selectedTask.completionNote ? `Completion Report: ${selectedTask.completionNote}` : null,
+                            selectedTask.completionNote && !replies.some(r => (r.text || '').startsWith('Task Completion Note:')) ? `Task Completion Note: ${selectedTask.completionNote}` : null,
                             selectedTask.declineReason ? `Decline Reason: ${selectedTask.declineReason}` : null
                           ].filter(Boolean);
                           const total = replies.length + noteTexts.length;
@@ -929,19 +1038,19 @@ export default function StaffTasks() {
                       {(() => {
                         const extraNotes = [];
                         const noteTexts = [
-                          selectedTask.acceptNote ? `Acceptance Note: ${selectedTask.acceptNote}` : null,
-                          selectedTask.completionNote ? `Completion Report: ${selectedTask.completionNote}` : null,
-                          selectedTask.declineReason ? `Decline Reason: ${selectedTask.declineReason}` : null
+                          selectedTask.acceptNote ? { label: `Acceptance Note: ${selectedTask.acceptNote}`, matchPrefix: 'Acceptance Note:' } : null,
+                          selectedTask.completionNote ? { label: `Task Completion Note: ${selectedTask.completionNote}`, matchPrefix: 'Task Completion Note:' } : null,
+                          selectedTask.declineReason ? { label: `Decline Reason: ${selectedTask.declineReason}`, matchPrefix: 'Decline Reason:' } : null
                         ].filter(Boolean);
 
-                        noteTexts.forEach((nt, idx) => {
-                          if (!replies.some(r => (r.text || '').includes(nt))) {
+                        noteTexts.forEach(({ label, matchPrefix }, idx) => {
+                          if (!replies.some(r => (r.text || '').startsWith(matchPrefix))) {
                             extraNotes.push({
                               replyId: `note-${idx}`,
                               authorName: selectedTask.assignedToName || 'Staff Member',
                               authorUid: selectedTask.assignedToUid,
-                              text: nt,
-                              timestamp: selectedTask.timestamp || new Date().toISOString()
+                              text: label,
+                              timestamp: new Date().toISOString()
                             });
                           }
                         });
@@ -1053,18 +1162,18 @@ export default function StaffTasks() {
               <X className="w-4 h-4" />
             </button>
             <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-full bg-amber-50 border border-amber-100 flex items-center justify-center shrink-0">
+              <div className="w-10 h-10 rounded-full bg-amber-5 border border-amber-100 flex items-center justify-center shrink-0">
                 <ThumbsUp className="w-5 h-5 text-amber-500" />
               </div>
               <div>
                 <h3 className="text-sm font-black text-black">Accept Task</h3>
-                <p className="text-xs text-slate-450">Confirm acceptance and optionally add a note</p>
+                <p className="text-xs text-black font-semibold">Confirm acceptance and optionally add a note</p>
               </div>
             </div>
 
             <form onSubmit={submitAccept} className="space-y-4 text-xs font-semibold">
               <div className="space-y-1.5">
-                <label className="block text-xs font-bold text-slate-600">Acceptance Note (Optional)</label>
+                <label className="block text-xs font-bold text-black">Acceptance Note (Optional)</label>
                 <textarea
                   value={acceptNote}
                   onChange={(e) => setAcceptNote(e.target.value)}
@@ -1099,18 +1208,18 @@ export default function StaffTasks() {
               <X className="w-4 h-4" />
             </button>
             <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-full bg-rose-50 border border-rose-100 flex items-center justify-center shrink-0">
+              <div className="w-10 h-10 rounded-full bg-rose-5 border border-rose-100 flex items-center justify-center shrink-0">
                 <ShieldAlert className="w-5 h-5 text-rose-600" />
               </div>
               <div>
                 <h3 className="text-sm font-black text-black">Decline Task</h3>
-                <p className="text-xs text-slate-450">Provide a reason for declining this task</p>
+                <p className="text-xs text-black font-semibold">Provide a reason for declining this task</p>
               </div>
             </div>
 
             <form onSubmit={submitDecline} className="space-y-4 text-xs font-semibold">
               <div className="space-y-1.5">
-                <label className="block text-xs font-bold text-slate-600">Reason for Declining</label>
+                <label className="block text-xs font-bold text-black">Reason for Declining</label>
                 <textarea
                   value={declineReason}
                   onChange={(e) => setDeclineReason(e.target.value)}
@@ -1139,8 +1248,9 @@ export default function StaffTasks() {
             <button 
               onClick={() => {
                 setIsCompletionDialogOpen(false);
-                setCompletionTaskId(null);
+                setCompletionTask(null);
                 setCompletionNote('');
+                setCompletionFile(null);
               }}
               className="absolute top-4 right-4 p-1.5 rounded-lg bg-dark-700 hover:bg-dark-800 text-slate-500 hover:text-black transition-colors cursor-pointer"
             >
@@ -1152,13 +1262,13 @@ export default function StaffTasks() {
               </div>
               <div>
                 <h3 className="text-sm font-black text-black">Complete Task</h3>
-                <p className="text-xs text-slate-450">Send a note back to Admin User</p>
+                <p className="text-xs text-black font-semibold">Send a note back to {completionTask?.assignedByName || completionTask?.loggedByName || 'Admin User'}</p>
               </div>
             </div>
             
             <form onSubmit={submitCompletion} className="space-y-4 text-xs font-semibold">
               <div className="space-y-1.5">
-                <label className="block text-xs font-bold text-slate-600">Completion Note</label>
+                <label className="block text-xs font-bold text-black">Completion Note</label>
                 <textarea
                   value={completionNote}
                   onChange={(e) => setCompletionNote(e.target.value)}
@@ -1168,10 +1278,11 @@ export default function StaffTasks() {
                 />
               </div>
               <div className="space-y-1.5">
-                <label className="block text-xs font-bold text-slate-600">Attachments (Optional)</label>
+                <label className="block text-xs font-bold text-black">Attachments (Optional)</label>
                 <input
                   type="file"
-                  className="w-full text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border file:border-dark-800 file:text-xs file:font-semibold file:bg-dark-700 file:text-slate-700 hover:file:bg-dark-800"
+                  onChange={(e) => setCompletionFile(e.target.files[0])}
+                  className="w-full text-xs text-black file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border file:border-dark-800 file:text-xs file:font-semibold file:bg-dark-700 file:text-black hover:file:bg-dark-800"
                 />
               </div>
               <div className="flex justify-end pt-2">
@@ -1196,6 +1307,7 @@ export default function StaffTasks() {
                 setForwardModalState({ isOpen: false, task: null });
                 setForwardToUid('');
                 setForwardReason('');
+                setForwardFile(null);
               }}
               className="absolute top-4 right-4 p-1.5 rounded-lg bg-dark-700 hover:bg-dark-800 text-slate-500 hover:text-black transition-colors cursor-pointer"
             >
@@ -1207,13 +1319,13 @@ export default function StaffTasks() {
               </div>
               <div>
                 <h3 className="text-sm font-black text-black">Forward Task</h3>
-                <p className="text-xs text-slate-450">Select a team member to forward this task to</p>
+                <p className="text-xs text-black font-semibold">Select a team member to forward this task to</p>
               </div>
             </div>
             
             <form onSubmit={submitForward} className="space-y-4 text-xs font-semibold">
               <div className="space-y-1.5">
-                <label className="block text-xs font-bold text-slate-600">Forward To</label>
+                <label className="block text-xs font-bold text-black">Forward To</label>
                 <select
                   value={forwardToUid}
                   onChange={(e) => setForwardToUid(e.target.value)}
@@ -1231,12 +1343,20 @@ export default function StaffTasks() {
                 </select>
               </div>
               <div className="space-y-1.5">
-                <label className="block text-xs font-bold text-slate-600">Forwarding Note / Reason</label>
+                <label className="block text-xs font-bold text-black">Forwarding Note / Reason</label>
                 <textarea
                   value={forwardReason}
                   onChange={(e) => setForwardReason(e.target.value)}
                   className="w-full bg-dark-700 border border-dark-800 rounded-xl p-3 text-xs text-black outline-none focus:border-blue-500/50 min-h-[100px]"
                   placeholder="E.g., Forwarding to you as you are leading the deployment module."
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="block text-xs font-bold text-black">Attachments (Optional)</label>
+                <input
+                  type="file"
+                  onChange={(e) => setForwardFile(e.target.files[0])}
+                  className="w-full text-xs text-black file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border file:border-dark-800 file:text-xs file:font-semibold file:bg-dark-700 file:text-black hover:file:bg-dark-800"
                 />
               </div>
               <div className="flex justify-end pt-2">
@@ -1249,6 +1369,32 @@ export default function StaffTasks() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Floating Task Description Tooltip */}
+      {hoveredTaskTooltip && (
+        <div 
+          style={{
+            position: 'fixed',
+            left: `${hoveredTaskTooltip.x}px`,
+            top: `${hoveredTaskTooltip.y}px`,
+            transform: hoveredTaskTooltip.showBelow ? 'translate(-50%, 0) translateY(8px)' : 'translate(-50%, -100%) translateY(-8px)',
+            zIndex: 9999
+          }}
+          className="w-80 p-4 bg-slate-900/95 border border-slate-700/80 text-slate-200 text-xs rounded-xl shadow-2xl backdrop-blur-md pointer-events-none"
+        >
+          <div className="space-y-3">
+            <div>
+              <div className="font-bold text-slate-400 mb-1 flex items-center gap-1.5 border-b border-slate-800/60 pb-1">
+                <FileText className="w-3.5 h-3.5 text-slate-400" />
+                <span>Task Description</span>
+              </div>
+              <div className="leading-relaxed whitespace-pre-wrap font-medium text-slate-300">
+                {hoveredTaskTooltip.text}
+              </div>
+            </div>
           </div>
         </div>
       )}

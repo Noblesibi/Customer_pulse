@@ -41,7 +41,7 @@ export default function EditAccount() {
   const [isLoading, setIsLoading] = useState(true);
 
   const industries = ['Technology', 'Finance', 'Logistics', 'Healthcare', 'Manufacturing', 'Retail'];
-  const regions = ['North America', 'Europe', 'Asia Pacific', 'Latin America', 'Middle East'];
+  const regions = ['USA', 'UK', 'Germany', 'Singapore', 'India', 'UAE'];
   const nestBus = [
     'Aerospace and Defence',
     'Banking & Financial Service (BFS)',
@@ -332,7 +332,7 @@ export default function EditAccount() {
             </div>
 
             <div className="space-y-2">
-              <label className="text-xs text-slate-400 uppercase font-semibold">Region</label>
+              <label className="text-xs text-slate-400 uppercase font-semibold">Location</label>
               <select 
                 value={region}
                 onChange={e => setRegion(e.target.value)}
