@@ -3,6 +3,7 @@ import { db, logActivity } from '../config/database.js';
 import { authenticateToken } from '../middleware/auth.middleware.js';
 import { sendTaskAssignmentEmail } from '../services/email.service.js';
 import { generateTaskHeader } from '../services/ai.service.js';
+import { NotificationEngine } from '../services/notification/NotificationEngine.js';
 
 const router = Router();
 router.use(authenticateToken);
@@ -208,6 +209,18 @@ router.put('/:id/status', async (req, res) => {
         timestamp: new Date().toISOString()
       };
       await db.collection('tasks').doc(id).collection('taskreplies').doc(replyId).set(newReply);
+
+      // Notify the other party about the comment via email
+      const commentRecipient = req.user.uid === task.assignedToUid ? task.assignedByUid : task.assignedToUid;
+      if (commentRecipient) {
+        NotificationEngine.publishEvent('task_comment', {
+          TaskTitle: task.title || task.description,
+          TaskId: id,
+          AuthorName: req.user.name || req.user.email,
+          CommentText: note.trim().substring(0, 200),
+          InAppMessage: `${req.user.name} commented on task "${task.title}": "${note.trim().substring(0, 80)}"`
+        }, [commentRecipient], { relatedTaskId: id, skipInAppNotification: true });
+      }
     }
 
     // Handle Forwarding
@@ -216,7 +229,18 @@ router.put('/:id/status', async (req, res) => {
       updates.assignedToName = forwardToName;
       updates.status = 'Task Assigned';
 
-      // Create notification for the new assignee
+      // Notify the new assignee via email
+      NotificationEngine.publishEvent('task_reassigned', {
+        TaskTitle: task.title || task.description,
+        TaskId: id,
+        Priority: task.priority || 'Medium',
+        DueDate: task.dueDate,
+        AssignedBy: req.user.name || req.user.email,
+        PreviousAssignee: task.assignedToName,
+        InAppMessage: `${req.user.name || req.user.email} forwarded a task to you: "${task.title}"`
+      }, [forwardToUid], { relatedTaskId: id, skipInAppNotification: true });
+
+      // Create bell notification for the new assignee
       const notifId = 'notif-' + Math.random().toString(36).substring(2, 11);
       await db.collection('notifications').doc(notifId).set({
         notificationId: notifId,
@@ -230,7 +254,7 @@ router.put('/:id/status', async (req, res) => {
 
     await db.collection('tasks').doc(id).update(updates);
 
-    // Notify the assigner (if updated by someone else)
+    // Publish status change email notification to the assigner
     if (req.user.uid !== task.assignedByUid) {
       const notifId = 'notif-' + Math.random().toString(36).substring(2, 11);
       await db.collection('notifications').doc(notifId).set({
@@ -241,6 +265,24 @@ router.put('/:id/status', async (req, res) => {
         read: false,
         timestamp: new Date().toISOString()
       });
+
+      // Email notification for status change
+      const finalStatus = updates.status || status;
+      const emailEvent = finalStatus === 'Completed' ? 'task_completed' :
+                         finalStatus === 'Decline' || finalStatus === 'Declined' ? 'task_cancelled' :
+                         'status_changed';
+      NotificationEngine.publishEvent(emailEvent, {
+        TaskTitle: task.title || task.description,
+        TaskId: id,
+        Status: finalStatus,
+        PreviousStatus: task.status,
+        UpdatedBy: req.user.name || req.user.email,
+        CompanyName: task.companyName || 'Internal',
+        CompletedBy: req.user.name || req.user.email,
+        CompletionDate: new Date().toLocaleDateString(),
+        CompletionNote: completionNote || note || '',
+        InAppMessage: `${req.user.name} updated task "${task.title}" status to: ${finalStatus}`
+      }, [task.assignedByUid], { relatedTaskId: id, skipInAppNotification: true });
     }
 
     await logActivity(req.user.uid, req.user.name, 'Update Staff Task Status', `Updated task "${task.title}" status to "${status}"`);

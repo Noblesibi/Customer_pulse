@@ -58,9 +58,15 @@ export default function Accounts() {
   // Modals state
   const [isLogInteractionOpen, setIsLogInteractionOpen] = useState(false);
 
+  const getLocalDateString = () => {
+    const d = new Date();
+    const offset = d.getTimezoneOffset() * 60000;
+    return new Date(d.getTime() - offset).toISOString().split('T')[0];
+  };
+
   const [interactionSource, setInteractionSource] = useState('Outlook Mail');
   const [interactionText, setInteractionText] = useState('');
-  const [interactionDate, setInteractionDate] = useState(new Date().toISOString().split('T')[0]);
+  const [interactionDate, setInteractionDate] = useState(getLocalDateString());
   const [interactionTime, setInteractionTime] = useState(new Date().toTimeString().slice(0, 5));
   const [interactionContactId, setInteractionContactId] = useState('');
   const [interactionAccountId, setInteractionAccountId] = useState('');
@@ -136,7 +142,7 @@ export default function Accounts() {
   };
 
   const industries = ['Technology', 'Finance', 'Logistics', 'Healthcare', 'Manufacturing', 'Retail'];
-  const regions = ['North America', 'Europe', 'Asia Pacific', 'Latin America', 'Middle East'];
+  const regions = ['USA', 'UK', 'Germany', 'Singapore', 'India', 'UAE'];
 
   // Load staff once on mount (independent of filter changes)
   useEffect(() => {
@@ -262,7 +268,7 @@ export default function Accounts() {
   const resetInteractionForm = () => {
     setInteractionText('');
     setInteractionSource('Outlook Mail');
-    setInteractionDate(new Date().toISOString().split('T')[0]);
+    setInteractionDate(getLocalDateString());
     setInteractionTime(new Date().toTimeString().slice(0, 5));
     setInteractionContactId('');
     setSelectedMentions([]);
@@ -398,13 +404,13 @@ export default function Accounts() {
               {industries.map(ind => <option key={ind} value={ind}>{ind}</option>)}
             </select>
 
-            {/* Filter: Region */}
+            {/* Filter: Location */}
             <select 
               value={regionFilter}
               onChange={(e) => setRegionFilter(e.target.value)}
               className="bg-dark-900/60 border border-slate-800 focus:border-primary/50 text-xs rounded-xl p-2.5 text-slate-300 focus:outline-none cursor-pointer"
             >
-              <option value="">All Regions</option>
+              <option value="">All Locations</option>
               {regions.map(reg => <option key={reg} value={reg}>{reg}</option>)}
             </select>
 
@@ -455,7 +461,7 @@ export default function Accounts() {
                           </h3>
                           <div className="flex flex-col gap-0.5 mt-1.5 text-[10px] text-slate-400">
                             <span className="truncate">Nest BU: <strong className="text-slate-305 font-medium">{acc.domain || '—'}</strong></span>
-                            <span>Region: <strong className="text-slate-305 font-medium">{acc.region}</strong></span>
+                            <span>Location: <strong className="text-slate-305 font-medium">{acc.region}</strong></span>
                           </div>
                         </div>
                         <div className="flex flex-col items-end gap-3 shrink-0">
@@ -502,7 +508,7 @@ export default function Accounts() {
                     <tr className="bg-dark-900 border-b border-slate-800 text-slate-400 font-semibold uppercase tracking-wider">
                       <th className="p-4 sticky top-0 bg-dark-900 z-10 text-left">Company</th>
                       <th className="p-4 sticky top-0 bg-dark-900 z-10 text-left">Nest BU</th>
-                      <th className="p-4 sticky top-0 bg-dark-900 z-10 text-left">Region</th>
+                      <th className="p-4 sticky top-0 bg-dark-900 z-10 text-left">Location</th>
                       <th className="p-4 text-center sticky top-0 bg-dark-900 z-10">Health</th>
                       {(user?.role === 'Admin' || user?.position?.toLowerCase().includes('ceo') || user?.userType === 'CEO' || user?.email === 'nj@gmail.com') && (
                         <th className="p-4 text-right sticky top-0 bg-dark-900 z-10">Actions</th>
@@ -1004,7 +1010,7 @@ export default function Accounts() {
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1.5">
                     <label className="text-xs text-slate-400 uppercase font-bold tracking-wider flex items-center gap-1.5">
-                      <Building2 className="w-3 h-3" /> Company Account
+                      <Building2 className="w-3 h-3" /> Account
                     </label>
                     <select
                       value={interactionAccountId}
@@ -1026,7 +1032,7 @@ export default function Accounts() {
                   </div>
                   <div className="space-y-1.5">
                     <label className="text-xs text-slate-400 uppercase font-bold tracking-wider flex items-center gap-1.5">
-                      <Users className="w-3 h-3" /> Client Contact / Staff
+                      <Users className="w-3 h-3" /> Client Contact
                     </label>
                     <select
                       value={interactionContactId}

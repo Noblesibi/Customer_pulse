@@ -23,6 +23,8 @@ import { handleOutlookWebhook, handleTeamsWebhook } from './controllers/webhook.
 
 // Sync scheduler import
 import { startSyncScheduler } from './services/userSync.service.js';
+import { startEmailScheduler } from './services/notification/EmailScheduler.js';
+import emailEngineRouter from './routes/email-engine.routes.js';
 
 dotenv.config({ override: true });
 
@@ -59,6 +61,7 @@ app.use('/api/notifications', notificationRouter);
 app.use('/api/activity-logs', activityRouter);
 app.use('/api/ai', aiRouter);
 app.use('/api/employees', employeeRouter);
+app.use('/api/email-engine', emailEngineRouter);
 
 // Service Health check
 app.get('/api/health', (req, res) => {
@@ -99,4 +102,6 @@ app.listen(PORT, () => {
   
   // Start the background employee sync scheduler
   startSyncScheduler();
+  // Start the email notification engine scheduler
+  startEmailScheduler();
 });

@@ -448,6 +448,18 @@ router.post('/', async (req, res) => {
       }
     }
 
+    const getLocalDateString = () => {
+      const d = new Date();
+      const offset = d.getTimezoneOffset() * 60000;
+      return new Date(d.getTime() - offset).toISOString().split('T')[0];
+    };
+    
+    const getLocalTimeString = () => {
+      const d = new Date();
+      const offset = d.getTimezoneOffset() * 60000;
+      return new Date(d.getTime() - offset).toISOString().split('T')[1].slice(0, 5);
+    };
+
     const interactionId = 'int-' + Math.random().toString(36).substring(2, 11);
     const newInteraction = {
       interactionId,
@@ -456,8 +468,8 @@ router.post('/', async (req, res) => {
       source,
       subject: cleanSubject,
       messageText,
-      date: date || new Date().toISOString().split('T')[0],
-      time: time || new Date().toTimeString().slice(0, 5),
+      date: date || getLocalDateString(),
+      time: time || getLocalTimeString(),
       actionMentions: enrichedActionMentions,
       loggedByUid: req.user.uid,
       loggedByName,

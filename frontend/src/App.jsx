@@ -19,6 +19,7 @@ import InteractionLog from './pages/InteractionLog.jsx';
 import LogInteraction from './pages/LogInteraction.jsx';
 import StaffTasks from './pages/StaffTasks.jsx';
 import AssignStaffTask from './pages/AssignStaffTask.jsx';
+import NotificationCenter from './pages/NotificationCenter.jsx';
 
 export default function App() {
   const { user } = useStore();
@@ -46,6 +47,7 @@ export default function App() {
           <Route path="/log-interaction" element={<LogInteraction />} />
           <Route path="/staff-tasks" element={<StaffTasks />} />
           <Route path="/staff-tasks/new" element={<AssignStaffTask />} />
+          <Route path="/notification-center" element={<NotificationCenter />} />
         </Route>
 
         {/* Fallback routing */}

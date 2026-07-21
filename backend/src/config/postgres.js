@@ -530,52 +530,71 @@ async function initializeDatabase() {
       console.log(`\uD83D\uDCC2 Database ready — ${userCount} existing user(s) found, skipping seed.`);
     }
 
-    // Ensure clean/latest all-users dummy task is seeded (for all 14 users)
-    await connection.query('DELETE FROM "Interactions" WHERE "interactionId" = $1', ['int-dummy-all-users']);
+    // Check if the dummy task already exists
+    const dummyCheck = await connection.query('SELECT COUNT(*) as count FROM "Interactions" WHERE "interactionId" = $1', ['int-dummy-all-users']);
+    const dummyExists = parseInt(dummyCheck.rows[0].count, 10) > 0;
     
-    console.log('🌱 Seeding dummy task for all 14 users in PostgreSQL...');
-    const taskDueDate = new Date();
-    taskDueDate.setDate(taskDueDate.getDate() + 7);
-    const taskDueDateStr = taskDueDate.toISOString().split('T')[0];
+    if (!dummyExists) {
+      console.log('🌱 Seeding dummy task for all 14 users in PostgreSQL...');
+      
+      const getLocalDateString = () => {
+        const d = new Date();
+        const offset = d.getTimezoneOffset() * 60000;
+        return new Date(d.getTime() - offset).toISOString().split('T')[0];
+      };
+      
+      const getLocalTimeString = () => {
+        const d = new Date();
+        const offset = d.getTimezoneOffset() * 60000;
+        return new Date(d.getTime() - offset).toISOString().split('T')[1].slice(0, 5);
+      };
 
-    const dummyAllUsersMentions = [
-      { uid: 'mock-admin-uid', name: 'Admin User', task: 'Review all accounts and verify global access permissions', taskHeader: 'Review Admin Access', status: 'Task Assigned', dueDate: taskDueDateStr, priority: 'High', comments: '', completionDate: null },
-      { uid: 'mock-nazneen-ceo-uid', name: 'Nazneen Jahangir', task: 'Review high-level executive dashboard and quarterly risk report', taskHeader: 'Review Exec Dashboard', status: 'Task Assigned', dueDate: taskDueDateStr, priority: 'High', comments: '', completionDate: null },
-      { uid: 'mock-exec-uid', name: 'Executive User', task: 'Approve project budget and review overall alignment', taskHeader: 'Approve Budget', status: 'Task Assigned', dueDate: taskDueDateStr, priority: 'High', comments: '', completionDate: null },
-      { uid: 'mock-finance-head-uid', name: 'Finance Head', task: 'Perform finance audit for Apex Financial Services and billing integration', taskHeader: 'Finance Audit', status: 'Task Assigned', dueDate: taskDueDateStr, priority: 'Medium', comments: '', completionDate: null },
-      { uid: 'mock-global-hr-head-uid', name: 'Global HR Head', task: 'Initiate performance appraisals and review Acme Corporation HR roadmap', taskHeader: 'Appraisal Review', status: 'Task Assigned', dueDate: taskDueDateStr, priority: 'Medium', comments: '', completionDate: null },
-      { uid: 'mock-itg-head-uid', name: 'ITG Head', task: 'Audit cybersecurity protocol and IT infrastructure on Global Logistics Inc', taskHeader: 'Security Audit', status: 'Task Assigned', dueDate: taskDueDateStr, priority: 'High', comments: '', completionDate: null },
-      { uid: 'mock-nda-head-uid', name: 'NDA Head', task: 'Review NDA agreements and compliance training roadmap', taskHeader: 'NDA Review', status: 'Task Assigned', dueDate: taskDueDateStr, priority: 'High', comments: '', completionDate: null },
-      { uid: 'mock-tc-head-uid', name: 'TC Head', task: 'Evaluate AI/ML platform R&D roadmap and quality gates', taskHeader: 'Evaluate Platform', status: 'Task Assigned', dueDate: taskDueDateStr, priority: 'Medium', comments: '', completionDate: null },
-      { uid: 'mock-quality-head-uid', name: 'Quality Head', task: 'Oversee performance regression suite results and quality audit', taskHeader: 'Quality Audit', status: 'Task Assigned', dueDate: taskDueDateStr, priority: 'Medium', comments: '', completionDate: null },
-      { uid: 'mock-manager-uid', name: 'Manager User', task: 'Sync with employee on frontend milestones and verify deliverables', taskHeader: 'Manager Sync', status: 'Task Assigned', dueDate: taskDueDateStr, priority: 'Medium', comments: '', completionDate: null },
-      { uid: 'mock-employee-uid', name: 'Employee User', task: 'Implement frontend components and run regression tests', taskHeader: 'Implement UI', status: 'Task Assigned', dueDate: taskDueDateStr, priority: 'Medium', comments: '', completionDate: null },
-      { uid: 'ldap-3cm36onhw', name: 'Albert S Joseph', task: 'Coordinate load testing and API stability check for dashboard widgets', taskHeader: 'Dashboard Load Test', status: 'Task Assigned', dueDate: taskDueDateStr, priority: 'High', comments: '', completionDate: null },
-      { uid: 'ldap-rhkufekom', name: 'Amina Rashad', task: 'Perform regression suite execution and validation of CRM flows', taskHeader: 'Run Regression', status: 'Task Assigned', dueDate: taskDueDateStr, priority: 'High', comments: '', completionDate: null },
-      { uid: 'ldap-2jm2pvhe0', name: 'Noble Sibi', task: 'Evaluate CRM security posture and RBAC policy definitions', taskHeader: 'Verify Security', status: 'Task Assigned', dueDate: taskDueDateStr, priority: 'High', comments: '', completionDate: null }
-    ];
+      const taskDueDate = new Date();
+      taskDueDate.setDate(taskDueDate.getDate() + 7);
+      const taskDueDateOffset = taskDueDate.getTimezoneOffset() * 60000;
+      const taskDueDateStr = new Date(taskDueDate.getTime() - taskDueDateOffset).toISOString().split('T')[0];
 
-    await connection.query(`
-      INSERT INTO "Interactions" ("interactionId", "accountId", "contactId", source, subject, "messageText", date, time, "loggedByUid", "loggedByName", sentiment, "riskDetected", "riskCategory", "actionMentions", timestamp)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
-    `, [
-      'int-dummy-all-users',
-      'acc-1',
-      'con-1',
-      'Meeting',
-      'All-Hands Portfolio Review',
-      'We held a portfolio review meeting with Acme Corporation. All team members must review their client updates and key deliverables.',
-      new Date().toISOString().split('T')[0],
-      new Date().toTimeString().slice(0, 5),
-      'mock-admin-uid',
-      'Admin User',
-      'Neutral',
-      false,
-      '',
-      JSON.stringify(dummyAllUsersMentions),
-      new Date().toISOString()
-    ]);
-    console.log('✅ Dummy task for all 14 users seeded successfully.');
+      const dummyAllUsersMentions = [
+        { uid: 'mock-admin-uid', name: 'Admin User', task: 'Review all accounts and verify global access permissions', taskHeader: 'Review Admin Access', status: 'Task Assigned', dueDate: taskDueDateStr, priority: 'High', comments: '', completionDate: null },
+        { uid: 'mock-nazneen-ceo-uid', name: 'Nazneen Jahangir', task: 'Review high-level executive dashboard and quarterly risk report', taskHeader: 'Review Exec Dashboard', status: 'Task Assigned', dueDate: taskDueDateStr, priority: 'High', comments: '', completionDate: null },
+        { uid: 'mock-exec-uid', name: 'Executive User', task: 'Approve project budget and review overall alignment', taskHeader: 'Approve Budget', status: 'Task Assigned', dueDate: taskDueDateStr, priority: 'High', comments: '', completionDate: null },
+        { uid: 'mock-finance-head-uid', name: 'Finance Head', task: 'Perform finance audit for Apex Financial Services and billing integration', taskHeader: 'Finance Audit', status: 'Task Assigned', dueDate: taskDueDateStr, priority: 'Medium', comments: '', completionDate: null },
+        { uid: 'mock-global-hr-head-uid', name: 'Global HR Head', task: 'Initiate performance appraisals and review Acme Corporation HR roadmap', taskHeader: 'Appraisal Review', status: 'Task Assigned', dueDate: taskDueDateStr, priority: 'Medium', comments: '', completionDate: null },
+        { uid: 'mock-itg-head-uid', name: 'ITG Head', task: 'Audit cybersecurity protocol and IT infrastructure on Global Logistics Inc', taskHeader: 'Security Audit', status: 'Task Assigned', dueDate: taskDueDateStr, priority: 'High', comments: '', completionDate: null },
+        { uid: 'mock-nda-head-uid', name: 'NDA Head', task: 'Review NDA agreements and compliance training roadmap', taskHeader: 'NDA Review', status: 'Task Assigned', dueDate: taskDueDateStr, priority: 'High', comments: '', completionDate: null },
+        { uid: 'mock-tc-head-uid', name: 'TC Head', task: 'Evaluate AI/ML platform R&D roadmap and quality gates', taskHeader: 'Evaluate Platform', status: 'Task Assigned', dueDate: taskDueDateStr, priority: 'Medium', comments: '', completionDate: null },
+        { uid: 'mock-quality-head-uid', name: 'Quality Head', task: 'Oversee performance regression suite results and quality audit', taskHeader: 'Quality Audit', status: 'Task Assigned', dueDate: taskDueDateStr, priority: 'Medium', comments: '', completionDate: null },
+        { uid: 'mock-manager-uid', name: 'Manager User', task: 'Sync with employee on frontend milestones and verify deliverables', taskHeader: 'Manager Sync', status: 'Task Assigned', dueDate: taskDueDateStr, priority: 'Medium', comments: '', completionDate: null },
+        { uid: 'mock-employee-uid', name: 'Employee User', task: 'Implement frontend components and run regression tests', taskHeader: 'Implement UI', status: 'Task Assigned', dueDate: taskDueDateStr, priority: 'Medium', comments: '', completionDate: null },
+        { uid: 'ldap-3cm36onhw', name: 'Albert S Joseph', task: 'Coordinate load testing and API stability check for dashboard widgets', taskHeader: 'Dashboard Load Test', status: 'Task Assigned', dueDate: taskDueDateStr, priority: 'High', comments: '', completionDate: null },
+        { uid: 'ldap-rhkufekom', name: 'Amina Rashad', task: 'Perform regression suite execution and validation of CRM flows', taskHeader: 'Run Regression', status: 'Task Assigned', dueDate: taskDueDateStr, priority: 'High', comments: '', completionDate: null },
+        { uid: 'ldap-2jm2pvhe0', name: 'Noble Sibi', task: 'Evaluate CRM security posture and RBAC policy definitions', taskHeader: 'Verify Security', status: 'Task Assigned', dueDate: taskDueDateStr, priority: 'High', comments: '', completionDate: null }
+      ];
+
+      await connection.query(`
+        INSERT INTO "Interactions" ("interactionId", "accountId", "contactId", source, subject, "messageText", date, time, "loggedByUid", "loggedByName", sentiment, "riskDetected", "riskCategory", "actionMentions", timestamp)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+      `, [
+        'int-dummy-all-users',
+        'acc-1',
+        'con-1',
+        'Meeting',
+        'All-Hands Portfolio Review',
+        'We held a portfolio review meeting with Acme Corporation. All team members must review their client updates and key deliverables.',
+        getLocalDateString(),
+        getLocalTimeString(),
+        'mock-admin-uid',
+        'Admin User',
+        'Neutral',
+        false,
+        '',
+        JSON.stringify(dummyAllUsersMentions),
+        new Date().toISOString()
+      ]);
+      console.log('✅ Dummy task for all 14 users seeded successfully.');
+    } else {
+      console.log('🌱 Dummy task "int-dummy-all-users" already exists in PostgreSQL, skipping seed.');
+    }
 
 
   } catch (err) {
@@ -626,10 +645,10 @@ async function seedPostgresData(connection) {
   const abcCreated = abcAnniv.toISOString();
 
   const accounts = [
-    { accountId: 'acc-1', companyName: 'Acme Corporation', industry: 'Technology', region: 'North America', healthScore: 88, status: 'Healthy', email: 'info@acme.com', phone: '+1 555-0199', ceoName: 'Sarah Jenkins', domain: 'acme.com', ownerId: 'mock-admin-uid', ownerName: 'Admin User', createdAt: new Date().toISOString() },
-    { accountId: 'acc-2', companyName: 'Global Logistics Inc', industry: 'Logistics', region: 'Europe', healthScore: 42, status: 'Critical', email: 'support@globallogistics.com', phone: '+44 20 7946 0958', ceoName: 'Robert Miller', domain: 'globallogistics.com', ownerId: 'mock-manager-uid', ownerName: 'Manager User', createdAt: new Date().toISOString() },
-    { accountId: 'acc-3', companyName: 'Apex Financial Services', industry: 'Finance', region: 'Asia Pacific', healthScore: 68, status: 'Warning', email: 'contact@apex.com', phone: '+65 6789 0123', ceoName: 'Alan Turing', domain: 'apex.com', ownerId: 'mock-employee-uid', ownerName: 'Employee User', createdAt: new Date().toISOString() },
-    { accountId: 'acc-abc', companyName: 'ABC Bank', industry: 'Finance', region: 'North America', healthScore: 78, status: 'Healthy', email: 'corporate@abcbank.com', phone: '+1 555-9876', ceoName: 'John Pierpont', domain: 'abcbank.com', ownerId: 'mock-admin-uid', ownerName: 'Admin User', createdAt: abcCreated }
+    { accountId: 'acc-1', companyName: 'Acme Corporation', industry: 'Technology', region: 'USA', healthScore: 88, status: 'Healthy', email: 'info@acme.com', phone: '+1 555-0199', ceoName: 'Sarah Jenkins', domain: 'acme.com', ownerId: 'mock-admin-uid', ownerName: 'Admin User', createdAt: new Date().toISOString() },
+    { accountId: 'acc-2', companyName: 'Global Logistics Inc', industry: 'Logistics', region: 'UK', healthScore: 42, status: 'Critical', email: 'support@globallogistics.com', phone: '+44 20 7946 0958', ceoName: 'Robert Miller', domain: 'globallogistics.com', ownerId: 'mock-manager-uid', ownerName: 'Manager User', createdAt: new Date().toISOString() },
+    { accountId: 'acc-3', companyName: 'Apex Financial Services', industry: 'Finance', region: 'Singapore', healthScore: 68, status: 'Warning', email: 'contact@apex.com', phone: '+65 6789 0123', ceoName: 'Alan Turing', domain: 'apex.com', ownerId: 'mock-employee-uid', ownerName: 'Employee User', createdAt: new Date().toISOString() },
+    { accountId: 'acc-abc', companyName: 'ABC Bank', industry: 'Finance', region: 'USA', healthScore: 78, status: 'Healthy', email: 'corporate@abcbank.com', phone: '+1 555-9876', ceoName: 'John Pierpont', domain: 'abcbank.com', ownerId: 'mock-admin-uid', ownerName: 'Admin User', createdAt: abcCreated }
   ];
   for (const a of accounts) {
     await connection.query(`

@@ -1361,7 +1361,7 @@ export default function Users() {
               <button
                 onClick={handleSyncHR}
                 disabled={syncing}
-                className="bg-dark-900 border border-slate-800 hover:border-slate-500 px-4 py-2.5 rounded-xl text-xs font-semibold flex items-center gap-2 text-slate-350 hover:text-white active:scale-98 transition-all cursor-pointer shrink-0 disabled:opacity-50"
+                className="bg-dark-900 border border-slate-800 px-4 py-2.5 rounded-xl text-xs font-semibold flex items-center gap-2 text-slate-350 active:scale-98 transition-all cursor-pointer shrink-0 disabled:opacity-50"
               >
                 {syncing ? (
                   <div className="animate-spin rounded-full h-3.5 w-3.5 border-b-2 border-slate-400"></div>
@@ -1603,6 +1603,10 @@ export default function Users() {
               <span className="text-[10px] text-black font-black uppercase tracking-wider block border-b border-slate-800 pb-1.5">CRM Local Record</span>
               <div className="grid grid-cols-2 gap-4 text-xs">
                 <div>
+                  <span className="text-black font-medium block">Employee ID</span>
+                  <span className="text-slate-200 font-bold">{selectedDirUser.employeeId || '—'}</span>
+                </div>
+                <div>
                   <span className="text-black font-medium block">Position</span>
                   <span className="text-slate-200 font-bold">{selectedDirUser.position || selectedDirUser.userType || selectedDirUser.role || '—'}</span>
                 </div>
@@ -1611,12 +1615,24 @@ export default function Users() {
                   <span className="text-slate-200 font-bold">{selectedDirUser.department || '—'}</span>
                 </div>
                 <div>
+                  <span className="text-black font-medium block">Business Unit</span>
+                  <span className="text-slate-200 font-bold">{selectedDirUser.bu || '—'}</span>
+                </div>
+                <div>
                   <span className="text-black font-medium block">Access Role</span>
                   <span className="text-slate-200 font-bold">{selectedDirUser.userType || selectedDirUser.role || 'Employee'}</span>
                 </div>
                 <div>
+                  <span className="text-black font-medium block">Phone</span>
+                  <span className="text-slate-200 font-bold">{selectedDirUser.phone || '—'}</span>
+                </div>
+                <div className="col-span-2">
                   <span className="text-black font-medium block">Reporting To</span>
-                  <span className="text-slate-200 font-bold">{selectedDirUser.reportingTo || '—'}</span>
+                  <span className="text-slate-200 font-bold">
+                    {selectedDirUser.reportingManagerName 
+                      ? `${selectedDirUser.reportingManagerName} (${selectedDirUser.reportingTo})` 
+                      : (selectedDirUser.reportingTo || '—')}
+                  </span>
                 </div>
               </div>
             </div>

@@ -152,6 +152,8 @@ export default function Navbar() {
           Tasks
         </NavLink>
 
+
+
         {/* Accounts Dropdown */}
         <div 
           className={`relative flex items-center rounded-lg border whitespace-nowrap transition-colors ${
@@ -457,6 +459,8 @@ export default function Navbar() {
           >
             Tasks
           </NavLink>
+
+
 
           {/* Accounts Group */}
           <div className="space-y-1.5">
