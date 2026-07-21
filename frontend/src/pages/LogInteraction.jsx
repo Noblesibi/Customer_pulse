@@ -21,11 +21,17 @@ export default function LogInteraction() {
     generateTaskHeader
   } = useStore();
 
+  const getLocalDateString = () => {
+    const d = new Date();
+    const offset = d.getTimezoneOffset() * 60000;
+    return new Date(d.getTime() - offset).toISOString().split('T')[0];
+  };
+
   // Log Interaction Form States
   const [interactionSource, setInteractionSource] = useState('Outlook Mail');
   const [subject, setSubject] = useState('');
   const [interactionText, setInteractionText] = useState('');
-  const [interactionDate, setInteractionDate] = useState(new Date().toISOString().split('T')[0]);
+  const [interactionDate, setInteractionDate] = useState(getLocalDateString());
   const [interactionTime, setInteractionTime] = useState(new Date().toTimeString().slice(0, 5));
   const [interactionContactId, setInteractionContactId] = useState('');
   const [interactionAccountId, setInteractionAccountId] = useState('');
@@ -379,7 +385,7 @@ export default function LogInteraction() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-1.5">
               <label className="text-xs text-slate-500 uppercase font-bold tracking-wider flex items-center gap-1.5">
-                <Building2 className="w-3 h-3 text-slate-400" /> Company Account
+                <Building2 className="w-3 h-3 text-slate-400" /> Account
               </label>
               <select
                 value={interactionAccountId}
@@ -399,7 +405,7 @@ export default function LogInteraction() {
             </div>
             <div className="space-y-1.5">
               <label className="text-xs text-slate-500 uppercase font-bold tracking-wider flex items-center gap-1.5">
-                <Users className="w-3 h-3 text-slate-400" /> Client Contact / Staff
+                <Users className="w-3 h-3 text-slate-400" /> Client Contact
               </label>
               <select
                 value={interactionContactId}

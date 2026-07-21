@@ -40,6 +40,7 @@ export default function Dashboard() {
   const [forwardModalState, setForwardModalState] = useState({ isOpen: false, task: null, newStatus: 'Forwarded' });
   const [forwardToUid, setForwardToUid] = useState('');
   const [forwardReason, setForwardReason] = useState('');
+  const [forwardFile, setForwardFile] = useState(null);
 
   // Decline Modal State
   const [declineModalState, setDeclineModalState] = useState({ isOpen: false, task: null });
@@ -48,6 +49,41 @@ export default function Dashboard() {
   // Accept Modal State
   const [acceptModalState, setAcceptModalState] = useState({ isOpen: false, task: null });
   const [acceptNote, setAcceptNote] = useState('');
+
+  const uploadFile = async (file) => {
+    if (!file) return null;
+    try {
+      const base64 = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = (error) => reject(error);
+      });
+
+      const token = useStore.getState().token;
+      const res = await fetch('http://localhost:5000/api/interactions/upload', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          name: file.name,
+          type: file.type,
+          base64
+        })
+      });
+
+      if (res.ok) {
+        return await res.json();
+      } else {
+        console.error('File upload failed:', await res.json());
+      }
+    } catch (err) {
+      console.error('Error uploading file:', err);
+    }
+    return null;
+  };
 
   const handleForwardSubmit = async (e) => {
     e.preventDefault();
@@ -61,13 +97,27 @@ export default function Dashboard() {
     if (task.isInteractionTask) {
       const ok = await updateTaskStatus(task.interactionId, task.uid, newStatus, forwardReason.trim(), selectedUser.uid, selectedUser.name);
       if (ok) {
-        if (forwardReason.trim()) {
-          await replyToInteraction(task.interactionId, `Forwarded Task Note: ${forwardReason}`);
+        if (forwardReason.trim() || forwardFile) {
+          let finalNote = `Forwarded Task Note: ${forwardReason.trim() || 'No note provided'}`;
+          if (forwardFile) {
+            const uploaded = await uploadFile(forwardFile);
+            if (uploaded && uploaded.url) {
+              finalNote += `\n\n📎 Attached: [${uploaded.name}](${uploaded.url})`;
+            }
+          }
+          await replyToInteraction(task.interactionId, finalNote);
         }
         fetchInteractions();
       }
     } else {
-      const ok = await updateStaffTaskStatus(task.taskId, newStatus, '', forwardReason.trim(), selectedUser.uid, selectedUser.name);
+      let finalNote = `Forwarded Task Note: ${forwardReason.trim() || 'No note provided'}`;
+      if (forwardFile) {
+        const uploaded = await uploadFile(forwardFile);
+        if (uploaded && uploaded.url) {
+          finalNote += `\n\n📎 Attached: [${uploaded.name}](${uploaded.url})`;
+        }
+      }
+      const ok = await updateStaffTaskStatus(task.taskId, newStatus, '', finalNote, selectedUser.uid, selectedUser.name);
       if (ok) {
         fetchStaffTasks('assigned-to-me');
       }
@@ -82,6 +132,7 @@ export default function Dashboard() {
     setForwardModalState({ isOpen: false, task: null, newStatus: 'Forwarded' });
     setForwardToUid('');
     setForwardReason('');
+    setForwardFile(null);
   };
 
   useEffect(() => {
@@ -273,14 +324,6 @@ export default function Dashboard() {
                 <h3 className="text-sm font-extrabold uppercase tracking-wider text-slate-350">Tasks Assigned to Me</h3>
               </div>
               <div className="flex items-center gap-3">
-                <button
-                  onClick={() => navigate('/staff-tasks/new')}
-                  className="flex items-center gap-1 text-xs font-bold text-primary hover:text-blue-300 transition-colors cursor-pointer"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>Assign Task</span>
-                </button>
-                <span className="text-slate-700 text-xs">|</span>
                 <button
                   onClick={() => navigate('/interaction-log')}
                   className="flex items-center gap-1 text-xs font-bold text-primary hover:text-blue-300 transition-colors cursor-pointer"
@@ -1036,24 +1079,24 @@ export default function Dashboard() {
       {/* Completion Note Modal */}
       {completionModalState.isOpen && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
-          <div className="bg-dark-900 border border-slate-800 w-full max-w-md rounded-2xl p-6 shadow-2xl relative">
+          <div className="bg-white border border-dark-800 w-full max-w-md rounded-2xl p-6 shadow-2xl relative">
             <button 
               onClick={() => {
                 setCompletionModalState({ isOpen: false, task: null, newStatus: '' });
                 setCompletionNote('');
                 setCompletionFile(null);
               }}
-              className="absolute top-4 right-4 p-1.5 rounded-lg bg-slate-800 text-slate-400 hover:text-slate-200"
+              className="absolute top-4 right-4 p-1.5 rounded-lg bg-dark-700 hover:bg-dark-800 text-slate-500 hover:text-black transition-colors cursor-pointer"
             >
               <X className="w-4 h-4" />
             </button>
             <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-full bg-emerald-500/20 flex items-center justify-center">
-                <CheckSquare className="w-5 h-5 text-emerald-400" />
+              <div className="w-10 h-10 rounded-full bg-emerald-5 border border-emerald-100 flex items-center justify-center shrink-0">
+                <CheckSquare className="w-5 h-5 text-emerald-600" />
               </div>
               <div>
-                <h3 className="text-lg font-bold text-white">Complete Task</h3>
-                <p className="text-xs text-slate-400">Send a note back to {completionModalState.task?.loggedByName}</p>
+                <h3 className="text-sm font-black text-black">Complete Task</h3>
+                <p className="text-xs text-black font-semibold">Send a note back to {completionModalState.task?.loggedByName}</p>
               </div>
             </div>
             
@@ -1061,16 +1104,25 @@ export default function Dashboard() {
               e.preventDefault();
               const { task, newStatus } = completionModalState;
               const taskKey = task.isInteractionTask ? `${task.interactionId}-${task.uid}` : task.taskId;
+              
+              let finalNote = `Task Completion Note: ${completionNote.trim() || 'No note provided'}`;
+              if (completionFile) {
+                const uploaded = await uploadFile(completionFile);
+                if (uploaded && uploaded.url) {
+                  finalNote += `\n\n📎 Attached: [${uploaded.name}](${uploaded.url})`;
+                }
+              }
+
               if (task.isInteractionTask) {
                 const ok = await updateTaskStatus(task.interactionId, task.uid, newStatus);
                 if (ok) {
-                  if (completionNote.trim()) {
-                    await replyToInteraction(task.interactionId, `Task Completion Note: ${completionNote}`);
+                  if (completionNote.trim() || completionFile) {
+                    await replyToInteraction(task.interactionId, finalNote);
                   }
                   fetchInteractions();
                 }
               } else {
-                const ok = await updateStaffTaskStatus(task.taskId, newStatus, completionNote.trim(), `Task Completion Note: ${completionNote.trim()}`);
+                const ok = await updateStaffTaskStatus(task.taskId, newStatus, finalNote, finalNote);
                 if (ok) {
                   fetchStaffTasks('assigned-to-me');
                 }
@@ -1081,21 +1133,21 @@ export default function Dashboard() {
               setCompletionFile(null);
             }} className="space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1.5">Completion Note</label>
+                <label className="block text-xs font-bold text-black mb-1.5">Completion Note</label>
                 <textarea
                   value={completionNote}
                   onChange={(e) => setCompletionNote(e.target.value)}
-                  className="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-sm text-slate-200 outline-none focus:border-indigo-500 min-h-[100px]"
+                  className="w-full bg-dark-700 border border-dark-800 rounded-xl p-3 text-xs text-black focus:outline-none focus:border-emerald-500/50 min-h-[100px]"
                   placeholder="E.g., Task completed successfully. Attached the required files."
                   required
                 />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1.5">Attachments (Optional)</label>
+                <label className="block text-xs font-bold text-black mb-1.5">Attachments (Optional)</label>
                 <input
                   type="file"
                   onChange={(e) => setCompletionFile(e.target.files[0])}
-                  className="w-full text-sm text-slate-400 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-bold file:bg-slate-800 file:text-slate-300 hover:file:bg-slate-700"
+                  className="w-full text-xs text-black file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border file:border-dark-800 file:text-xs file:font-semibold file:bg-dark-700 file:text-black hover:file:bg-dark-800"
                 />
               </div>
               <div className="flex justify-end pt-2">
@@ -1114,34 +1166,35 @@ export default function Dashboard() {
       {/* Forward Task Modal */}
       {forwardModalState.isOpen && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
-          <div className="bg-dark-900 border border-slate-800 w-full max-w-md rounded-2xl p-6 shadow-2xl relative">
+          <div className="bg-white border border-dark-800 w-full max-w-md rounded-2xl p-6 shadow-2xl relative">
             <button 
               onClick={() => {
                 setForwardModalState({ isOpen: false, task: null, newStatus: 'Forwarded' });
                 setForwardToUid('');
                 setForwardReason('');
+                setForwardFile(null);
               }}
-              className="absolute top-4 right-4 p-1.5 rounded-lg bg-slate-800 text-slate-400 hover:text-slate-200"
+              className="absolute top-4 right-4 p-1.5 rounded-lg bg-dark-700 hover:bg-dark-800 text-slate-500 hover:text-black transition-colors cursor-pointer"
             >
               <X className="w-4 h-4" />
             </button>
             <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-full bg-blue-500/20 flex items-center justify-center">
-                <Send className="w-5 h-5 text-blue-400" />
+              <div className="w-10 h-10 rounded-full bg-blue-5 border border-blue-100 flex items-center justify-center shrink-0">
+                <Send className="w-5 h-5 text-blue-500" />
               </div>
               <div>
-                <h3 className="text-lg font-bold text-white">Forward Task</h3>
-                <p className="text-xs text-slate-400">Select a team member to forward this task to</p>
+                <h3 className="text-sm font-black text-black">Forward Task</h3>
+                <p className="text-xs text-black font-semibold">Select a team member to forward this task to</p>
               </div>
             </div>
             
-            <form onSubmit={handleForwardSubmit} className="space-y-4">
-              <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1.5">Forward To</label>
+            <form onSubmit={handleForwardSubmit} className="space-y-4 text-xs font-semibold">
+              <div className="space-y-1.5">
+                <label className="block text-xs font-bold text-black">Forward To</label>
                 <select
                   value={forwardToUid}
                   onChange={(e) => setForwardToUid(e.target.value)}
-                  className="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-sm text-slate-200 outline-none focus:border-indigo-500 cursor-pointer"
+                  className="w-full bg-dark-700 border border-dark-800 rounded-xl p-3 text-xs text-black outline-none focus:border-blue-500/50 cursor-pointer font-semibold"
                   required
                 >
                   <option value="">Select Team Member</option>
@@ -1154,20 +1207,28 @@ export default function Dashboard() {
                     ))}
                 </select>
               </div>
-              <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1.5">Forwarding Note / Reason</label>
+              <div className="space-y-1.5">
+                <label className="block text-xs font-bold text-black">Forwarding Note / Reason</label>
                 <textarea
                   value={forwardReason}
                   onChange={(e) => setForwardReason(e.target.value)}
-                  className="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-sm text-slate-200 outline-none focus:border-indigo-500 min-h-[100px]"
+                  className="w-full bg-dark-700 border border-dark-800 rounded-xl p-3 text-xs text-black outline-none focus:border-blue-500/50 min-h-[100px]"
                   placeholder="E.g., Forwarding to you as you are leading the deployment module."
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="block text-xs font-bold text-black">Attachments (Optional)</label>
+                <input
+                  type="file"
+                  onChange={(e) => setForwardFile(e.target.files[0])}
+                  className="w-full text-xs text-black file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border file:border-dark-800 file:text-xs file:font-semibold file:bg-dark-700 file:text-black hover:file:bg-dark-800"
                 />
               </div>
               <div className="flex justify-end pt-2">
                 <button
                   type="submit"
                   disabled={!forwardToUid}
-                  className="px-5 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-bold rounded-xl transition-all"
+                  className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-bold rounded-xl transition-all cursor-pointer shadow-lg shadow-blue-600/15"
                 >
                   Forward Task
                 </button>
@@ -1180,23 +1241,23 @@ export default function Dashboard() {
       {/* Accept Task Modal */}
       {acceptModalState.isOpen && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
-          <div className="bg-dark-900 border border-slate-800 w-full max-w-md rounded-2xl p-6 shadow-2xl relative">
+          <div className="bg-white border border-dark-800 w-full max-w-md rounded-2xl p-6 shadow-2xl relative">
             <button
               onClick={() => {
                 setAcceptModalState({ isOpen: false, task: null });
                 setAcceptNote('');
               }}
-              className="absolute top-4 right-4 p-1.5 rounded-lg bg-slate-800 text-slate-400 hover:text-slate-200"
+              className="absolute top-4 right-4 p-1.5 rounded-lg bg-dark-700 hover:bg-dark-800 text-slate-500 hover:text-black transition-colors cursor-pointer"
             >
               <X className="w-4 h-4" />
             </button>
             <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-full bg-amber-500/20 flex items-center justify-center">
-                <ThumbsUp className="w-5 h-5 text-amber-400" />
+              <div className="w-10 h-10 rounded-full bg-amber-5 border border-amber-100 flex items-center justify-center shrink-0">
+                <ThumbsUp className="w-5 h-5 text-amber-500" />
               </div>
               <div>
-                <h3 className="text-lg font-bold text-white">Accept Task</h3>
-                <p className="text-xs text-slate-400">Confirm acceptance and optionally add a note</p>
+                <h3 className="text-sm font-black text-black">Accept Task</h3>
+                <p className="text-xs text-black font-semibold">Confirm acceptance and optionally add a note</p>
               </div>
             </div>
 
@@ -1223,21 +1284,21 @@ export default function Dashboard() {
                 setAcceptModalState({ isOpen: false, task: null });
                 setAcceptNote('');
               }}
-              className="space-y-4"
+              className="space-y-4 text-xs font-semibold"
             >
-              <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1.5">Acceptance Note (Optional)</label>
+              <div className="space-y-1.5">
+                <label className="block text-xs font-bold text-black">Acceptance Note (Optional)</label>
                 <textarea
                   value={acceptNote}
                   onChange={(e) => setAcceptNote(e.target.value)}
-                  className="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-sm text-slate-200 outline-none focus:border-amber-500 min-h-[100px]"
+                  className="w-full bg-dark-700 border border-dark-800 rounded-xl p-3 text-xs text-black focus:outline-none focus:border-amber-550/50 min-h-[100px]"
                   placeholder="E.g., I will begin working on this task immediately."
                 />
               </div>
               <div className="flex justify-end pt-2">
                 <button
                   type="submit"
-                  className="px-5 py-2 bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold rounded-xl transition-all"
+                  className="px-5 py-2.5 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-xl transition-all cursor-pointer shadow-lg shadow-amber-600/15"
                 >
                   Accept Task
                 </button>
@@ -1250,23 +1311,23 @@ export default function Dashboard() {
       {/* Decline Task Modal */}
       {declineModalState.isOpen && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
-          <div className="bg-dark-900 border border-slate-800 w-full max-w-md rounded-2xl p-6 shadow-2xl relative">
+          <div className="bg-white border border-dark-800 w-full max-w-md rounded-2xl p-6 shadow-2xl relative">
             <button
               onClick={() => {
                 setDeclineModalState({ isOpen: false, task: null });
                 setDeclineReason('');
               }}
-              className="absolute top-4 right-4 p-1.5 rounded-lg bg-slate-800 text-slate-400 hover:text-slate-200"
+              className="absolute top-4 right-4 p-1.5 rounded-lg bg-dark-700 hover:bg-dark-800 text-slate-500 hover:text-black transition-colors cursor-pointer"
             >
               <X className="w-4 h-4" />
             </button>
             <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-full bg-rose-500/20 flex items-center justify-center">
-                <ShieldAlert className="w-5 h-5 text-rose-400" />
+              <div className="w-10 h-10 rounded-full bg-rose-5 border border-rose-100 flex items-center justify-center shrink-0">
+                <ShieldAlert className="w-5 h-5 text-rose-600" />
               </div>
               <div>
-                <h3 className="text-lg font-bold text-white">Decline Task</h3>
-                <p className="text-xs text-slate-400">Provide a reason for declining this task</p>
+                <h3 className="text-sm font-black text-black">Decline Task</h3>
+                <p className="text-xs text-black font-semibold">Provide a reason for declining this task</p>
               </div>
             </div>
 
@@ -1293,14 +1354,14 @@ export default function Dashboard() {
                 setDeclineModalState({ isOpen: false, task: null });
                 setDeclineReason('');
               }}
-              className="space-y-4"
+              className="space-y-4 text-xs font-semibold"
             >
-              <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1.5">Reason for Declining</label>
+              <div className="space-y-1.5">
+                <label className="block text-xs font-bold text-black">Reason for Declining</label>
                 <textarea
                   value={declineReason}
                   onChange={(e) => setDeclineReason(e.target.value)}
-                  className="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-sm text-slate-200 outline-none focus:border-rose-500 min-h-[100px]"
+                  className="w-full bg-dark-700 border border-dark-800 rounded-xl p-3 text-xs text-black focus:outline-none focus:border-rose-550/50 min-h-[100px]"
                   placeholder="E.g., Unable to complete due to conflicting priorities or missing resources."
                   required
                 />
@@ -1308,7 +1369,7 @@ export default function Dashboard() {
               <div className="flex justify-end pt-2">
                 <button
                   type="submit"
-                  className="px-5 py-2 bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold rounded-xl transition-all"
+                  className="px-5 py-2.5 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-xl transition-all cursor-pointer shadow-lg shadow-rose-600/15"
                 >
                   Submit Decline
                 </button>

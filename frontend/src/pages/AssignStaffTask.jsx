@@ -179,7 +179,7 @@ export default function AssignStaffTask() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full">
             <div className="space-y-2">
               <label className="text-slate-500 block uppercase tracking-wider text-[10px] flex items-center gap-1.5">
-                <Building2 className="w-3 h-3 text-slate-400" /> Company Account
+                <Building2 className="w-3 h-3 text-slate-400" /> Account
               </label>
               <select
                 value={accountId}
