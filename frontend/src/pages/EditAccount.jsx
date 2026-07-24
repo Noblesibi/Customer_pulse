@@ -190,8 +190,32 @@ export default function EditAccount() {
     setProjects(newProjects);
   };
 
+  const [formError, setFormError] = useState('');
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setFormError('');
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const phoneRegex = /^[\+\d\s\-\(\)\.]{7,25}$/;
+
+    if (!companyName.trim()) {
+      setFormError('Company Name is required.');
+      return;
+    }
+    if (companyName.trim().length < 2) {
+      setFormError('Company Name must be at least 2 characters.');
+      return;
+    }
+    if (!email.trim() || !emailRegex.test(email.trim())) {
+      setFormError('Please enter a valid corporate Email address.');
+      return;
+    }
+    if (phone.trim() && !phoneRegex.test(phone.trim())) {
+      setFormError('Please enter a valid Phone number format.');
+      return;
+    }
+
     setIsSubmitting(true);
     
     // Flatten projects -> employees into flat contacts list

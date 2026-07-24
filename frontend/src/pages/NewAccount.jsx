@@ -94,8 +94,59 @@ export default function NewAccount() {
     'Implementation'
   ];
 
+  const [formError, setFormError] = useState('');
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setFormError('');
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const phoneRegex = /^[\+\d\s\-\(\)\.]{7,25}$/;
+
+    if (!companyName.trim()) {
+      setFormError('Company Name is required.');
+      return;
+    }
+    if (companyName.trim().length < 2) {
+      setFormError('Company Name must be at least 2 characters.');
+      return;
+    }
+    if (!email.trim() || !emailRegex.test(email.trim())) {
+      setFormError('Please enter a valid corporate Email address.');
+      return;
+    }
+    if (phone.trim() && !phoneRegex.test(phone.trim())) {
+      setFormError('Please enter a valid Phone number format.');
+      return;
+    }
+    if (!industry) {
+      setFormError('Please select an Industry.');
+      return;
+    }
+    if (!region) {
+      setFormError('Please select a Region.');
+      return;
+    }
+    if (!domain) {
+      setFormError('Please select a NeST Business Unit domain.');
+      return;
+    }
+
+    // Validate employee/stakeholder list if populated
+    for (let idx = 0; idx < employees.length; idx++) {
+      const emp = employees[idx];
+      if (emp.name.trim() || emp.email.trim() || emp.position.trim()) {
+        if (!emp.name.trim()) {
+          setFormError(`Please enter a Name for Stakeholder #${idx + 1}.`);
+          return;
+        }
+        if (!emp.email.trim() || !emailRegex.test(emp.email.trim())) {
+          setFormError(`Please enter a valid Email address for Stakeholder #${idx + 1} (${emp.name || 'Unnamed'}).`);
+          return;
+        }
+      }
+    }
+
     setIsSubmitting(true);
 
     // Flatten employees -> projects into flat contacts list (one row per employee x project)
@@ -175,6 +226,12 @@ export default function NewAccount() {
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-8">
+        {formError && (
+          <div className="bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs p-4 rounded-xl flex items-center gap-3">
+            <span className="w-2 h-2 rounded-full bg-rose-500 shrink-0" />
+            <span className="font-semibold">{formError}</span>
+          </div>
+        )}
         
         {/* Section 1: Corporate Profile */}
         <div className="glass p-8 rounded-2xl border border-slate-800/80 shadow-2xl relative overflow-hidden">
