@@ -55,10 +55,31 @@ async function touchLastLogin(uid) {
 // POST /api/auth/login
 // Tries LDAP first (if enabled), falls back to local DB auth.
 // ─────────────────────────────────────────────────────────
+import bcrypt from 'bcryptjs';
+
+const FAILED_ATTEMPTS = new Map(); // tracks email -> { count, lockUntil }
+
 router.post('/login', async (req, res) => {
   const { email, password } = req.body;
-  if (!email || !password) {
-    return res.status(400).json({ error: 'Email and password are required' });
+
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+  if (!email || typeof email !== 'string' || !email.trim()) {
+    return res.status(400).json({ error: 'Email address is required.' });
+  }
+  if (!password || typeof password !== 'string' || !password.trim()) {
+    return res.status(400).json({ error: 'Password is required.' });
+  }
+
+  const cleanEmail = email.toLowerCase().trim();
+
+  // Check Account Lockout (5 failed attempts = 15 minute lock)
+  const lockInfo = FAILED_ATTEMPTS.get(cleanEmail);
+  if (lockInfo && lockInfo.lockUntil && lockInfo.lockUntil > Date.now()) {
+    const minutesLeft = Math.ceil((lockInfo.lockUntil - Date.now()) / 60000);
+    return res.status(429).json({ 
+      error: `Account locked due to multiple failed login attempts. Please try again in ${minutesLeft} minute(s).` 
+    });
   }
 
   try {
@@ -72,11 +93,10 @@ router.post('/login', async (req, res) => {
       }
 
       if (ldapResult?.authenticated) {
-        // Find or auto-provision user record in PostgreSQL
+        FAILED_ATTEMPTS.delete(cleanEmail);
         let user = await findUserByEmail(ldapResult.user.email);
 
         if (!user) {
-          // Auto-provision: new LDAP user gets a DB record on first login
           const uid = 'ldap-' + Math.random().toString(36).substring(2, 11);
           user = {
             uid,
@@ -93,7 +113,6 @@ router.post('/login', async (req, res) => {
             createdAt:        new Date().toISOString()
           };
           await db.collection('users').doc(uid).set(user);
-          console.log(`👤 Auto-provisioned LDAP user in PostgreSQL: ${user.email} (role: ${user.role})`);
         }
 
         await touchLastLogin(user.uid);
@@ -102,18 +121,47 @@ router.post('/login', async (req, res) => {
         await logActivity(user.uid, user.name, 'User Login', `LDAP login: ${user.email}`);
         return res.json({ token, user: sanitizeUser(enrichedUser) });
       }
-      // LDAP returned unauthenticated → fall through to local DB auth
     }
 
-    // ── 2. Local PostgreSQL Authentication ─────────────────────────────────
-    const user = await findUserByEmail(email);
+    // ── 2. Local PostgreSQL / DB Authentication ────────────────────────────
+    const user = await findUserByEmail(cleanEmail);
     if (!user) {
-      return res.status(404).json({ error: 'User not found' });
-    }
-
-    if (!user.password || user.password !== password) {
+      // Record failed attempt to prevent user enumeration / brute force
+      const attempts = (lockInfo?.count || 0) + 1;
+      const lockUntil = attempts >= 5 ? Date.now() + 15 * 60 * 1000 : null;
+      FAILED_ATTEMPTS.set(cleanEmail, { count: attempts, lockUntil });
       return res.status(401).json({ error: 'Invalid email or password' });
     }
+
+    if (!user.password) {
+      return res.status(401).json({ error: 'Invalid email or password' });
+    }
+
+    // Compare with bcrypt hash or upgrade plain text password safely
+    let isMatch = false;
+    if (user.password.startsWith('$2a$') || user.password.startsWith('$2b$')) {
+      isMatch = await bcrypt.compare(password, user.password);
+    } else {
+      // Direct string match fallback for initial seed passwords
+      isMatch = (user.password === password);
+      if (isMatch) {
+        // Transparently upgrade user password to bcrypt hash in DB
+        const hashedPassword = await bcrypt.hash(password, 10);
+        await db.collection('users').doc(user.uid).update({ password: hashedPassword });
+        console.log(`🔒 Upgraded password to bcrypt hash for user: ${user.email}`);
+      }
+    }
+
+    if (!isMatch) {
+      const attempts = (lockInfo?.count || 0) + 1;
+      const lockUntil = attempts >= 5 ? Date.now() + 15 * 60 * 1000 : null;
+      FAILED_ATTEMPTS.set(cleanEmail, { count: attempts, lockUntil });
+      await logActivity(user.uid || 'unknown', user.name || cleanEmail, 'Failed Login Attempt', `Failed password attempt #${attempts} for ${cleanEmail}`);
+      return res.status(401).json({ error: 'Invalid email or password' });
+    }
+
+    // Clear failed attempts on successful login
+    FAILED_ATTEMPTS.delete(cleanEmail);
 
     const enrichedUser = { ...user, userType: user.userType || user.position || user.role };
     await touchLastLogin(user.uid);

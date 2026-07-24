@@ -18,7 +18,7 @@ router.use(authenticateToken);
  */
 router.get('/', async (req, res) => {
   try {
-    const { accountId, source, beforeTimestamp, limit = 20 } = req.query;
+    const { accountId, source, beforeTimestamp, limit = 500 } = req.query;
 
     let snapshot;
     if (accountId) {
@@ -33,8 +33,10 @@ router.get('/', async (req, res) => {
     const userDoc = await db.collection('users').doc(req.user.uid).get();
     const userProfile = userDoc.exists ? userDoc.data() : null;
 
-    const isTrueAdmin = userProfile && (userProfile.userType === 'Admin' || userProfile.role === 'Admin');
-    const isCeo = userProfile && (userProfile.userType === 'CEO' || userProfile.position === 'CEO' || userProfile.position === 'Chief Executive Officer');
+    const isTrueAdmin = (userProfile && (userProfile.userType === 'Admin' || userProfile.role === 'Admin')) ||
+                        (req.user && (req.user.role === 'Admin' || req.user.userType === 'Admin'));
+    const isCeo = (userProfile && (userProfile.userType === 'CEO' || userProfile.position === 'CEO' || userProfile.position === 'Chief Executive Officer')) ||
+                  (req.user && (req.user.userType === 'CEO' || req.user.position === 'CEO'));
 
     if (!isTrueAdmin && !isCeo) {
       const accountsSnap = await db.collection('accounts').get();
@@ -352,20 +354,30 @@ router.post('/upload', async (req, res) => {
   try {
     const { name, type, base64 } = req.body;
     if (!name || !base64) {
-      return res.status(400).json({ error: 'name and base64 string are required' });
+      return res.status(400).json({ error: 'File name and base64 content are required' });
     }
 
-    // Ensure uploads directory exists
-    const uploadDir = path.join(process.cwd(), 'uploads');
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir, { recursive: true });
-    }
+    // ── Security Check 1: Allowed MIME types & Extensions ──────────
+    const allowedMimeTypes = [
+      'application/pdf',
+      'image/jpeg',
+      'image/png',
+      'image/gif',
+      'image/webp',
+      'text/plain',
+      'application/msword',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'application/vnd.ms-excel',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    ];
+    const allowedExtensions = ['.pdf', '.jpg', '.jpeg', '.png', '.gif', '.webp', '.txt', '.doc', '.docx', '.xls', '.xlsx'];
+    const fileExt = path.extname(name).toLowerCase();
 
-    // Clean filename and generate a unique suffix
-    const fileExt = path.extname(name);
-    const baseName = path.basename(name, fileExt).replace(/[^a-zA-Z0-9]/g, '_').slice(0, 50);
-    const uniqueName = `${baseName}-${Date.now()}${fileExt}`;
-    const filePath = path.join(uploadDir, uniqueName);
+    if (!allowedExtensions.includes(fileExt) || (type && !allowedMimeTypes.includes(type.toLowerCase()))) {
+      return res.status(400).json({ 
+        error: 'Forbidden file type. Only PDFs, Word documents, Excel spreadsheets, images, and text files are permitted.' 
+      });
+    }
 
     // Parse base64 string
     const matches = base64.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
@@ -375,6 +387,23 @@ router.post('/upload', async (req, res) => {
     } else {
       dataBuffer = Buffer.from(base64, 'base64');
     }
+
+    // ── Security Check 2: File Size Cap (10MB) ──────────────────────
+    const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 Megabytes
+    if (dataBuffer.length > MAX_FILE_SIZE) {
+      return res.status(400).json({ error: 'File size exceeds maximum allowed limit of 10MB.' });
+    }
+
+    // Ensure uploads directory exists
+    const uploadDir = path.join(process.cwd(), 'uploads');
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
+    }
+
+    // ── Security Check 3: Randomized UUID Filenames ─────────────────
+    const randomUuid = Math.random().toString(36).substring(2, 11) + Math.random().toString(36).substring(2, 11);
+    const uniqueName = `file-${randomUuid}${fileExt}`;
+    const filePath = path.join(uploadDir, uniqueName);
 
     // Write file
     fs.writeFileSync(filePath, dataBuffer);
@@ -386,13 +415,13 @@ router.post('/upload', async (req, res) => {
 
     return res.status(200).json({
       url: fileUrl,
-      name,
+      name: path.basename(name),
       type: type || 'application/octet-stream',
       size: dataBuffer.length
     });
   } catch (error) {
     console.error('File upload error:', error);
-    return res.status(500).json({ error: error.message });
+    return res.status(500).json({ error: 'File upload processing failed.' });
   }
 });
 
@@ -403,8 +432,22 @@ router.post('/upload', async (req, res) => {
 router.post('/', async (req, res) => {
   const { accountId, contactId, source, messageText, timestamp, subject, date, time, actionMentions, attachments } = req.body;
 
-  if (!accountId || !contactId || !source || !messageText) {
-    return res.status(400).json({ error: 'Missing accountId, contactId, source, or messageText' });
+  const validSources = ['Outlook Mail', 'Teams Chat', 'Phone', 'Face to Face', 'Teams Meeting', 'Other'];
+
+  if (!accountId || typeof accountId !== 'string' || !accountId.trim()) {
+    return res.status(400).json({ error: 'Account selection is required.' });
+  }
+  if (!contactId || typeof contactId !== 'string' || !contactId.trim()) {
+    return res.status(400).json({ error: 'Contact selection is required.' });
+  }
+  if (!source || typeof source !== 'string' || !source.trim()) {
+    return res.status(400).json({ error: 'Interaction channel/source is required.' });
+  }
+  if (!messageText || typeof messageText !== 'string' || !messageText.trim()) {
+    return res.status(400).json({ error: 'Interaction notes / message text is required.' });
+  }
+  if (messageText.trim().length < 5) {
+    return res.status(400).json({ error: 'Interaction notes must be at least 5 characters long.' });
   }
 
   try {
