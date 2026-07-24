@@ -116,7 +116,7 @@ router.post('/login', async (req, res) => {
         }
 
         await touchLastLogin(user.uid);
-        const enrichedUser = { ...user, userType: user.userType || user.position || user.role };
+        const enrichedUser = { ...user, position: user.position || user.userType || user.role, userType: user.userType || user.position || user.role };
         const token = issueToken(enrichedUser);
         await logActivity(user.uid, user.name, 'User Login', `LDAP login: ${user.email}`);
         return res.json({ token, user: sanitizeUser(enrichedUser) });
@@ -163,7 +163,7 @@ router.post('/login', async (req, res) => {
     // Clear failed attempts on successful login
     FAILED_ATTEMPTS.delete(cleanEmail);
 
-    const enrichedUser = { ...user, userType: user.userType || user.position || user.role };
+    const enrichedUser = { ...user, position: user.position || user.userType || user.role, userType: user.userType || user.position || user.role };
     await touchLastLogin(user.uid);
     const token = issueToken(enrichedUser);
     await logActivity(user.uid, user.name, 'User Login', `Local DB login: ${email}`);

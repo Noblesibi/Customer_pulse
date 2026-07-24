@@ -4,8 +4,14 @@ import { LayoutDashboard, Users, UserSquare2, AlertOctagon, Terminal, LogOut, Sh
 import { useStore } from '../store/index.js';
 
 export default function Sidebar() {
-  const { user, logout } = useStore();
+  const { user, logout, staffList } = useStore();
   const navigate = useNavigate();
+
+  const directoryUser = (staffList || []).find(s => 
+    (s.uid && user?.uid && s.uid === user?.uid) ||
+    (s.email && user?.email && s.email.toLowerCase().trim() === user?.email.toLowerCase().trim())
+  );
+  const userDisplayTag = directoryUser?.position || directoryUser?.userType || directoryUser?.jobRole || user?.position || user?.userType || user?.role || 'Employee';
 
   const handleLogout = () => {
     logout();
@@ -54,7 +60,7 @@ export default function Sidebar() {
             <h4 className="text-sm font-semibold text-white truncate">{user?.name}</h4>
             <div className="flex items-center gap-1 mt-0.5">
               <Shield className="w-3 h-3 text-emerald-400" />
-              <span className="text-xs text-emerald-400 font-medium">{user?.userType || user?.role}</span>
+              <span className="text-xs text-emerald-400 font-medium">{userDisplayTag}</span>
             </div>
           </div>
         </div>
