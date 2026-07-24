@@ -17,20 +17,12 @@ export async function authenticateToken(req, res, next) {
     return res.status(401).json({ error: 'Access token required' });
   }
 
-  // Backward-compat: accept the legacy plain mock-admin-token string
-  // so sessions from before the JWT migration continue to work.
-  if (token === 'mock-admin-token') {
-    req.user = { uid: 'mock-admin-uid', email: 'admin@pulse.com', role: 'Admin', name: 'Admin User' };
-    return next();
-  }
-
   try {
     const decoded = jwt.verify(token, JWT_SECRET);
     req.user = decoded;
     return next();
   } catch (err) {
-    // 401 = not authenticated (expired / tampered / wrong secret)
-    return res.status(401).json({ error: 'Session expired — please log in again' });
+    return res.status(401).json({ error: 'Session expired or invalid token — please log in again' });
   }
 }
 

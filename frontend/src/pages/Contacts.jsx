@@ -81,21 +81,49 @@ export default function Contacts() {
     loadAccounts();
   }, [token]);
 
+  const [contactError, setContactError] = useState('');
+
+  const validateContactForm = () => {
+    setContactError('');
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const phoneRegex = /^[\+\d\s\-\(\)\.]{7,25}$/;
+
+    if (!accountId) {
+      setContactError('Please select a Client Account.');
+      return false;
+    }
+    if (!name.trim()) {
+      setContactError('Contact Name is required.');
+      return false;
+    }
+    if (name.trim().length < 2) {
+      setContactError('Contact Name must be at least 2 characters.');
+      return false;
+    }
+    if (!email.trim() || !emailRegex.test(email.trim())) {
+      setContactError('Please enter a valid Contact Email address.');
+      return false;
+    }
+    if (phone.trim() && !phoneRegex.test(phone.trim())) {
+      setContactError('Please enter a valid Phone number format.');
+      return false;
+    }
+    return true;
+  };
+
   const handleCreateContact = async (e) => {
     e.preventDefault();
-    if (!accountId) {
-      alert('Please select an account for the contact.');
-      return;
-    }
+    if (!validateContactForm()) return;
+
     const success = await addContact({
       accountId,
-      name,
-      email,
-      phone,
-      designation,
+      name: name.trim(),
+      email: email.trim(),
+      phone: phone.trim(),
+      designation: designation.trim() || 'Staff Member',
       hierarchyTag,
       influenceTag,
-      projectName,
+      projectName: projectName.trim(),
       projectIndustry,
       projectType: projectType || 'Development',
       ownerId,
@@ -106,21 +134,23 @@ export default function Contacts() {
       resetForm();
     } else {
       const errorMsg = useStore.getState().contactsError || "Failed to create contact. Please try again.";
-      alert(errorMsg);
+      setContactError(errorMsg);
     }
   };
 
   const handleEditContact = async (e) => {
     e.preventDefault();
+    if (!validateContactForm()) return;
+
     const success = await updateContact(contactId, {
       accountId,
-      name,
-      email,
-      phone,
-      designation,
+      name: name.trim(),
+      email: email.trim(),
+      phone: phone.trim(),
+      designation: designation.trim() || 'Staff Member',
       hierarchyTag,
       influenceTag,
-      projectName,
+      projectName: projectName.trim(),
       projectIndustry,
       projectType: projectType || 'Development',
       ownerId,
@@ -132,7 +162,7 @@ export default function Contacts() {
       fetchContacts(selectedAccountId);
     } else {
       const errorMsg = useStore.getState().contactsError || "Failed to update contact. Please try again.";
-      alert(errorMsg);
+      setContactError(errorMsg);
     }
   };
 
