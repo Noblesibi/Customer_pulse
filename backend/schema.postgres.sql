@@ -174,3 +174,43 @@ CREATE TABLE IF NOT EXISTS "TaskReplies" (
     "text" TEXT NOT NULL,
     "timestamp" TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+-- EmailQueue Table
+CREATE TABLE IF NOT EXISTS "EmailQueue" (
+    "queueId" VARCHAR(50) PRIMARY KEY,
+    "recipientEmail" VARCHAR(150) NOT NULL,
+    "subject" VARCHAR(250) NOT NULL,
+    "htmlBody" TEXT NOT NULL,
+    "status" VARCHAR(50) DEFAULT 'queued',
+    "eventType" VARCHAR(100),
+    "retryCount" INT DEFAULT 0,
+    "maxRetries" INT DEFAULT 3,
+    "scheduledAt" VARCHAR(50),
+    "processedAt" VARCHAR(50),
+    "smtpResponse" TEXT,
+    "error" TEXT,
+    "createdAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- EmailTemplates Table
+CREATE TABLE IF NOT EXISTS "EmailTemplates" (
+    "templateId" VARCHAR(50) PRIMARY KEY,
+    "name" VARCHAR(150) NOT NULL,
+    "subject" VARCHAR(250) NOT NULL,
+    "body" TEXT NOT NULL,
+    "category" VARCHAR(100),
+    "createdAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- EmailLogs Table
+CREATE TABLE IF NOT EXISTS "EmailLogs" (
+    "logId" VARCHAR(50) PRIMARY KEY,
+    "recipientEmail" VARCHAR(150) NOT NULL,
+    "subject" VARCHAR(250) NOT NULL,
+    "eventType" VARCHAR(100),
+    "status" VARCHAR(50) NOT NULL,
+    "isMock" BOOLEAN DEFAULT FALSE,
+    "sentAt" VARCHAR(50),
+    "error" TEXT,
+    "timestamp" TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);

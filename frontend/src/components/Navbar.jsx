@@ -11,7 +11,9 @@ export default function Navbar() {
     unreadNotificationsCount, 
     fetchNotifications, 
     markNotificationRead, 
-    markAllNotificationsRead 
+    markAllNotificationsRead,
+    staffList,
+    fetchStaff
   } = useStore();
 
   const navigate = useNavigate();
@@ -27,14 +29,22 @@ export default function Navbar() {
   const accountsDropdownRef = useRef(null);
   const risksDropdownRef = useRef(null);
 
-  // Periodically fetch notifications to simulate Firestore push listeners
+  // Periodically fetch notifications & staff directory
   useEffect(() => {
     fetchNotifications();
+    fetchStaff();
     const interval = setInterval(() => {
       fetchNotifications();
     }, 4000);
     return () => clearInterval(interval);
   }, []);
+
+  // Fetch tag dynamically from User Directory
+  const directoryUser = (staffList || []).find(s => 
+    (s.uid && user?.uid && s.uid === user?.uid) ||
+    (s.email && user?.email && s.email.toLowerCase().trim() === user?.email.toLowerCase().trim())
+  );
+  const userDisplayTag = directoryUser?.position || directoryUser?.userType || directoryUser?.jobRole || user?.position || user?.userType || user?.role || 'Employee';
 
   // Handle click outside to close dropdowns
   useEffect(() => {
@@ -385,7 +395,7 @@ export default function Navbar() {
             <div className="hidden md:block min-w-0 leading-none pr-1">
               <span className="text-sm font-bold text-black block truncate">{user?.name}</span>
               <span className="text-xs text-emerald-500 font-semibold uppercase mt-0.5 block truncate">
-                {user?.userType || user?.role}
+                {userDisplayTag}
               </span>
             </div>
             <ChevronDown className="w-3.5 h-3.5 text-slate-400 shrink-0" />
@@ -396,7 +406,7 @@ export default function Navbar() {
               <div className="px-3.5 py-2.5 border-b border-slate-800/80 mb-1 leading-none md:hidden">
                 <span className="text-sm font-bold text-black block truncate">{user?.name}</span>
                 <span className="text-xs text-emerald-500 font-semibold uppercase mt-1 block truncate">
-                  {user?.userType || user?.role}
+                  {userDisplayTag}
                 </span>
               </div>
               <button 

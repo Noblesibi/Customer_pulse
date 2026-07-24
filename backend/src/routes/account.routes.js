@@ -122,11 +122,6 @@ router.post('/', (req, res, next) => {
   }
   next();
 }, async (req, res) => {
-  const { 
-    companyName, industry, region,
-    email, phone, ceoName, domain, projectName,
-    contactName, contactEmail, contactPhone, contactPosition, contactDepartment, contactProjects,
-    contacts, ownerId, ownerName
   const {
     companyName, industry, region, email, phone, ceoName, domain, ownerId, ownerName, contacts,
     contactName, contactEmail, contactPhone, contactPosition, contactDepartment, contactProjects
