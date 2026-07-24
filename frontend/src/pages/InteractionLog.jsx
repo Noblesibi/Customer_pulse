@@ -81,12 +81,12 @@ export default function InteractionLog() {
   } = useStore();
   
   const currentUserStaff = staffList.find(s => s.uid === user?.uid);
-  const isTrueAdmin = currentUserStaff
-    ? (currentUserStaff.role === 'Admin' || currentUserStaff.position?.toLowerCase().includes('admin'))
-    : false;
-  const isTrueCeo = currentUserStaff
+  const isTrueAdmin = user?.role === 'Admin' || user?.userType === 'Admin' || (currentUserStaff
+    ? (currentUserStaff.role === 'Admin' || currentUserStaff.userType === 'Admin' || currentUserStaff.position?.toLowerCase().includes('admin'))
+    : false);
+  const isTrueCeo = user?.userType === 'CEO' || user?.position === 'CEO' || (currentUserStaff
     ? (currentUserStaff.position === 'CEO' || currentUserStaff.position === 'Chief Executive Officer')
-    : false;
+    : false);
   const showAllTasks = isTrueAdmin || isTrueCeo;
   
   const location = useLocation();
@@ -429,8 +429,12 @@ export default function InteractionLog() {
 
   const filterInteractions = (itemsArray) => {
     return itemsArray.filter(item => {
-      // Only show interactions logged by the current user
-      if (item.loggedByUid !== user?.uid) return false;
+      // Admin and CEO see all interactions across all users
+      if (!isTrueAdmin && !isTrueCeo) {
+        const isLoggedByMe = item.loggedByUid === user?.uid;
+        const isMentionedMe = Array.isArray(item.actionMentions) && item.actionMentions.some(m => m.uid === user?.uid);
+        if (!isLoggedByMe && !isMentionedMe) return false;
+      }
 
       const query = search.toLowerCase();
       const hasMentions = Array.isArray(item.actionMentions) && item.actionMentions.length > 0;

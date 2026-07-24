@@ -14,9 +14,27 @@ export default function Login() {
   const location = useLocation();
   const from = location.state?.from?.pathname || '/dashboard';
 
+  const [validationError, setValidationError] = useState('');
+
   const handleSubmit = async (e) => {
     e.preventDefault();
-    const success = await login(email, password);
+    setValidationError('');
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!email.trim()) {
+      setValidationError('Please enter your corporate email address.');
+      return;
+    }
+    if (!emailRegex.test(email.trim())) {
+      setValidationError('Please enter a valid email address (e.g. user@company.com).');
+      return;
+    }
+    if (!password.trim()) {
+      setValidationError('Please enter your password.');
+      return;
+    }
+
+    const success = await login(email.trim(), password);
     if (success) {
       navigate(from, { replace: true });
     }
@@ -76,10 +94,10 @@ export default function Login() {
             Sign In to Dashboard
           </h2>
 
-          {authError && (
+          {(validationError || authError) && (
             <div className="mb-5 bg-danger/10 border border-danger/30 text-rose-200 text-xs p-3.5 rounded-xl flex items-start gap-2.5">
               <AlertCircle className="w-4 h-4 text-danger shrink-0 mt-0.5" />
-              <span>{authError}</span>
+              <span>{validationError || authError}</span>
             </div>
           )}
 
@@ -127,26 +145,6 @@ export default function Login() {
 
         </div>
 
-        {/* Preset accounts helpers for evaluator convenience */}
-        <div className="glass mt-4 rounded-2xl p-4 border border-slate-800/80 text-center text-xs space-y-3">
-          <p className="text-slate-400 font-medium">Quick Credentials presets for evaluation:</p>
-          <div className="flex flex-col gap-2 max-w-xs mx-auto">
-
-            <div className="relative">
-              <select 
-                value={selectedPreset}
-                onChange={(e) => handlePresetSelect(e.target.value)}
-                className="w-full bg-slate-900 border border-slate-800 focus:border-primary/50 text-slate-350 rounded-lg py-2 px-3 text-xs font-bold focus:outline-none cursor-pointer"
-              >
-                <option value="">-- Choose corporate preset --</option>
-                <option value="admin">Admin</option>
-                <option value="exec">Executive User</option>
-                <option value="manager">Delivery Manager</option>
-                <option value="employee">Employee</option>
-              </select>
-            </div>
-          </div>
-        </div>
       </div>
     </div>
   );

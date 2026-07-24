@@ -15,8 +15,22 @@ router.use(authenticateToken);
 router.post('/', async (req, res) => {
   const { title, description, assignedToUid, priority, dueDate, accountId, contactId } = req.body;
 
-  if (!title || !description || !assignedToUid) {
-    return res.status(400).json({ error: 'Missing title, description, or assignedToUid' });
+  const validPriorities = ['Low', 'Medium', 'High', 'Critical'];
+
+  if (!title || typeof title !== 'string' || !title.trim()) {
+    return res.status(400).json({ error: 'Task Title is required and cannot be empty.' });
+  }
+  if (title.trim().length < 2) {
+    return res.status(400).json({ error: 'Task Title must be at least 2 characters.' });
+  }
+  if (!description || typeof description !== 'string' || !description.trim()) {
+    return res.status(400).json({ error: 'Task Description is required.' });
+  }
+  if (!assignedToUid || typeof assignedToUid !== 'string' || !assignedToUid.trim()) {
+    return res.status(400).json({ error: 'Assignee team member selection is required.' });
+  }
+  if (priority && !validPriorities.includes(priority)) {
+    return res.status(400).json({ error: 'Priority must be one of: Low, Medium, High, Critical.' });
   }
 
   try {

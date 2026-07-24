@@ -117,8 +117,23 @@ router.get('/:id', async (req, res) => {
 router.post('/', requireRole(['Admin', 'Sales Manager', 'Employee', 'Executive']), async (req, res) => {
   const { accountId, name, email, designation, hierarchyTag, influenceTag, phone, projectName, projectIndustry, projectType, ownerId, ownerName } = req.body;
 
-  if (!accountId || !name || !email) {
-    return res.status(400).json({ error: 'Missing accountId, name, or email' });
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  const phoneRegex = /^[\+\d\s\-\(\)\.]{7,25}$/;
+
+  if (!accountId || typeof accountId !== 'string' || !accountId.trim()) {
+    return res.status(400).json({ error: 'Account ID is required.' });
+  }
+  if (!name || typeof name !== 'string' || !name.trim()) {
+    return res.status(400).json({ error: 'Contact Name is required.' });
+  }
+  if (name.trim().length < 2) {
+    return res.status(400).json({ error: 'Contact Name must be at least 2 characters.' });
+  }
+  if (!email || typeof email !== 'string' || !emailRegex.test(email.trim())) {
+    return res.status(400).json({ error: 'A valid Contact Email is required.' });
+  }
+  if (phone && (typeof phone !== 'string' || !phoneRegex.test(phone.trim()))) {
+    return res.status(400).json({ error: 'Phone number format is invalid.' });
   }
 
   // Enforce valid tags

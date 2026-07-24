@@ -638,8 +638,30 @@ export default function Users() {
     }));
   };
 
+  const [userFormError, setUserFormError] = useState('');
+
   const handleAddUserSubmit = async (e) => {
     e.preventDefault();
+    setUserFormError('');
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+    if (!name || !name.trim()) {
+      setUserFormError('Full Name is required.');
+      return;
+    }
+    if (name.trim().length < 2) {
+      setUserFormError('Full Name must be at least 2 characters.');
+      return;
+    }
+    if (!email || !email.trim() || !emailRegex.test(email.trim())) {
+      setUserFormError('Please enter a valid corporate Email address.');
+      return;
+    }
+    if (!password || password.length < 6) {
+      setUserFormError('Password is required and must be at least 6 characters.');
+      return;
+    }
 
     const payload = {
       name,
@@ -774,6 +796,12 @@ export default function Users() {
           </div>
 
           <form onSubmit={handleAddUserSubmit} className="space-y-8">
+            {userFormError && (
+              <div className="bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs p-4 rounded-xl flex items-center gap-3">
+                <span className="w-2 h-2 rounded-full bg-rose-500 shrink-0" />
+                <span className="font-semibold">{userFormError}</span>
+              </div>
+            )}
             
             {/* Base User Info Card */}
             <div className="space-y-4">

@@ -26,19 +26,70 @@ import { startSyncScheduler } from './services/userSync.service.js';
 import { startEmailScheduler } from './services/notification/EmailScheduler.js';
 import emailEngineRouter from './routes/email-engine.routes.js';
 
+import helmet from 'helmet';
+import rateLimit from 'express-rate-limit';
+
 dotenv.config({ override: true });
 
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// Standard Middlewares
-app.use(cors({
-  origin: '*', // Allow all client links for sandbox development
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+// ── Security Headers (Helmet) ──────────────────────────────
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'"],
+      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+      fontSrc: ["'self'", "https://fonts.gstatic.com"],
+      imgSrc: ["'self'", "data:", "blob:", "*"],
+      connectSrc: ["'self'", "http://localhost:5000", "http://localhost:5173", "https://hrapps.nestdigital.com:8085"]
+    }
+  },
+  crossOriginResourcePolicy: { policy: "cross-origin" }
 }));
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ limit: '50mb', extended: true }));
+
+// ── Rate Limiting (Brute-force & DoS protection) ───────────
+const generalLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 1000, // Limit each IP to 1000 requests per windowMs
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many requests from this IP, please try again later.' }
+});
+
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 30, // Limit login/auth attempts to 30 requests per 15 minutes
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many authentication attempts. Please try again after 15 minutes.' }
+});
+
+app.use('/api/', generalLimiter);
+app.use('/api/auth/login', authLimiter);
+app.use('/api/auth/signup', authLimiter);
+
+// ── Secure CORS Configuration ───────────────────────────────
+const allowedOrigins = process.env.ALLOWED_ORIGINS 
+  ? process.env.ALLOWED_ORIGINS.split(',').map(o => o.trim())
+  : ['http://localhost:5173', 'http://localhost:3000', 'http://localhost:5000'];
+
+app.use(cors({
+  origin: (origin, callback) => {
+    // Allow non-browser requests or allowed origins
+    if (!origin || allowedOrigins.includes(origin) || process.env.NODE_ENV !== 'production') {
+      return callback(null, true);
+    }
+    return callback(new Error('Blocked by CORS policy: Origin not allowed.'));
+  },
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: true
+}));
+
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ limit: '10mb', extended: true }));
 app.use(morgan('dev'));
 
 // Static Uploads Folder
@@ -89,9 +140,10 @@ app.use((req, res, next) => {
 // Global Error Handler
 app.use((err, req, res, next) => {
   console.error('Unhandled Server Error:', err);
+  const isDev = process.env.NODE_ENV === 'development';
   res.status(500).json({
     error: 'Internal Server Error',
-    message: err.message
+    message: isDev ? err.message : 'An unexpected internal error occurred. Please contact system administrator.'
   });
 });
 

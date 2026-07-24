@@ -127,10 +127,35 @@ router.post('/', (req, res, next) => {
     email, phone, ceoName, domain, projectName,
     contactName, contactEmail, contactPhone, contactPosition, contactDepartment, contactProjects,
     contacts, ownerId, ownerName
+  const {
+    companyName, industry, region, email, phone, ceoName, domain, ownerId, ownerName, contacts,
+    contactName, contactEmail, contactPhone, contactPosition, contactDepartment, contactProjects
   } = req.body;
 
-  if (!companyName) {
-    return res.status(400).json({ error: 'Missing companyName' });
+  // ── Input Validation ───────────────────────────────────────
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  const phoneRegex = /^[\+\d\s\-\(\)\.]{7,25}$/;
+
+  if (!companyName || typeof companyName !== 'string' || !companyName.trim()) {
+    return res.status(400).json({ error: 'Company Name is required and cannot be empty.' });
+  }
+  if (companyName.trim().length < 2) {
+    return res.status(400).json({ error: 'Company Name must be at least 2 characters.' });
+  }
+  if (!email || typeof email !== 'string' || !emailRegex.test(email.trim())) {
+    return res.status(400).json({ error: 'A valid corporate Email address is required.' });
+  }
+  if (phone && (typeof phone !== 'string' || !phoneRegex.test(phone.trim()))) {
+    return res.status(400).json({ error: 'Phone number format is invalid.' });
+  }
+  if (!industry || typeof industry !== 'string' || !industry.trim()) {
+    return res.status(400).json({ error: 'Industry selection is required.' });
+  }
+  if (!region || typeof region !== 'string' || !region.trim()) {
+    return res.status(400).json({ error: 'Region selection is required.' });
+  }
+  if (!domain || typeof domain !== 'string' || !domain.trim()) {
+    return res.status(400).json({ error: 'NeST Business Unit Domain selection is required.' });
   }
 
   try {
@@ -285,6 +310,19 @@ router.post('/', (req, res, next) => {
 router.put('/:id', requireRole(['Admin', 'Sales Manager', 'Executive']), async (req, res) => {
   const { id } = req.params;
   const { companyName, industry, region, email, phone, ceoName, domain, contacts, ownerId, ownerName } = req.body;
+
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  const phoneRegex = /^[\+\d\s\-\(\)\.]{7,25}$/;
+
+  if (companyName !== undefined && (!companyName || typeof companyName !== 'string' || !companyName.trim())) {
+    return res.status(400).json({ error: 'Company Name cannot be empty.' });
+  }
+  if (email !== undefined && (!email || typeof email !== 'string' || !emailRegex.test(email.trim()))) {
+    return res.status(400).json({ error: 'A valid corporate Email address is required.' });
+  }
+  if (phone !== undefined && phone && (typeof phone !== 'string' || !phoneRegex.test(phone.trim()))) {
+    return res.status(400).json({ error: 'Phone number format is invalid.' });
+  }
 
   try {
     const docRef = db.collection('accounts').doc(id);

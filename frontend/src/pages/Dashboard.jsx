@@ -1,15 +1,15 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { 
-  Users, CheckCircle2, AlertTriangle, AlertOctagon, Activity, HelpCircle,
-  ArrowUpRight, ArrowDownRight, Sparkles, ClipboardList, Send, Clock, CheckCheck,
-  MessageSquare, Building2, ArrowRight, Eye, CheckSquare, CalendarClock, X, FileText, ThumbsUp, ShieldAlert,
-  Plus
+import {
+  Users, CheckCircle2, AlertTriangle, AlertOctagon, Activity,
+  ArrowUpRight, ArrowDownRight, Sparkles, Send, Clock, CheckCheck,
+  MessageSquare, Building2, CheckSquare, CalendarClock, X, ThumbsUp, ShieldAlert,
+  Plus, TrendingUp, Target, BarChart3, ChevronRight, Calendar, Flag
 } from 'lucide-react';
 
-import { 
+import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  PieChart, Pie, Cell, BarChart, Bar, Legend
+  PieChart, Pie, Cell, BarChart, Bar
 } from 'recharts';
 import { useStore } from '../store/index.js';
 
@@ -18,35 +18,27 @@ export default function Dashboard() {
   const {
     dashboardStats, dashboardLoading, fetchDashboardStats,
     user,
-    replyToInteraction, fetchReplies, repliesByInteraction,
+    replyToInteraction,
     usersList, fetchUsersList,
-    activityLogs, activityLogsLoading, fetchActivityLogs,
-    interactions, interactionsLoading, fetchInteractions,
+    interactions, fetchInteractions,
     updateTaskStatus,
     staffList, fetchStaff,
     staffTasks, fetchStaffTasks, updateStaffTaskStatus
   } = useStore();
 
-  const [replyTexts, setReplyTexts] = useState({}); // { [interactionId]: string }
-  const [sendingReply, setSendingReply] = useState({});
-
-  // Completion Note Modal State
   const [completionModalState, setCompletionModalState] = useState({ isOpen: false, task: null, newStatus: '' });
   const [completionNote, setCompletionNote] = useState('');
   const [completionFile, setCompletionFile] = useState(null);
   const [taskStatuses, setTaskStatuses] = useState({});
 
-  // Forward Task Modal State
   const [forwardModalState, setForwardModalState] = useState({ isOpen: false, task: null, newStatus: 'Forwarded' });
   const [forwardToUid, setForwardToUid] = useState('');
   const [forwardReason, setForwardReason] = useState('');
   const [forwardFile, setForwardFile] = useState(null);
 
-  // Decline Modal State
   const [declineModalState, setDeclineModalState] = useState({ isOpen: false, task: null });
   const [declineReason, setDeclineReason] = useState('');
 
-  // Accept Modal State
   const [acceptModalState, setAcceptModalState] = useState({ isOpen: false, task: null });
   const [acceptNote, setAcceptNote] = useState('');
 
@@ -59,29 +51,15 @@ export default function Dashboard() {
         reader.onload = () => resolve(reader.result);
         reader.onerror = (error) => reject(error);
       });
-
       const token = useStore.getState().token;
       const res = await fetch('http://localhost:5000/api/interactions/upload', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          name: file.name,
-          type: file.type,
-          base64
-        })
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ name: file.name, type: file.type, base64 })
       });
-
-      if (res.ok) {
-        return await res.json();
-      } else {
-        console.error('File upload failed:', await res.json());
-      }
-    } catch (err) {
-      console.error('Error uploading file:', err);
-    }
+      if (res.ok) return await res.json();
+      else console.error('File upload failed:', await res.json());
+    } catch (err) { console.error('Error uploading file:', err); }
     return null;
   };
 
@@ -91,9 +69,7 @@ export default function Dashboard() {
     if (!forwardToUid) return;
     const selectedUser = (staffList || []).find(s => s.uid === forwardToUid);
     if (!selectedUser) return;
-    
     const taskKey = task.isInteractionTask ? `${task.interactionId}-${task.uid}` : task.taskId;
-    
     if (task.isInteractionTask) {
       const ok = await updateTaskStatus(task.interactionId, task.uid, newStatus, forwardReason.trim(), selectedUser.uid, selectedUser.name);
       if (ok) {
@@ -101,9 +77,7 @@ export default function Dashboard() {
           let finalNote = `Forwarded Task Note: ${forwardReason.trim() || 'No note provided'}`;
           if (forwardFile) {
             const uploaded = await uploadFile(forwardFile);
-            if (uploaded && uploaded.url) {
-              finalNote += `\n\n📎 Attached: [${uploaded.name}](${uploaded.url})`;
-            }
+            if (uploaded && uploaded.url) finalNote += `\n\n📎 Attached: [${uploaded.name}](${uploaded.url})`;
           }
           await replyToInteraction(task.interactionId, finalNote);
         }
@@ -113,26 +87,19 @@ export default function Dashboard() {
       let finalNote = `Forwarded Task Note: ${forwardReason.trim() || 'No note provided'}`;
       if (forwardFile) {
         const uploaded = await uploadFile(forwardFile);
-        if (uploaded && uploaded.url) {
-          finalNote += `\n\n📎 Attached: [${uploaded.name}](${uploaded.url})`;
-        }
+        if (uploaded && uploaded.url) finalNote += `\n\n📎 Attached: [${uploaded.name}](${uploaded.url})`;
       }
       const ok = await updateStaffTaskStatus(task.taskId, newStatus, '', finalNote, selectedUser.uid, selectedUser.name);
-      if (ok) {
-        fetchStaffTasks('assigned-to-me');
-      }
+      if (ok) fetchStaffTasks('assigned-to-me');
     }
-    
-    setTaskStatuses(prev => ({ 
-      ...prev, 
+    setTaskStatuses(prev => ({
+      ...prev,
       [taskKey]: newStatus,
       [`${taskKey}-forwardedToName`]: selectedUser.name,
       [`${taskKey}-note`]: forwardReason.trim()
     }));
     setForwardModalState({ isOpen: false, task: null, newStatus: 'Forwarded' });
-    setForwardToUid('');
-    setForwardReason('');
-    setForwardFile(null);
+    setForwardToUid(''); setForwardReason(''); setForwardFile(null);
   };
 
   useEffect(() => {
@@ -140,69 +107,40 @@ export default function Dashboard() {
     fetchInteractions();
     fetchStaff();
     fetchStaffTasks('assigned-to-me');
-    if (user?.userType === 'CEO') {
-      fetchUsersList();
-    }
+    if (user?.userType === 'CEO') fetchUsersList();
     const interval = setInterval(() => {
       fetchDashboardStats();
       fetchInteractions();
       fetchStaff();
       fetchStaffTasks('assigned-to-me');
-      if (user?.userType === 'CEO') {
-        fetchUsersList();
-      }
+      if (user?.userType === 'CEO') fetchUsersList();
     }, 5000);
     return () => clearInterval(interval);
   }, [user]);
 
   if (dashboardLoading && !dashboardStats) {
     return (
-      <div className="h-96 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary"></div>
+      <div style={{ minHeight: '60vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f8fafc' }}>
+        <div style={{ textAlign: 'center' }}>
+          <div style={{ width: 48, height: 48, border: '3px solid #e2e8f0', borderTopColor: '#223670', borderRadius: '50%', margin: '0 auto 16px' }} />
+          <p style={{ color: '#64748b', fontSize: 13, fontWeight: 600 }}>Loading dashboard…</p>
+        </div>
       </div>
     );
   }
 
-  const cards = dashboardStats?.cards || {
-    totalAccounts: 0,
-    healthyAccounts: 0,
-    atRiskAccounts: 0,
-    criticalAccounts: 0,
-    activeContacts: 0,
-    monthlyInteractions: 0
-  };
+  const cards = dashboardStats?.cards || { totalAccounts: 0, healthyAccounts: 0, atRiskAccounts: 0, criticalAccounts: 0, activeContacts: 0, monthlyInteractions: 0 };
+  const charts = dashboardStats?.charts || { sentimentDistribution: { Positive: 0, Neutral: 0, Negative: 0 }, riskCategories: {}, industryTrend: [], engagementFrequency: {} };
+  const widgets = dashboardStats?.widgets || { topRisks: [], aiRecommendations: [], upcomingCommitments: [] };
 
-  const charts = dashboardStats?.charts || {
-    sentimentDistribution: { Positive: 0, Neutral: 0, Negative: 0 },
-    riskCategories: {},
-    industryTrend: [],
-    engagementFrequency: {}
-  };
-
-  const widgets = dashboardStats?.widgets || {
-    topRisks: [],
-    aiRecommendations: [],
-    upcomingCommitments: []
-  };
-
-  // Recharts formats
   const sentimentData = [
-    { name: 'Positive', value: charts.sentimentDistribution.Positive || 0, color: '#22C55E' },
-    { name: 'Neutral', value: charts.sentimentDistribution.Neutral || 0, color: '#F59E0B' },
-    { name: 'Negative', value: charts.sentimentDistribution.Negative || 0, color: '#EF4444' }
+    { name: 'Positive', value: charts.sentimentDistribution.Positive || 0, color: '#10b981' },
+    { name: 'Neutral', value: charts.sentimentDistribution.Neutral || 0, color: '#f59e0b' },
+    { name: 'Negative', value: charts.sentimentDistribution.Negative || 0, color: '#ef4444' }
   ].filter(d => d.value > 0);
 
-  const riskData = Object.entries(charts.riskCategories).map(([category, count]) => ({
-    category,
-    Count: count
-  }));
-
-  const engagementData = Object.entries(charts.engagementFrequency).map(([source, count]) => ({
-    source,
-    Count: count
-  }));
-
-  // Standard health scores trends for mock timeline
+  const riskData = Object.entries(charts.riskCategories).map(([category, count]) => ({ category, Count: count }));
+  const engagementData = Object.entries(charts.engagementFrequency).map(([source, count]) => ({ source, Count: count }));
   const trendData = charts.industryTrend.length > 0 ? charts.industryTrend : [
     { industry: 'Technology', avgHealth: 82 },
     { industry: 'Finance', avgHealth: 74 },
@@ -210,608 +148,367 @@ export default function Dashboard() {
     { industry: 'Healthcare', avgHealth: 90 }
   ];
 
+  const getGreeting = () => {
+    const h = new Date().getHours();
+    if (h < 12) return 'Good morning';
+    if (h < 17) return 'Good afternoon';
+    return 'Good evening';
+  };
+
+  // Task processing
+  const realMyTasks = [];
+  interactions.forEach(item => {
+    if (Array.isArray(item.actionMentions)) {
+      item.actionMentions.forEach(mention => {
+        if (mention.uid === user?.uid) {
+          const taskDesc = mention.task || item.messageText || item.subject || 'Task Assignment';
+          const fallbackHeader = taskDesc.split(/[.!?\n]/)[0].trim();
+          const cleanHeader = fallbackHeader.length <= 50 ? fallbackHeader : (fallbackHeader.slice(0, 47) + '...');
+          realMyTasks.push({
+            ...mention,
+            taskId: mention.taskId || `${item.interactionId}-${mention.uid}`,
+            title: mention.taskHeader || cleanHeader,
+            taskHeader: mention.taskHeader || cleanHeader,
+            description: mention.task || item.messageText || item.subject,
+            assignedToUid: mention.uid,
+            assignedToName: mention.name,
+            assignedByUid: item.loggedByUid,
+            assignedByName: item.loggedByName || 'System Admin',
+            priority: mention.priority || 'Medium',
+            dueDate: mention.dueDate || null,
+            status: mention.status || 'Pending',
+            accountId: item.accountId,
+            companyName: item.companyName || 'External Account',
+            loggedByName: item.loggedByName || 'System Admin',
+            subject: item.subject,
+            timestamp: item.timestamp,
+            originalInteraction: item,
+            isInteractionTask: true
+          });
+        }
+      });
+    }
+  });
+
+  const myStaffTasks = (staffTasks || [])
+    .filter(t => t.assignedToUid === user?.uid)
+    .map(t => ({ ...t, taskHeader: t.title, task: t.description, isInteractionTask: false }));
+
+  const getTaskTime = (task) => {
+    if (task.timestamp) return new Date(task.timestamp);
+    if (task.createdAt) return new Date(task.createdAt);
+    if (task.date && task.time) return new Date(`${task.date}T${task.time}:00`);
+    return new Date(0);
+  };
+
+  const displayTasks = [...realMyTasks, ...myStaffTasks].sort((a, b) => getTaskTime(b) - getTaskTime(a));
+
+  const resolveTaskTitle = (task) => {
+    const raw = task.taskHeader || task.task || task.title || task.originalInteraction?.messageText || task.originalInteraction?.subject || 'Task Assignment';
+    if (task.taskHeader && task.taskHeader.split(/\s+/).length <= 5) return task.taskHeader;
+    const clean = raw.trim();
+    const lower = clean.toLowerCase();
+    if (lower.includes('call with') || lower.includes('conversation through call with')) {
+      const match = clean.match(/(?:call with|conversation with|conversation through call with)\s+([A-Za-z]+)/i);
+      if (match && match[1]) return `Call with ${match[1].charAt(0).toUpperCase() + match[1].slice(1)}`;
+    }
+    if (lower.includes('conversation with')) {
+      const match = clean.match(/conversation with\s+([A-Za-z]+)/i);
+      if (match && match[1]) return `Sync with ${match[1].charAt(0).toUpperCase() + match[1].slice(1)}`;
+    }
+    if (lower.includes('discussion on') || lower.includes('discussion about')) {
+      const match = clean.match(/discussion (?:on the|on|about the|about)\s+([^.!?,\n]+)/i);
+      if (match && match[1]) {
+        const topic = match[1].split(/\s+/).slice(0, 3).join(' ');
+        return `${topic.charAt(0).toUpperCase() + topic.slice(1)} Discussion`;
+      }
+    }
+    if (lower.includes('use case')) return 'Use Cases Discussion';
+    if (lower.includes('security') || lower.includes('rbac')) return 'Security Audit';
+    if (lower.includes('regression') || lower.includes('test')) return 'Regression Testing';
+    if (lower.includes('load test')) return 'Load Testing';
+    if (lower.includes('appraisal')) return 'Appraisal Review';
+    if (lower.includes('budget')) return 'Budget Review';
+    let stripped = clean.replace(/^(had a conversation through call with|had a conversation with|had the discussion on the|had the discussion on|discussion on the|discussion on|conversation with|conversation through call with)\s+/i, '');
+    stripped = stripped.replace(/\s+(based on the new project|based on the|based on|regarding|about)\s+.*/i, '');
+    stripped = stripped.charAt(0).toUpperCase() + stripped.slice(1);
+    const words = stripped.split(/\s+/);
+    if (words.length > 4) return words.slice(0, 4).join(' ') + '...';
+    return stripped;
+  };
+
+  // Style helpers
+  const P = {
+    background: '#ffffff', borderRadius: 18,
+    border: '1px solid #e8edf5', boxShadow: '0 2px 16px rgba(0,0,0,0.05)', overflow: 'hidden'
+  };
+  const PH = {
+    padding: '14px 20px', borderBottom: '1px solid #f1f5f9',
+    display: 'flex', alignItems: 'center', justifyContent: 'space-between'
+  };
+  const ST = {
+    display: 'flex', alignItems: 'center', gap: 8,
+    fontSize: 11, fontWeight: 800, color: '#64748b',
+    letterSpacing: '0.09em', textTransform: 'uppercase'
+  };
+  const IB = (bg) => ({
+    width: 32, height: 32, borderRadius: 9, background: bg,
+    display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0
+  });
+  const SBStyle = (st) => {
+    const s = (st || '').toLowerCase();
+    if (s.includes('complet') || s.includes('forward')) return { bg: '#f0fdf4', color: '#16a34a', border: '#bbf7d0' };
+    if (s.includes('accept') || s.includes('progress')) return { bg: '#eef2f9', color: '#223670', border: '#c7d1e8' };
+    if (s.includes('decline')) return { bg: '#fef2f2', color: '#dc2626', border: '#fecaca' };
+    if (s.includes('overdu')) return { bg: '#fdf4ff', color: '#9333ea', border: '#e9d5ff' };
+    return { bg: '#f8fafc', color: '#64748b', border: '#e2e8f0' };
+  };
+  const PrStyle = (p) => ({
+    display: 'inline-flex', alignItems: 'center', gap: 3,
+    padding: '2px 8px', borderRadius: 999, fontSize: 10, fontWeight: 800,
+    background: p === 'High' ? '#fef2f2' : p === 'Medium' ? '#fffbeb' : '#f0fdf4',
+    color: p === 'High' ? '#dc2626' : p === 'Medium' ? '#d97706' : '#16a34a',
+    border: `1px solid ${p === 'High' ? '#fecaca' : p === 'Medium' ? '#fde68a' : '#bbf7d0'}`
+  });
+  const MO = {
+    position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.55)', backdropFilter: 'blur(4px)',
+    display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: 24
+  };
+  const MB = {
+    background: '#ffffff', borderRadius: 20, padding: 28, width: '100%', maxWidth: 460,
+    boxShadow: '0 24px 60px rgba(0,0,0,0.18)', position: 'relative'
+  };
+  const MC = {
+    position: 'absolute', top: 16, right: 16, width: 32, height: 32, borderRadius: 8,
+    border: '1px solid #e2e8f0', background: '#f8fafc',
+    display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#64748b'
+  };
+  const FL = { display: 'block', fontSize: 11, fontWeight: 700, color: '#374151', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.06em' };
+  const FI = { width: '100%', padding: '10px 14px', borderRadius: 10, border: '1px solid #e2e8f0', background: '#f8fafc', fontSize: 12, color: '#0f172a', outline: 'none', resize: 'vertical', fontFamily: 'inherit', boxSizing: 'border-box' };
+  const FS = { width: '100%', padding: '10px 14px', borderRadius: 10, border: '1px solid #e2e8f0', background: '#f8fafc', fontSize: 12, color: '#0f172a', outline: 'none', cursor: 'pointer', fontFamily: 'inherit', boxSizing: 'border-box' };
+  const SB = (bg) => ({ padding: '10px 22px', borderRadius: 10, background: bg, color: '#ffffff', fontSize: 12, fontWeight: 700, border: 'none', cursor: 'pointer' });
+
   return (
-    <div className="p-6 md:p-8 space-y-5">
-      {/* 0. Header Greeting */}
-      <div className="flex items-center justify-between">
-        <div className="space-y-1">
-          {user?.userType === 'BU Head' ? (
-            <>
-              <h1 className="text-xl font-bold text-white mt-1">Hello, {user.name}</h1>
-              <p className="text-xs text-slate-400">
-                Monitoring relationship signals, risks, and engagement health for the <span className="text-white font-bold">{user.bu}</span> division.
-              </p>
-            </>
-          ) : ['Project Manager', 'Delivery Manager', 'Sales Manager', 'Account Manager', 'Delivery Head'].includes(user?.userType) ? (
-            <>
-              <h1 className="text-xl font-bold text-white mt-1">Welcome back, {user.name}</h1>
-              <p className="text-xs text-slate-400">
-                Monitoring client engagement, risks, and health scores for your managed projects and team rosters.
-              </p>
-            </>
-          ) : (
-            <>
-              <h1 className="text-xl font-bold text-white mt-1">Welcome back, {user?.name || 'User'}</h1>
-            </>
-          )}
-        </div>
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => navigate('/staff-tasks/new')}
-            className="flex items-center gap-2 px-4 py-2.5 bg-primary hover:bg-blue-600 text-xs text-white font-bold rounded-xl shadow-lg shadow-primary/20 active:scale-98 transition-all cursor-pointer shrink-0"
-          >
-            <Plus className="w-4 h-4 text-white" />
-            <span>Assign Task</span>
-          </button>
-          <button
-            onClick={() => navigate('/log-interaction')}
-            className="flex items-center gap-2 px-4 py-2.5 bg-primary hover:bg-blue-600 text-xs text-white font-bold rounded-xl shadow-lg shadow-primary/20 active:scale-98 transition-all cursor-pointer shrink-0"
-          >
-            <Plus className="w-4 h-4 text-white" />
-            <span>Log Interaction</span>
-          </button>
-        </div>
-      </div>
+    <div style={{ padding: '24px 28px 48px', background: '#f0f4f8', minHeight: '100vh', fontFamily: 'Montserrat, sans-serif' }}>
 
-      {/* ── TASKS ASSIGNED TO ME ── */}
-      {(() => {
-        // Extract real tasks assigned to current user from interactions
-        const realMyTasks = [];
-        interactions.forEach(item => {
-          if (Array.isArray(item.actionMentions)) {
-            item.actionMentions.forEach(mention => {
-              if (mention.uid === user?.uid) {
-                const taskDesc = mention.task || item.messageText || item.subject || 'Task Assignment';
-                const fallbackHeader = taskDesc.split(/[.!?\n]/)[0].trim();
-                const cleanHeader = fallbackHeader.length <= 50 ? fallbackHeader : (fallbackHeader.slice(0, 47) + '...');
-                realMyTasks.push({
-                  ...mention,
-                  taskId: mention.taskId || `${item.interactionId}-${mention.uid}`,
-                  title: mention.taskHeader || cleanHeader,
-                  taskHeader: mention.taskHeader || cleanHeader,
-                  description: mention.task || item.messageText || item.subject,
-                  assignedToUid: mention.uid,
-                  assignedToName: mention.name,
-                  assignedByUid: item.loggedByUid,
-                  assignedByName: item.loggedByName || 'System Admin',
-                  priority: mention.priority || 'Medium',
-                  dueDate: mention.dueDate || null,
-                  status: mention.status || 'Pending',
-                  accountId: item.accountId,
-                  companyName: item.companyName || 'External Account',
-                  loggedByName: item.loggedByName || 'System Admin',
-                  subject: item.subject,
-                  timestamp: item.timestamp,
-                  originalInteraction: item,
-                  isInteractionTask: true
-                });
-              }
-            });
-          }
-        });
-
-        const myStaffTasks = (staffTasks || [])
-          .filter(t => t.assignedToUid === user?.uid)
-          .map(t => ({
-            ...t,
-            taskHeader: t.title,
-            task: t.description,
-            isInteractionTask: false
-          }));
-
-        const getTaskTime = (task) => {
-          if (task.timestamp) return new Date(task.timestamp);
-          if (task.createdAt) return new Date(task.createdAt);
-          if (task.date && task.time) return new Date(`${task.date}T${task.time}:00`);
-          return new Date(0);
-        };
-
-        const displayTasks = [...realMyTasks, ...myStaffTasks].sort((a, b) => getTaskTime(b) - getTaskTime(a));
-
-        const getStatusStyle = (st) => {
-          const s = (st || 'Pending').toLowerCase();
-          if (s.includes('complete') || s.includes('forward')) return 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400';
-          if (s.includes('progress') || s.includes('accept') || s.includes('decline')) return 'bg-amber-500/10 border-amber-500/20 text-amber-400';
-          if (s.includes('overdued') || s.includes('overdue')) return 'bg-purple-500/10 border-purple-500/20 text-purple-600';
-          return 'bg-slate-500/10 border-slate-600/30 text-slate-400';
-        };
-
-        return (
-          <div className="glass p-5 rounded-2xl border border-slate-800/80 space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <CalendarClock className="w-5 h-5 text-primary" />
-                <h3 className="text-sm font-extrabold uppercase tracking-wider text-slate-350">Tasks Assigned to Me</h3>
-              </div>
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={() => navigate('/interaction-log')}
-                  className="flex items-center gap-1 text-xs font-bold text-primary hover:text-blue-300 transition-colors cursor-pointer"
-                >
-                  View All <ArrowRight className="w-3 h-3" />
-                </button>
-              </div>
-            </div>
-
-            {displayTasks.length === 0 ? (
-              <div className="text-center py-8 text-xs text-slate-500">No tasks assigned to you yet.</div>
-            ) : (
-              <div className="space-y-3">
-                {displayTasks.slice(0, 5).map((task, idx) => {
-                  const taskKey = task.isInteractionTask ? `${task.interactionId}-${task.uid}` : task.taskId;
-                  const currentStatus = taskStatuses[taskKey] || task.status || 'Pending';
-                  const forwardedTo = taskStatuses[`${taskKey}-forwardedToName`] || task.forwardedToName;
-                  const today = new Date();
-                  today.setHours(0,0,0,0);
-                  const taskDue = task.dueDate ? new Date(task.dueDate) : null;
-                  if (taskDue) {
-                    taskDue.setHours(0,0,0,0);
-                  }
-                  const isTaskOverdue = taskDue && taskDue < today && currentStatus !== 'Completed';
-                  const isStatusUnchanged = currentStatus === 'Pending' || currentStatus === 'Task Assigned';
-                  const showAsOverdued = isTaskOverdue && isStatusUnchanged;
-                  return (
-                    <div 
-                      key={task.isInteractionTask ? `${task.interactionId}-${idx}` : task.taskId} 
-                      onClick={() => {
-                        if (task.isInteractionTask) {
-                          navigate('/interaction-log', { state: { selectedInteractionId: task.interactionId, from: '/dashboard' } });
-                        } else {
-                          navigate('/staff-tasks', { state: { selectedTaskId: task.taskId } });
-                        }
-                      }}
-                      className="bg-dark-900/60 border border-slate-800 p-4 rounded-xl hover:border-slate-700/60 cursor-pointer transition-all duration-200 space-y-3"
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-2 mb-1">
-                            {task.accountId ? (
-                              <span 
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  navigate(`/accounts/${task.accountId}`);
-                                }}
-                                className="text-xs font-extrabold text-slate-200 hover:text-primary cursor-pointer transition-colors"
-                              >
-                                {task.companyName}
-                              </span>
-                            ) : (
-                              <span className="text-xs font-extrabold text-slate-400">
-                                {task.companyName || 'Internal'}
-                              </span>
-                            )}
-                            <span className="text-slate-650 text-[10px]">·</span>
-                            {task.isInteractionTask ? (
-                              <span className="text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded bg-blue-500/10 border border-blue-500/20 text-blue-400">
-                                Interaction Log
-                              </span>
-                            ) : (
-                              <span className="text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded bg-indigo-500/10 border border-indigo-500/20 text-indigo-400">
-                                Staff Task
-                              </span>
-                            )}
-                          </div>
-                          <div className="relative group/task">
-                            <p 
-                              title={task.description || task.originalInteraction?.messageText || 'No task description available.'}
-                              className="text-xs text-slate-355 font-semibold leading-relaxed cursor-help hover:text-primary transition-colors inline-block"
-                            >
-                              {(() => {
-                                const shortHeader = task.taskHeader && task.taskHeader.split(/\s+/).length <= 5
-                                  ? task.taskHeader
-                                  : (() => {
-                                      const clean = (task.taskHeader || task.task || task.title || task.originalInteraction?.messageText || task.originalInteraction?.subject || 'Task Assignment').trim();
-                                      const lower = clean.toLowerCase();
-                                      if (lower.includes('call with') || lower.includes('conversation through call with')) {
-                                        const match = clean.match(/(?:call with|call|conversation with|conversation through call with)\s+([A-Za-z]+)/i);
-                                        if (match && match[1]) return `Call with ${match[1].charAt(0).toUpperCase() + match[1].slice(1)}`;
-                                      }
-                                      if (lower.includes('conversation with')) {
-                                        const match = clean.match(/conversation with\s+([A-Za-z]+)/i);
-                                        if (match && match[1]) return `Sync with ${match[1].charAt(0).toUpperCase() + match[1].slice(1)}`;
-                                      }
-                                      if (lower.includes('discussion on') || lower.includes('discussion about')) {
-                                        const match = clean.match(/discussion (?:on the|on|about the|about)\s+([^.!?,\n]+)/i);
-                                        if (match && match[1]) {
-                                          const topic = match[1].split(/\s+/).slice(0, 3).join(' ');
-                                          const cleanTopic = topic.replace(/(?:of|the|a|for|new)$/i, '').trim();
-                                          return `${cleanTopic.charAt(0).toUpperCase() + cleanTopic.slice(1)} Discussion`;
-                                        }
-                                      }
-                                      if (lower.includes('use case')) return 'Use Cases Discussion';
-                                      if (lower.includes('security') || lower.includes('rbac')) return 'Security Audit';
-                                      if (lower.includes('regression') || lower.includes('test')) return 'Regression Testing';
-                                      if (lower.includes('load test')) return 'Load Testing';
-                                      if (lower.includes('appraisal')) return 'Appraisal Review';
-                                      if (lower.includes('budget')) return 'Budget Review';
-
-                                      let stripped = clean.replace(/^(had a conversation through call with|had a conversation with|had the discussion on the|had the discussion on|discussion on the|discussion on|conversation with|conversation through call with)\s+/i, '');
-                                      stripped = stripped.replace(/\s+(based on the new project|based on the|based on|regarding|about)\s+.*/i, '');
-                                      stripped = stripped.charAt(0).toUpperCase() + stripped.slice(1);
-                                      const words = stripped.split(/\s+/);
-                                      if (words.length > 4) {
-                                        return words.slice(0, 4).join(' ') + '...';
-                                      }
-                                      return stripped;
-                                    })();
-                                return shortHeader;
-                              })()}
-                            </p>
-
-                            {/* Premium Custom Tooltip */}
-                            <div className="absolute left-0 bottom-full mb-2 w-80 p-4 bg-slate-900/95 border border-slate-700/80 text-slate-200 text-xs rounded-xl shadow-2xl backdrop-blur-md pointer-events-none transition-all duration-200 opacity-0 scale-95 translate-y-1 group-hover/task:opacity-100 group-hover/task:scale-100 group-hover/task:translate-y-0 z-50 origin-bottom-left">
-                              <div className="space-y-3">
-                                {/* Log Details Section */}
-                                <div>
-                                  <div className="font-bold text-slate-400 mb-1 flex items-center gap-1.5 border-b border-slate-800/60 pb-1">
-                                    <FileText className="w-3.5 h-3.5 text-slate-400" />
-                                    <span>Task Description</span>
-                                  </div>
-                                  <div className="leading-relaxed whitespace-pre-wrap font-medium text-slate-300">
-                                    {task.description || task.originalInteraction?.messageText || task.originalInteraction?.subject || 'No task description available.'}
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                          {(currentStatus === 'Completed' || currentStatus === 'Decline' || currentStatus === 'Forwarded') && (taskStatuses[`${taskKey}-note`] || task.comments || task.completionNote) && (
-                            <p className="text-[11px] text-slate-405 italic mt-1 bg-slate-950/20 px-2.5 py-1 rounded border border-slate-800/60 w-fit">
-                              Note: "{taskStatuses[`${taskKey}-note`] || task.comments || task.completionNote}"
-                            </p>
-                          )}
-                          <div className="flex items-center gap-2.5 mt-2 flex-wrap">
-                            <span className="text-xs text-slate-500 font-medium">Assigned by: <span className="text-slate-400 font-bold">{task.assignedByName || task.loggedByName}</span></span>
-                            <span className="text-xs text-slate-600">·</span>
-                            <span className="text-xs text-slate-500">{new Date(task.timestamp).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}</span>
-                                               {task.priority && (
-                              <>
-                                <span className="text-xs text-slate-600">·</span>
-                                <span className={`text-xs font-bold px-1.5 py-0.5 rounded border ${
-                                  task.priority === 'High' ? 'bg-rose-500/10 border-rose-500/20 text-rose-455' :
-                                  task.priority === 'Medium' ? 'bg-amber-500/10 border-amber-500/20 text-amber-455' :
-                                  'bg-slate-800 border-slate-700 text-slate-455'
-                                }`}>
-                                  {task.priority === 'High' ? 'High' : task.priority === 'Medium' ? 'Medium' : 'Low'}
-                                </span>
-                              </>
-                            )}
-
-                            {task.dueDate && (
-                              <>
-                                <span className="text-xs text-slate-600">·</span>
-                                <span className={`text-xs font-bold px-1.5 py-0.5 rounded border ${
-                                  isTaskOverdue 
-                                    ? 'bg-rose-600 border-rose-500 text-white animate-pulse' 
-                                    : 'bg-slate-800 border-slate-700 text-slate-300'
-                                }`}>
-                                  Due: {new Date(task.dueDate).toLocaleDateString()} {isTaskOverdue && ' (OVERDUE)'}
-                                </span>
-                              </>
-                            )}
-                          </div>
-                        </div>
-                        {(() => {
-                          let displayStatus = currentStatus === 'Pending' ? 'Task Assigned' : currentStatus;
-                          if (displayStatus === 'Accept/Decline') displayStatus = 'Accepted';
-                          if (displayStatus === 'Accept' || displayStatus === 'In Progress') displayStatus = 'Accepted';
-                          if (displayStatus === 'Decline' || displayStatus === 'Declined') displayStatus = 'Declined';
-                          if (displayStatus === 'Completed/Forwarded') displayStatus = 'Completed';
-                          if (showAsOverdued) {
-                            displayStatus = 'Overdued';
-                          }
-                          return (
-                            <span className={`shrink-0 text-xs font-black uppercase tracking-wider px-2 py-1 rounded-lg border ${getStatusStyle(displayStatus)}`}>
-                              {displayStatus === 'Forwarded' && forwardedTo ? `Forwarded to @${forwardedTo}` : displayStatus}
-                            </span>
-                          );
-                        })()}
-                      </div>
-
-                      {/* Inline status change dropdown */}
-                      <div className="flex items-center justify-between pt-2 border-t border-slate-800/60">
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs text-slate-500 font-bold">Change Status:</span>
-                          {(() => {
-                            let selectValue = currentStatus === 'Pending' ? 'Task Assigned' : currentStatus;
-                            if (selectValue === 'Accept/Decline') selectValue = 'Accept';
-                            if (selectValue === 'Completed/Forwarded') selectValue = 'Completed';
-                            if (selectValue === 'Accepted' || selectValue === 'In Progress') selectValue = 'Accept';
-                            if (selectValue === 'Declined' || selectValue === 'Decline') selectValue = 'Decline';
-                            if (showAsOverdued) {
-                              selectValue = 'Overdued';
-                            }
-                            return (
-                              <select
-                                value={selectValue}
-                                onChange={async (e) => {
-                                  e.stopPropagation();
-                                  const st = e.target.value;
-                                  if (st === 'Completed') {
-                                    setCompletionModalState({ isOpen: true, task, newStatus: st });
-                                  } else if (st === 'Forwarded') {
-                                    setForwardModalState({ isOpen: true, task, newStatus: st });
-                                  } else if (st === 'Decline') {
-                                    setDeclineModalState({ isOpen: true, task });
-                                  } else if (st === 'Accept') {
-                                    setAcceptModalState({ isOpen: true, task });
-                                  } else {
-                                    if (task.isInteractionTask) {
-                                      const ok = await updateTaskStatus(task.interactionId, task.uid, st);
-                                      if (ok) fetchInteractions();
-                                    } else {
-                                      const ok = await updateStaffTaskStatus(task.taskId, st);
-                                      if (ok) fetchStaffTasks('assigned-to-me');
-                                    }
-                                    setTaskStatuses(prev => ({ ...prev, [taskKey]: st }));
-                                  }
-                                }}
-                                onClick={(e) => e.stopPropagation()}
-                                className="px-2 py-1 rounded-lg border border-slate-700 bg-slate-800 text-xs text-slate-300 font-bold outline-none cursor-pointer focus:border-indigo-500"
-                              >
-                                {selectValue === 'Overdued' && <option value="Overdued">Overdued</option>}
-                                <option value="Task Assigned">Task Assigned</option>
-                                <option value="Accept">Accepted</option>
-                                <option value="Decline">Declined</option>
-                                <option value="Completed">Completed</option>
-                                <option value="Forwarded">Forwarded</option>
-                              </select>
-                            );
-                          })()}
-                        </div>
-                        {currentStatus === 'Forwarded' && forwardedTo && (
-                          <span className="text-xs text-indigo-450 font-bold">
-                            to @{forwardedTo}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        );
-      })()}
-
-      {/* 1. KPI Cards Grid */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
-        {/* Total Accounts */}
-        <div className="glass p-3 rounded-xl border border-slate-800/80 flex flex-col justify-between">
-          <div className="flex items-center justify-between text-slate-400">
-            <span className="text-xs font-semibold uppercase tracking-wider">Total Accounts</span>
-            <Users className="w-4 h-4 text-primary" />
-          </div>
-          <div className="mt-2">
-            <h3 className="text-lg font-bold text-white">{cards.totalAccounts}</h3>
-            <span className="text-xs text-slate-500 block mt-0.5">CRM Database Active</span>
-          </div>
-        </div>
-
-        {/* Healthy Accounts */}
-        <div className="glass p-3 rounded-xl border border-slate-800/80 flex flex-col justify-between">
-          <div className="flex items-center justify-between text-slate-400">
-            <span className="text-xs font-semibold uppercase tracking-wider">Healthy</span>
-            <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-          </div>
-          <div className="mt-2">
-            <h3 className="text-lg font-bold text-emerald-400">{cards.healthyAccounts}</h3>
-            <span className="text-xs text-emerald-500/80 font-medium flex items-center gap-0.5 mt-0.5">
-              <ArrowUpRight className="w-3 h-3" />
-              Score &ge; 75%
-            </span>
-          </div>
-        </div>
-
-        {/* At-Risk Accounts */}
-        <div className="glass p-3 rounded-xl border border-slate-800/80 flex flex-col justify-between">
-          <div className="flex items-center justify-between text-slate-400">
-            <span className="text-xs font-semibold uppercase tracking-wider">At-Risk</span>
-            <AlertTriangle className="w-4 h-4 text-amber-400" />
-          </div>
-          <div className="mt-2">
-            <h3 className="text-lg font-bold text-amber-400">{cards.atRiskAccounts}</h3>
-            <span className="text-xs text-amber-500/85 font-medium mt-0.5 block">Score 50-74%</span>
-          </div>
-        </div>
-
-        {/* Critical Accounts */}
-        <div className="glass p-3 rounded-xl border border-slate-800/80 flex flex-col justify-between">
-          <div className="flex items-center justify-between text-slate-400">
-            <span className="text-xs font-semibold uppercase tracking-wider">Critical</span>
-            <AlertOctagon className="w-4 h-4 text-rose-500" />
-          </div>
-          <div className="mt-2">
-            <h3 className="text-lg font-bold text-rose-500">{cards.criticalAccounts}</h3>
-            <span className="text-xs text-rose-400/80 font-medium flex items-center gap-0.5 mt-0.5">
-              <ArrowDownRight className="w-3 h-3" />
-              Score &lt; 50%
-            </span>
-          </div>
-        </div>
-
-        {/* Active Contacts */}
-        <div className="glass p-3 rounded-xl border border-slate-800/80 flex flex-col justify-between">
-          <div className="flex items-center justify-between text-slate-400">
-            <span className="text-xs font-semibold uppercase tracking-wider">Stakeholders</span>
-            <Users className="w-4 h-4 text-blue-400" />
-          </div>
-          <div className="mt-2">
-            <h3 className="text-lg font-bold text-white">{cards.activeContacts}</h3>
-            <span className="text-xs text-slate-500 block mt-0.5">Relationship Depth</span>
-          </div>
-        </div>
-      </div>
-
-      {/* 2. Charts Section — responsive grids */}
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-        {/* Chart A: Industry Health Trend */}
-        <div className="glass p-3 rounded-xl border border-slate-800/80">
-          <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">Industry Health Profile</h3>
-          <div className="h-28">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={trendData}>
-                <defs>
-                  <linearGradient id="healthGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#2563EB" stopOpacity={0.3}/>
-                    <stop offset="95%" stopColor="#2563EB" stopOpacity={0}/>
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" opacity={0.3} />
-                <XAxis dataKey="industry" stroke="#64748b" fontSize={9} />
-                <YAxis stroke="#64748b" fontSize={9} domain={[0, 100]} />
-                <Tooltip contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', color: '#fff', borderRadius: '12px' }} />
-                <Area type="monotone" dataKey="avgHealth" name="Avg Health Score" stroke="#2563EB" strokeWidth={2} fillOpacity={1} fill="url(#healthGrad)" />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-
-        {/* Chart B: Sentiment Distribution */}
-        <div className="glass p-3 rounded-xl border border-slate-800/80 flex flex-col">
-          <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">Communication Sentiment</h3>
-          <div className="flex-1 flex items-center gap-2">
-            <div className="h-28 w-28 shrink-0">
-              {sentimentData.length === 0 ? (
-                <div className="h-full flex items-center justify-center text-xs text-slate-500">—</div>
-              ) : (
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={sentimentData}
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={28}
-                      outerRadius={44}
-                      paddingAngle={4}
-                      dataKey="value"
-                    >
-                      {sentimentData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.color} />
-                      ))}
-                    </Pie>
-                    <Tooltip contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', color: '#fff', borderRadius: '12px' }} />
-                  </PieChart>
-                </ResponsiveContainer>
-              )}
-            </div>
-            <div className="space-y-1.5 min-w-0">
-              {sentimentData.map(entry => (
-                <div key={entry.name} className="flex items-center justify-between text-xs font-semibold gap-1">
-                  <div className="flex items-center gap-1.5">
-                    <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: entry.color }} />
-                    <span className="text-slate-300 truncate">{entry.name}</span>
-                  </div>
-                  <span className="text-white shrink-0">{entry.value}</span>
-                </div>
-              ))}
-              {sentimentData.length === 0 && (
-                <span className="text-xs text-slate-500">No data</span>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* Chart C: Risk Categories Distribution */}
-        <div className="glass p-3 rounded-xl border border-slate-800/80">
-          <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">Active Risk Types</h3>
-          <div className="h-28">
-            {riskData.length === 0 ? (
-              <div className="h-full flex items-center justify-center text-xs text-slate-500">
-                No unresolved risks. System is clean!
-              </div>
-            ) : (
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={riskData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" opacity={0.3} />
-                  <XAxis dataKey="category" stroke="#64748b" fontSize={9} tickLine={false} />
-                  <YAxis stroke="#64748b" fontSize={9} allowDecimals={false} />
-                  <Tooltip contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', color: '#fff', borderRadius: '12px' }} />
-                  <Bar dataKey="Count" fill="#EF4444" radius={[4, 4, 0, 0]}>
-                    {riskData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.Count > 2 ? '#EF4444' : '#F59E0B'} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            )}
-          </div>
-        </div>
-
-        {/* Chart D: Engagement Source Distribution */}
-        <div className="glass p-3 rounded-xl border border-slate-800/80">
-          <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">Engagement Channels</h3>
-          <div className="h-28">
-            {engagementData.length === 0 ? (
-              <div className="h-full flex items-center justify-center text-xs text-slate-500">
-                No interactions logged yet
-              </div>
-            ) : (
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={engagementData} layout="vertical">
-                  <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" opacity={0.3} />
-                  <XAxis type="number" stroke="#64748b" fontSize={9} />
-                  <YAxis dataKey="source" type="category" stroke="#64748b" fontSize={9} />
-                  <Tooltip contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', color: '#fff', borderRadius: '12px' }} />
-                  <Bar dataKey="Count" fill="#2563EB" radius={[0, 4, 4, 0]} barSize={12} />
-                </BarChart>
-              </ResponsiveContainer>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* 3. Bottom Widgets Panel */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Left Side: Top Risks Tracker */}
-        <div className="glass p-4 rounded-xl border border-slate-800/80 flex flex-col justify-between">
+      {/* HERO HEADER */}
+      <div style={{ background: 'linear-gradient(135deg, #16244b 0%, #223670 55%, #2d458d 100%)', borderRadius: 20, padding: '26px 30px', marginBottom: 22, position: 'relative', overflow: 'hidden', boxShadow: '0 8px 32px rgba(34,54,112,0.28)' }}>
+        <div style={{ position: 'absolute', top: -50, right: -50, width: 240, height: 240, borderRadius: '50%', background: 'rgba(255,255,255,0.06)', pointerEvents: 'none' }} />
+        <div style={{ position: 'absolute', bottom: -70, right: 140, width: 180, height: 180, borderRadius: '50%', background: 'rgba(255,255,255,0.04)', pointerEvents: 'none' }} />
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'relative', zIndex: 1 }}>
           <div>
-            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3">Top Account Risks</h3>
-            <div className="space-y-3">
-              {widgets.topRisks.length === 0 ? (
-                <div className="p-6 text-center text-xs text-slate-500">No critical open risks found</div>
-              ) : (
-                widgets.topRisks.map(risk => (
-                  <div key={risk.riskId} className="bg-dark-900/60 p-3 rounded-xl border border-slate-800 flex items-start justify-between gap-3">
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs font-bold text-white">{risk.companyName}</span>
-                        <span className={`text-xs font-bold px-1.5 py-0.5 rounded-full border ${
-                          risk.severity === 'High' 
-                            ? 'bg-rose-500/10 border-rose-500/25 text-rose-300' 
-                            : 'bg-amber-500/10 border-amber-500/25 text-amber-300'
-                        }`}>
-                          {risk.severity} Risk
+            <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 4 }}>{getGreeting()}</p>
+            <h1 style={{ color: '#ffffff', fontSize: 26, fontWeight: 800, margin: '0 0 6px', lineHeight: 1.2 }}>{user?.name || 'User'}</h1>
+            {user?.userType === 'BU Head' ? (
+              <p style={{ color: 'rgba(255,255,255,0.65)', fontSize: 12, maxWidth: 440, margin: 0 }}>Monitoring signals for the <strong style={{ color: '#fff' }}>{user.bu}</strong> division.</p>
+            ) : ['Project Manager', 'Delivery Manager', 'Sales Manager', 'Account Manager', 'Delivery Head'].includes(user?.userType) ? (
+              <p style={{ color: 'rgba(255,255,255,0.65)', fontSize: 12, maxWidth: 440, margin: 0 }}>Monitoring client engagement and health scores for your managed projects.</p>
+            ) : null}
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 7, background: 'rgba(255,255,255,0.12)', border: '1px solid rgba(255,255,255,0.2)', borderRadius: 999, padding: '5px 13px', color: 'rgba(255,255,255,0.9)', fontSize: 11, fontWeight: 700, marginTop: 14 }}>
+              <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#4ade80', display: 'inline-block' }} />
+              {user?.userType || 'Employee'} · REL Intelligence
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: 10 }}>
+            <button onClick={() => navigate('/staff-tasks/new')} style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '10px 18px', background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.3)', borderRadius: 12, color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+              <Plus size={14} color="white" /> Assign Task
+            </button>
+            <button onClick={() => navigate('/log-interaction')} style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '10px 18px', background: '#ffffff', border: '1px solid rgba(255,255,255,0.9)', borderRadius: 12, color: '#223670', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+              <Plus size={14} color="#223670" /> Log Interaction
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* KPI CARDS */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5,1fr)', gap: 14, marginBottom: 20 }}>
+        {[
+          { label: 'Total Accounts', value: cards.totalAccounts, accent: '#223670', iconBg: '#eef2f9', iconColor: '#223670', Icon: Building2, badge: 'CRM Active', badgeBg: '#eef2f9', badgeColor: '#223670', BI: Activity },
+          { label: 'Healthy', value: cards.healthyAccounts, accent: '#10b981', iconBg: '#f0fdf4', iconColor: '#10b981', Icon: CheckCircle2, badge: '≥75% Score', badgeBg: '#f0fdf4', badgeColor: '#16a34a', BI: ArrowUpRight, vc: '#10b981' },
+          { label: 'At-Risk', value: cards.atRiskAccounts, accent: '#f59e0b', iconBg: '#fffbeb', iconColor: '#f59e0b', Icon: AlertTriangle, badge: '50–74% Score', badgeBg: '#fffbeb', badgeColor: '#d97706', BI: Target, vc: '#d97706' },
+          { label: 'Critical', value: cards.criticalAccounts, accent: '#ef4444', iconBg: '#fef2f2', iconColor: '#ef4444', Icon: AlertOctagon, badge: '<50% Score', badgeBg: '#fef2f2', badgeColor: '#dc2626', BI: ArrowDownRight, vc: '#dc2626' },
+          { label: 'Stakeholders', value: cards.activeContacts, accent: '#8b5cf6', iconBg: '#f5f3ff', iconColor: '#8b5cf6', Icon: Users, badge: 'Rel Depth', badgeBg: '#f5f3ff', badgeColor: '#7c3aed', BI: TrendingUp, vc: '#7c3aed' },
+        ].map(({ label, value, accent, iconBg, iconColor, Icon, badge, badgeBg, badgeColor, BI, vc }) => (
+          <div key={label} style={{ background: '#fff', borderRadius: 16, padding: '18px 20px', border: '1px solid #e8edf5', boxShadow: '0 2px 12px rgba(0,0,0,0.04)', position: 'relative', overflow: 'hidden' }}>
+            <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: 3, background: accent, borderRadius: '16px 16px 0 0' }} />
+            <div style={{ width: 38, height: 38, borderRadius: 10, background: iconBg, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 12, color: iconColor }}>
+              <Icon size={18} />
+            </div>
+            <div style={{ fontSize: 28, fontWeight: 800, color: vc || '#0f172a', lineHeight: 1, marginBottom: 4 }}>{value}</div>
+            <div style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', letterSpacing: '0.06em', textTransform: 'uppercase' }}>{label}</div>
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4, marginTop: 8, padding: '3px 8px', borderRadius: 999, background: badgeBg, color: badgeColor, fontSize: 10, fontWeight: 700 }}>
+              <BI size={9} /> {badge}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* TASKS + SIDEBAR */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 360px', gap: 18, marginBottom: 20 }}>
+
+        {/* Tasks Panel */}
+        <div style={P}>
+          <div style={PH}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div style={IB('linear-gradient(135deg, #16244b, #223670)')}><CalendarClock size={15} color="white" /></div>
+              <div>
+                <p style={{ fontSize: 13, fontWeight: 800, color: '#0f172a', margin: 0 }}>Tasks Assigned to Me</p>
+                <p style={{ fontSize: 10, color: '#94a3b8', fontWeight: 500, margin: 0 }}>{displayTasks.length} task{displayTasks.length !== 1 ? 's' : ''}</p>
+              </div>
+            </div>
+            <button style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 700, color: '#223670', cursor: 'pointer', border: 'none', background: 'none', padding: 0 }} onClick={() => navigate('/interaction-log')}>
+              View All <ChevronRight size={12} />
+            </button>
+          </div>
+          <div style={{ padding: '14px 16px' }}>
+            {displayTasks.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '36px 0', color: '#94a3b8' }}>
+                <CheckCheck size={32} style={{ margin: '0 auto 10px', opacity: 0.35 }} />
+                <p style={{ fontSize: 13, fontWeight: 600 }}>No tasks assigned to you yet.</p>
+              </div>
+            ) : displayTasks.slice(0, 5).map((task, idx) => {
+              const taskKey = task.isInteractionTask ? `${task.interactionId}-${task.uid}` : task.taskId;
+              const currentStatus = taskStatuses[taskKey] || task.status || 'Pending';
+              const forwardedTo = taskStatuses[`${taskKey}-forwardedToName`] || task.forwardedToName;
+              const today = new Date(); today.setHours(0,0,0,0);
+              const taskDue = task.dueDate ? new Date(task.dueDate) : null;
+              if (taskDue) taskDue.setHours(0,0,0,0);
+              const isTaskOverdue = taskDue && taskDue < today && currentStatus !== 'Completed';
+              const isStatusUnchanged = currentStatus === 'Pending' || currentStatus === 'Task Assigned';
+              const showAsOverdued = isTaskOverdue && isStatusUnchanged;
+
+              let displayStatus = currentStatus === 'Pending' ? 'Task Assigned' : currentStatus;
+              if (displayStatus === 'Accept/Decline') displayStatus = 'Accepted';
+              if (displayStatus === 'Accept' || displayStatus === 'In Progress') displayStatus = 'Accepted';
+              if (displayStatus === 'Decline' || displayStatus === 'Declined') displayStatus = 'Declined';
+              if (displayStatus === 'Completed/Forwarded') displayStatus = 'Completed';
+              if (showAsOverdued) displayStatus = 'Overdued';
+
+              let selectValue = currentStatus === 'Pending' ? 'Task Assigned' : currentStatus;
+              if (selectValue === 'Accept/Decline') selectValue = 'Accept';
+              if (selectValue === 'Completed/Forwarded') selectValue = 'Completed';
+              if (selectValue === 'Accepted' || selectValue === 'In Progress') selectValue = 'Accept';
+              if (selectValue === 'Declined' || selectValue === 'Decline') selectValue = 'Decline';
+              if (showAsOverdued) selectValue = 'Overdued';
+
+              const stBadge = SBStyle(displayStatus);
+
+              return (
+                <div
+                  key={task.isInteractionTask ? `${task.interactionId}-${idx}` : task.taskId}
+                  style={{ background: showAsOverdued ? 'linear-gradient(135deg,#fff5f5,#fff)' : '#f8fafc', border: `1px solid ${showAsOverdued ? '#fecaca' : '#e8edf5'}`, borderRadius: 14, padding: '14px 16px', cursor: 'pointer', marginBottom: 10 }}
+                  onClick={() => {
+                    if (task.isInteractionTask) navigate('/interaction-log', { state: { selectedInteractionId: task.interactionId, from: '/dashboard' } });
+                    else navigate('/staff-tasks', { state: { selectedTaskId: task.taskId } });
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10, marginBottom: 6 }}>
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4, flexWrap: 'wrap' }}>
+                        {task.accountId ? (
+                          <span style={{ fontSize: 11, fontWeight: 800, color: '#223670', cursor: 'pointer' }} onClick={e => { e.stopPropagation(); navigate(`/accounts/${task.accountId}`); }}>{task.companyName}</span>
+                        ) : (
+                          <span style={{ fontSize: 11, fontWeight: 800, color: '#374151' }}>{task.companyName || 'Internal'}</span>
+                        )}
+                        <span style={{ fontSize: 9, color: '#cbd5e1' }}>·</span>
+                        <span style={{ fontSize: 9, fontWeight: 800, padding: '2px 7px', borderRadius: 999, background: task.isInteractionTask ? '#eef2f9' : '#f5f3ff', color: task.isInteractionTask ? '#223670' : '#7c3aed', border: `1px solid ${task.isInteractionTask ? '#c7d1e8' : '#ddd6fe'}` }}>
+                          {task.isInteractionTask ? 'INTERACTION LOG' : 'STAFF TASK'}
                         </span>
                       </div>
-                      <p className="text-xs text-slate-300 line-clamp-2">{risk.description}</p>
+                      <p style={{ fontSize: 13, fontWeight: 700, color: '#1e293b', margin: '0 0 6px' }} title={task.description}>{resolveTaskTitle(task)}</p>
                     </div>
+                    <span style={{ flexShrink: 0, fontSize: 10, fontWeight: 800, padding: '4px 10px', borderRadius: 999, background: stBadge.bg, color: stBadge.color, border: `1px solid ${stBadge.border}`, whiteSpace: 'nowrap' }}>
+                      {displayStatus === 'Forwarded' && forwardedTo ? `→ @${forwardedTo}` : displayStatus}
+                    </span>
                   </div>
-                ))
-              )}
-            </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
+                    <span style={{ fontSize: 11, color: '#94a3b8', fontWeight: 500 }}>By <strong style={{ color: '#374151' }}>{task.assignedByName || task.loggedByName}</strong></span>
+                    <span style={{ fontSize: 10, color: '#e2e8f0' }}>·</span>
+                    <span style={{ fontSize: 11, color: '#94a3b8' }}>{new Date(task.timestamp).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}</span>
+                    {task.priority && (
+                      <>
+                        <span style={{ fontSize: 10, color: '#e2e8f0' }}>·</span>
+                        <span style={PrStyle(task.priority)}><Flag size={8} /> {task.priority}</span>
+                      </>
+                    )}
+                    {task.dueDate && (
+                      <>
+                        <span style={{ fontSize: 10, color: '#e2e8f0' }}>·</span>
+                        <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 999, display: 'inline-flex', alignItems: 'center', gap: 4, background: isTaskOverdue ? '#fef2f2' : '#f8fafc', color: isTaskOverdue ? '#dc2626' : '#64748b', border: `1px solid ${isTaskOverdue ? '#fecaca' : '#e2e8f0'}` }}>
+                          <Calendar size={9} /> Due: {new Date(task.dueDate).toLocaleDateString()}{isTaskOverdue && ' · OVERDUE'}
+                        </span>
+                      </>
+                    )}
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingTop: 10, borderTop: '1px solid #f1f5f9' }} onClick={e => e.stopPropagation()}>
+                    <span style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Status:</span>
+                    <select
+                      value={selectValue}
+                      style={{ padding: '5px 10px', borderRadius: 8, border: '1px solid #e2e8f0', background: '#f8fafc', fontSize: 11, fontWeight: 700, color: '#374151', outline: 'none', cursor: 'pointer' }}
+                      onChange={async (e) => {
+                        e.stopPropagation();
+                        const st = e.target.value;
+                        if (st === 'Completed') setCompletionModalState({ isOpen: true, task, newStatus: st });
+                        else if (st === 'Forwarded') setForwardModalState({ isOpen: true, task, newStatus: st });
+                        else if (st === 'Decline') setDeclineModalState({ isOpen: true, task });
+                        else if (st === 'Accept') setAcceptModalState({ isOpen: true, task });
+                        else {
+                          if (task.isInteractionTask) { const ok = await updateTaskStatus(task.interactionId, task.uid, st); if (ok) fetchInteractions(); }
+                          else { const ok = await updateStaffTaskStatus(task.taskId, st); if (ok) fetchStaffTasks('assigned-to-me'); }
+                          setTaskStatuses(prev => ({ ...prev, [taskKey]: st }));
+                        }
+                      }}
+                      onClick={e => e.stopPropagation()}
+                    >
+                      {selectValue === 'Overdued' && <option value="Overdued">Overdued</option>}
+                      <option value="Task Assigned">Task Assigned</option>
+                      <option value="Accept">Accepted</option>
+                      <option value="Decline">Declined</option>
+                      <option value="Completed">Completed</option>
+                      <option value="Forwarded">Forwarded</option>
+                    </select>
+                    {currentStatus === 'Forwarded' && forwardedTo && (
+                      <span style={{ fontSize: 11, color: '#223670', fontWeight: 700 }}>→ @{forwardedTo}</span>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
 
-        {/* Center: AI Recommendations Engine */}
-        <div className="glass p-4 rounded-xl border border-slate-800/80 flex flex-col">
-          <div>
-            <div className="flex items-center gap-2 mb-3">
-              <Sparkles className="w-4 h-4 text-primary" />
-              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">AI Relationship Guidance</h3>
+        {/* Sidebar */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+          {/* AI Guidance */}
+          <div style={P}>
+            <div style={PH}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div style={IB('linear-gradient(135deg, #16244b, #223670)')}><Sparkles size={15} color="white" /></div>
+                <div>
+                  <p style={{ fontSize: 13, fontWeight: 800, color: '#0f172a', margin: 0 }}>AI Relationship Guidance</p>
+                  <p style={{ fontSize: 10, color: '#94a3b8', fontWeight: 500, margin: 0 }}>Powered by REL Intelligence</p>
+                </div>
+              </div>
             </div>
-            <div className="space-y-3">
-              {widgets.aiRecommendations.map(rec => (
-                <div key={rec.id} className="bg-primary/5 p-3 rounded-xl border border-primary/15 flex gap-3 items-start">
-                  <div className="bg-primary/10 border border-primary/25 p-1.5 rounded-lg text-primary shrink-0">
-                    <Sparkles className="w-3.5 h-3.5" />
+            <div style={{ padding: '14px 16px' }}>
+              {widgets.aiRecommendations.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '24px 0', color: '#94a3b8' }}>
+                  <Sparkles size={28} style={{ margin: '0 auto 8px', opacity: 0.3 }} />
+                  <p style={{ fontSize: 12, fontWeight: 600 }}>No recommendations yet</p>
+                </div>
+              ) : widgets.aiRecommendations.map(rec => (
+                <div key={rec.id} style={{ background: 'linear-gradient(135deg,#eef2f9,#f4f6fc)', border: '1px solid #c7d1e8', borderRadius: 12, padding: '12px 14px', marginBottom: 8, display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                  <div style={{ width: 30, height: 30, borderRadius: 8, background: 'linear-gradient(135deg, #16244b, #223670)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <Sparkles size={13} color="white" />
                   </div>
-                  <div className="space-y-0.5 flex-1 min-w-0">
-                    <h4 className="text-xs font-bold text-white truncate">{rec.title}</h4>
-                    <p className="text-xs text-slate-300 leading-relaxed">{rec.description}</p>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <p style={{ fontSize: 12, fontWeight: 800, color: '#0f172a', margin: '0 0 3px' }}>{rec.title}</p>
+                    <p style={{ fontSize: 11, color: '#475569', lineHeight: 1.5, margin: 0 }}>{rec.description}</p>
                     {rec.priority && (
-                      <span className={`inline-block text-xs font-bold mt-1 uppercase px-1.5 py-0.5 rounded ${
-                        rec.priority === 'High' ? 'bg-red-500/20 text-red-300' : 'bg-blue-500/20 text-blue-300'
-                      }`}>
+                      <span style={{ display: 'inline-block', marginTop: 6, fontSize: 10, fontWeight: 800, padding: '2px 8px', borderRadius: 999, background: rec.priority === 'High' ? '#fef2f2' : '#eef2f9', color: rec.priority === 'High' ? '#dc2626' : '#223670' }}>
                         {rec.priority} Priority
                       </span>
                     )}
@@ -820,559 +517,500 @@ export default function Dashboard() {
               ))}
             </div>
           </div>
+
+          {/* Top Risks */}
+          <div style={P}>
+            <div style={PH}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div style={IB('linear-gradient(135deg,#ef4444,#f97316)')}><AlertOctagon size={15} color="white" /></div>
+                <div>
+                  <p style={{ fontSize: 13, fontWeight: 800, color: '#0f172a', margin: 0 }}>Top Account Risks</p>
+                  <p style={{ fontSize: 10, color: '#94a3b8', fontWeight: 500, margin: 0 }}>Critical unresolved issues</p>
+                </div>
+              </div>
+            </div>
+            <div style={{ padding: '14px 16px' }}>
+              {widgets.topRisks.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '24px 0' }}>
+                  <CheckCircle2 size={28} style={{ margin: '0 auto 8px', color: '#10b981', opacity: 0.5 }} />
+                  <p style={{ fontSize: 12, fontWeight: 600, color: '#10b981' }}>No critical risks — all clear!</p>
+                </div>
+              ) : widgets.topRisks.map(risk => (
+                <div key={risk.riskId} style={{ background: risk.severity === 'High' ? '#fff5f5' : '#fffbeb', border: `1px solid ${risk.severity === 'High' ? '#fecaca' : '#fde68a'}`, borderRadius: 12, padding: '12px 14px', marginBottom: 8, display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                  <div style={{ width: 8, height: 8, borderRadius: '50%', background: risk.severity === 'High' ? '#ef4444' : '#f59e0b', marginTop: 4, flexShrink: 0 }} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3, flexWrap: 'wrap' }}>
+                      <span style={{ fontSize: 12, fontWeight: 800, color: '#0f172a' }}>{risk.companyName}</span>
+                      <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 7px', borderRadius: 999, background: risk.severity === 'High' ? '#fef2f2' : '#fffbeb', color: risk.severity === 'High' ? '#dc2626' : '#d97706', border: `1px solid ${risk.severity === 'High' ? '#fecaca' : '#fde68a'}` }}>
+                        {risk.severity} Risk
+                      </span>
+                    </div>
+                    <p style={{ fontSize: 11, color: '#475569', lineHeight: 1.4, margin: 0 }}>{risk.description}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       </div>
 
+      {/* CHARTS */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 16, marginBottom: 20 }}>
 
-      {/* ── BU HEAD TEAM OVERVIEW ── */}
-      {user?.userType === 'BU Head' && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mt-5">
-          {/* Projects & PMs under BU */}
-          <div className="glass p-4 rounded-xl border border-slate-800/80 space-y-3">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">Division Projects & Teams</h3>
-            <div className="space-y-2.5">
-              <div className="flex flex-col gap-1">
-                <span className="text-xs text-slate-500 font-bold uppercase">Division Projects</span>
-                <div className="flex flex-wrap gap-1.5 mt-0.5">
-                  {user.projects && user.projects.length > 0 ? (
-                    user.projects.map(p => (
-                      <span key={p} className="bg-slate-800 text-slate-200 text-xs px-2.5 py-1 rounded-lg border border-slate-700">
-                        📁 {p}
-                      </span>
-                    ))
-                  ) : (
-                    <span className="text-xs text-slate-500">No projects mapped to this BU.</span>
-                  )}
-                </div>
-              </div>
-
-              <div className="flex flex-col gap-1 border-t border-slate-800/60 pt-2.5">
-                <span className="text-xs text-slate-500 font-bold uppercase">Project Managers</span>
-                <div className="flex flex-wrap gap-1.5 mt-0.5">
-                  {user.projectManagers && user.projectManagers.length > 0 ? (
-                    user.projectManagers.map(pm => (
-                      <span key={pm} className="bg-primary/5 text-primary text-xs px-2.5 py-1 rounded-lg border border-primary/20 font-semibold">
-                        👤 {pm}
-                      </span>
-                    ))
-                  ) : (
-                    <span className="text-xs text-slate-500">No project managers assigned.</span>
-                  )}
-                </div>
-              </div>
-            </div>
+        <div style={{ ...P, padding: '18px 20px' }}>
+          <div style={{ fontSize: 11, fontWeight: 800, color: '#64748b', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 14, display: 'flex', alignItems: 'center', gap: 7 }}>
+            <BarChart3 size={13} color="#223670" /> Industry Health Profile
           </div>
+          <div style={{ height: 160 }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={trendData}>
+                <defs>
+                  <linearGradient id="hg2" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#223670" stopOpacity={0.2} />
+                    <stop offset="95%" stopColor="#223670" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                <XAxis dataKey="industry" stroke="#94a3b8" fontSize={9} tickLine={false} />
+                <YAxis stroke="#94a3b8" fontSize={9} domain={[0, 100]} tickLine={false} axisLine={false} />
+                <Tooltip contentStyle={{ backgroundColor: '#fff', borderColor: '#e2e8f0', color: '#0f172a', borderRadius: 10, fontSize: 11 }} />
+                <Area type="monotone" dataKey="avgHealth" name="Avg Health Score" stroke="#223670" strokeWidth={2.5} fillOpacity={1} fill="url(#hg2)" dot={{ r: 4, fill: '#223670', strokeWidth: 2, stroke: '#fff' }} />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
 
-          {/* BU Division Staff & Engineers */}
-          <div className="glass p-4 rounded-xl border border-slate-800/80 space-y-3">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">BU Operations Directory</h3>
-            <div className="flex flex-col gap-1">
-              <span className="text-xs text-slate-500 font-bold uppercase">Division Employees</span>
-              <div className="grid grid-cols-2 gap-2 mt-1">
-                {user.employees && user.employees.length > 0 ? (
-                  user.employees.map(emp => (
-                    <div key={emp} className="bg-dark-900/60 border border-slate-800 p-2 rounded-lg text-xs font-semibold text-slate-300">
-                      💼 {emp}
-                    </div>
-                  ))
-                ) : (
-                  <span className="text-xs text-slate-500 col-span-2">No employee records in this BU.</span>
-                )}
-              </div>
+        <div style={{ ...P, padding: '18px 20px' }}>
+          <div style={{ fontSize: 11, fontWeight: 800, color: '#64748b', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 14, display: 'flex', alignItems: 'center', gap: 7 }}>
+            <Activity size={13} color="#223670" /> Communication Sentiment
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 20, height: 160 }}>
+            <div style={{ width: 130, height: '100%', flexShrink: 0 }}>
+              {sentimentData.length === 0 ? (
+                <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', fontSize: 12 }}>No data</div>
+              ) : (
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie data={sentimentData} cx="50%" cy="50%" innerRadius={36} outerRadius={54} paddingAngle={4} dataKey="value">
+                      {sentimentData.map((entry, i) => <Cell key={i} fill={entry.color} />)}
+                    </Pie>
+                    <Tooltip contentStyle={{ backgroundColor: '#fff', borderColor: '#e2e8f0', color: '#0f172a', borderRadius: 10, fontSize: 11 }} />
+                  </PieChart>
+                </ResponsiveContainer>
+              )}
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {sentimentData.map(entry => (
+                <div key={entry.name} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 14 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ width: 10, height: 10, borderRadius: 3, background: entry.color, display: 'inline-block', flexShrink: 0 }} />
+                    <span style={{ fontSize: 12, fontWeight: 600, color: '#374151' }}>{entry.name}</span>
+                  </div>
+                  <span style={{ fontSize: 15, fontWeight: 800, color: '#0f172a' }}>{entry.value}</span>
+                </div>
+              ))}
+              {sentimentData.length === 0 && <span style={{ fontSize: 12, color: '#94a3b8' }}>No interactions</span>}
             </div>
           </div>
         </div>
-      )}
 
-      {/* ── MANAGER TEAM OVERVIEW ── */}
-      {['Project Manager', 'Delivery Manager', 'Sales Manager', 'Account Manager'].includes(user?.userType) && (
-        <div className="glass p-5 rounded-2xl border border-slate-800/80 space-y-4">
-          <h3 className="text-sm font-bold uppercase tracking-wider text-slate-450">My Managed Projects & Teams</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {user.projects && user.projects.length > 0 ? (
-              user.projects.map((proj, idx) => {
-                const projName = typeof proj === 'string' ? proj : proj.name;
-                const projEmps = typeof proj === 'string' ? [] : (proj.employees || []);
-                return (
-                  <div key={idx} className="bg-dark-900/60 border border-slate-800 p-4 rounded-xl space-y-3">
-                    <div className="flex items-center gap-2">
-                      <span className="p-1.5 bg-primary/10 border border-primary/20 text-primary rounded-lg text-xs">
-                        📁
-                      </span>
-                      <h4 className="text-xs font-bold text-white truncate">{projName || `Project #${idx + 1}`}</h4>
-                    </div>
-                    
-                    <div className="space-y-1.5 pt-2 border-t border-slate-850">
-                      <span className="text-xs text-slate-500 font-bold uppercase tracking-wider">Team Roster</span>
-                      <div className="flex flex-col gap-1">
-                        {projEmps.length > 0 && projEmps.some(Boolean) ? (
-                          projEmps.filter(Boolean).map((emp, eIdx) => (
-                            <div key={eIdx} className="bg-slate-800/40 border border-slate-800 p-1.5 rounded-lg text-xs text-slate-300 font-semibold flex items-center gap-1.5">
-                              <span className="w-1.5 h-1.5 rounded-full bg-primary" />
-                              {emp}
-                            </div>
-                          ))
-                        ) : (
-                          <span className="text-xs text-slate-500 italic">No employees assigned to this project yet.</span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })
+        <div style={{ ...P, padding: '18px 20px' }}>
+          <div style={{ fontSize: 11, fontWeight: 800, color: '#64748b', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 14, display: 'flex', alignItems: 'center', gap: 7 }}>
+            <AlertTriangle size={13} color="#ef4444" /> Active Risk Types
+          </div>
+          <div style={{ height: 160 }}>
+            {riskData.length === 0 ? (
+              <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#10b981', fontSize: 12, fontWeight: 600, gap: 6 }}>
+                <CheckCircle2 size={16} /> System clean — no open risks
+              </div>
             ) : (
-              <div className="p-6 text-center text-xs text-slate-500 col-span-full">No projects managed yet.</div>
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={riskData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                  <XAxis dataKey="category" stroke="#94a3b8" fontSize={9} tickLine={false} />
+                  <YAxis stroke="#94a3b8" fontSize={9} allowDecimals={false} tickLine={false} axisLine={false} />
+                  <Tooltip contentStyle={{ backgroundColor: '#fff', borderColor: '#e2e8f0', color: '#0f172a', borderRadius: 10, fontSize: 11 }} />
+                  <Bar dataKey="Count" radius={[6, 6, 0, 0]}>
+                    {riskData.map((entry, i) => <Cell key={i} fill={entry.Count > 2 ? '#ef4444' : '#f59e0b'} />)}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
             )}
           </div>
         </div>
+
+        <div style={{ ...P, padding: '18px 20px' }}>
+          <div style={{ fontSize: 11, fontWeight: 800, color: '#64748b', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 14, display: 'flex', alignItems: 'center', gap: 7 }}>
+            <MessageSquare size={13} color="#8b5cf6" /> Engagement Channels
+          </div>
+          <div style={{ height: 160 }}>
+            {engagementData.length === 0 ? (
+              <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', fontSize: 12, fontWeight: 600, gap: 6 }}>
+                <Clock size={14} /> No interactions logged yet
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={engagementData} layout="vertical">
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                  <XAxis type="number" stroke="#94a3b8" fontSize={9} tickLine={false} axisLine={false} />
+                  <YAxis dataKey="source" type="category" stroke="#94a3b8" fontSize={9} tickLine={false} axisLine={false} />
+                  <Tooltip contentStyle={{ backgroundColor: '#fff', borderColor: '#e2e8f0', color: '#0f172a', borderRadius: 10, fontSize: 11 }} />
+                  <Bar dataKey="Count" fill="#8b5cf6" radius={[0, 6, 6, 0]} barSize={14} />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* BU HEAD */}
+      {user?.userType === 'BU Head' && (
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 20 }}>
+          <div style={P}>
+            <div style={PH}><div style={ST}><span style={{ width: 6, height: 6, borderRadius: '50%', background: '#223670', display: 'inline-block' }} />Division Projects & Teams</div></div>
+            <div style={{ padding: '16px 20px' }}>
+              <p style={{ fontSize: 10, fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>Projects</p>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 14 }}>
+                {user.projects && user.projects.length > 0 ? user.projects.map(p => (
+                  <span key={p} style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, padding: '5px 12px', fontSize: 12, fontWeight: 700, color: '#374151' }}>📁 {p}</span>
+                )) : <span style={{ fontSize: 12, color: '#94a3b8' }}>No projects mapped.</span>}
+              </div>
+              <p style={{ fontSize: 10, fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>Project Managers</p>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                {user.projectManagers && user.projectManagers.length > 0 ? user.projectManagers.map(pm => (
+                  <span key={pm} style={{ background: '#eef1f9', border: '1px solid #c5ceea', borderRadius: 8, padding: '5px 12px', fontSize: 12, fontWeight: 700, color: '#223670' }}>👤 {pm}</span>
+                )) : <span style={{ fontSize: 12, color: '#94a3b8' }}>No project managers assigned.</span>}
+              </div>
+            </div>
+          </div>
+          <div style={P}>
+            <div style={PH}><div style={ST}><span style={{ width: 6, height: 6, borderRadius: '50%', background: '#223670', display: 'inline-block' }} />BU Operations Directory</div></div>
+            <div style={{ padding: '16px 20px' }}>
+              <p style={{ fontSize: 10, fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>Division Employees</p>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+                {user.employees && user.employees.length > 0 ? user.employees.map(emp => (
+                  <div key={emp} style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 10, padding: '8px 12px', fontSize: 12, fontWeight: 600, color: '#374151' }}>💼 {emp}</div>
+                )) : <span style={{ fontSize: 12, color: '#94a3b8', gridColumn: '1/-1' }}>No employee records.</span>}
+              </div>
+            </div>
+          </div>
+        </div>
       )}
 
-      {/* ── CEO PORTAL OVERVIEW ── */}
-      {user?.userType === 'CEO' && (
-        <div className="space-y-6 mt-5">
-          <div className="glass p-5 rounded-2xl border border-slate-800/80 space-y-4">
-            <h3 className="text-sm font-extrabold uppercase tracking-wider text-slate-300 flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-indigo-500 animate-pulse" /> Corporate Heads Directory & Operations
-            </h3>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {['Finance Head', 'Global HR Head', 'ITG Head', 'NDA Head', 'TC Head', 'Quality Head'].map(pos => {
-                const head = usersList.find(u => u.position?.toLowerCase().includes(pos.toLowerCase().replace(' head', '')) || u.position?.toLowerCase() === pos.toLowerCase());
+      {/* MANAGER */}
+      {['Project Manager', 'Delivery Manager', 'Sales Manager', 'Account Manager'].includes(user?.userType) && (
+        <div style={{ ...P, marginBottom: 20 }}>
+          <div style={PH}><div style={ST}><span style={{ width: 6, height: 6, borderRadius: '50%', background: '#223670', display: 'inline-block' }} />My Managed Projects & Teams</div></div>
+          <div style={{ padding: '16px 20px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 14 }}>
+              {user.projects && user.projects.length > 0 ? user.projects.map((proj, idx) => {
+                const projName = typeof proj === 'string' ? proj : proj.name;
+                const projEmps = typeof proj === 'string' ? [] : (proj.employees || []);
                 return (
-                  <div key={pos} className="bg-dark-900/60 border border-slate-800 p-4 rounded-xl space-y-3 hover:border-slate-700/80 transition-colors">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs text-slate-500 font-bold uppercase tracking-wider">{pos}</span>
-                      <span className={`px-2 py-0.5 rounded text-xs font-black uppercase ${head ? 'bg-emerald-500/10 border border-emerald-500/25 text-emerald-400' : 'bg-rose-500/10 border border-rose-500/25 text-rose-400'}`}>
-                        {head ? 'ACTIVE' : 'VACANT'}
-                      </span>
+                  <div key={idx} style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 14, padding: '14px 16px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                      <div style={{ width: 28, height: 28, borderRadius: 8, background: '#eef1f9', border: '1px solid #c5ceea', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14 }}>📁</div>
+                      <h4 style={{ fontSize: 12, fontWeight: 800, color: '#0f172a', margin: 0 }}>{projName || `Project #${idx + 1}`}</h4>
                     </div>
-                    {head ? (
-                      <div className="space-y-1">
-                        <h4 className="text-xs font-bold text-white">{head.name}</h4>
-                        <p className="text-xs text-slate-400">{head.email}</p>
-                        <div className="flex items-center gap-2 pt-2 text-xs text-slate-500">
-                          <span>📁 {head.projects?.length || 0} Projects</span>
-                          <span>•</span>
-                          <span>👥 {head.employees?.length || 0} Team Members</span>
-                        </div>
+                    <div style={{ paddingTop: 10, borderTop: '1px solid #e2e8f0' }}>
+                      <p style={{ fontSize: 10, fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6 }}>Team Roster</p>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                        {projEmps.length > 0 && projEmps.some(Boolean) ? projEmps.filter(Boolean).map((emp, eIdx) => (
+                          <div key={eIdx} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 8px', borderRadius: 7, background: '#fff', border: '1px solid #e2e8f0', fontSize: 11, fontWeight: 600, color: '#374151' }}>
+                            <span style={{ width: 5, height: 5, borderRadius: '50%', background: '#223670', flexShrink: 0 }} /> {emp}
+                          </div>
+                        )) : <span style={{ fontSize: 11, color: '#94a3b8', fontStyle: 'italic' }}>No employees yet.</span>}
                       </div>
-                    ) : (
-                      <div className="py-2 text-xs text-slate-500 italic">No head currently assigned to this function.</div>
-                    )}
+                    </div>
                   </div>
                 );
-              })}
-            </div>
-          </div>
-
-          <div className="glass p-5 rounded-2xl border border-slate-800/80 space-y-4">
-            <h3 className="text-sm font-extrabold uppercase tracking-wider text-slate-350">
-              Corporate Business Units Status
-            </h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Delivery Division */}
-              <div className="bg-dark-900/60 border border-slate-800 p-4 rounded-xl space-y-3">
-                <div className="flex items-center justify-between border-b border-slate-800 pb-2">
-                  <h4 className="text-xs font-bold text-emerald-400">Delivery Division (Farming)</h4>
-                  <span className="text-xs text-slate-500 font-medium">Managed under ITG</span>
-                </div>
-                <div className="space-y-2">
-                  <div className="flex justify-between text-xs">
-                    <span className="text-slate-400">Main Delivery Head:</span>
-                    <span className="text-white font-semibold">
-                      {usersList.find(u => (u.userType || u.role) === 'Delivery Head' && !u.position?.toLowerCase().includes('insurance') && !u.position?.toLowerCase().includes('industrial') && !u.position?.toLowerCase().includes('healthcare'))?.name || 'Vacant'}
-                    </span>
-                  </div>
-                  <div className="flex justify-between text-xs">
-                    <span className="text-slate-400">Sub-Divisions:</span>
-                    <span className="text-slate-200">Insurance, Industrial, Healthcare & Mobility</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* P&L Division */}
-              <div className="bg-dark-900/60 border border-slate-800 p-4 rounded-xl space-y-3">
-                <div className="flex items-center justify-between border-b border-slate-800 pb-2">
-                  <h4 className="text-xs font-bold text-purple-400">P&L Division (Hunting & Mining)</h4>
-                  <span className="text-xs text-slate-500 font-medium">Sales Consultation</span>
-                </div>
-                <div className="space-y-2">
-                  <div className="flex justify-between text-xs">
-                    <span className="text-slate-400">P&L BU Head:</span>
-                    <span className="text-white font-semibold">
-                      {usersList.find(u => u.position?.toLowerCase().includes('p&l head'))?.name || 'Vacant'}
-                    </span>
-                  </div>
-                  <div className="flex justify-between text-xs">
-                    <span className="text-slate-400">Key Roster:</span>
-                    <span className="text-slate-200">BFS BU Consultants, Sales Managers</span>
-                  </div>
-                </div>
-              </div>
+              }) : <div style={{ gridColumn: '1/-1', textAlign: 'center', padding: '24px 0', color: '#94a3b8', fontSize: 12 }}>No projects managed yet.</div>}
             </div>
           </div>
         </div>
       )}
 
-      {/* ── FUNCTIONAL HEAD DEPARTMENT OVERVIEW ── */}
-      {user?.userType === 'Functional Head' && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mt-5">
-          {/* Projects under this Department */}
-          <div className="glass p-4 rounded-xl border border-slate-800/80 space-y-3">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">
-              Departmental Projects & SLA Status
-            </h3>
-            
-            <div className="space-y-2.5">
-              {user.projects && user.projects.length > 0 ? (
-                user.projects.map((p, idx) => {
-                  const projName = typeof p === 'string' ? p : p.name;
-                  const employeesCount = typeof p === 'string' ? 0 : (p.employees?.length || 0);
+      {/* CEO */}
+      {user?.userType === 'CEO' && (
+        <div style={{ marginBottom: 20 }}>
+          <div style={{ ...P, marginBottom: 16 }}>
+            <div style={PH}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#6366f1', display: 'inline-block' }} />
+                <span style={{ fontSize: 13, fontWeight: 800, color: '#0f172a' }}>Corporate Heads Directory & Operations</span>
+              </div>
+            </div>
+            <div style={{ padding: '16px 20px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 12 }}>
+                {['Finance Head', 'Global HR Head', 'ITG Head', 'NDA Head', 'TC Head', 'Quality Head'].map(pos => {
+                  const head = usersList.find(u => u.position?.toLowerCase().includes(pos.toLowerCase().replace(' head', '')) || u.position?.toLowerCase() === pos.toLowerCase());
                   return (
-                    <div key={idx} className="bg-dark-900/40 border border-slate-800/60 p-3 rounded-lg flex items-center justify-between text-xs animate-soft-pulse">
-                      <div className="space-y-0.5">
-                        <span className="font-bold text-slate-200">📁 {projName}</span>
-                        <span className="text-xs text-slate-500 block">Overseeing {employeesCount} assigned employee(s)</span>
+                    <div key={pos} style={{ background: '#f8fafc', border: `1px solid ${head ? '#bbf7d0' : '#fecaca'}`, borderRadius: 12, padding: 14 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                        <span style={{ fontSize: 10, fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.07em' }}>{pos}</span>
+                        <span style={{ fontSize: 9, fontWeight: 800, padding: '2px 8px', borderRadius: 999, background: head ? '#f0fdf4' : '#fef2f2', color: head ? '#16a34a' : '#dc2626', border: `1px solid ${head ? '#bbf7d0' : '#fecaca'}` }}>
+                          {head ? 'ACTIVE' : 'VACANT'}
+                        </span>
                       </div>
-                      <span className="bg-primary/10 border border-primary/20 text-primary text-xs px-2 py-0.5 rounded font-black tracking-wider">
-                        ACTIVE IN PROGRESS
-                      </span>
+                      {head ? (
+                        <div>
+                          <p style={{ fontSize: 12, fontWeight: 800, color: '#0f172a', marginBottom: 2 }}>{head.name}</p>
+                          <p style={{ fontSize: 11, color: '#64748b', marginBottom: 6 }}>{head.email}</p>
+                          <div style={{ display: 'flex', gap: 8, fontSize: 10, color: '#94a3b8', fontWeight: 600 }}>
+                            <span>📁 {head.projects?.length || 0} Projects</span>
+                            <span>•</span>
+                            <span>👥 {head.employees?.length || 0} Members</span>
+                          </div>
+                        </div>
+                      ) : <p style={{ fontSize: 11, color: '#94a3b8', fontStyle: 'italic' }}>No head currently assigned.</p>}
                     </div>
                   );
-                })
-              ) : (
-                <div className="text-xs text-slate-550 py-2 italic text-center">No active projects logged for this department.</div>
-              )}
+                })}
+              </div>
             </div>
           </div>
-
-          {/* Department Staff & Directory */}
-          <div className="glass p-4 rounded-xl border border-slate-800/80 space-y-3">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">
-              Department Operations & Headcount
-            </h3>
-            
-            <div className="space-y-2">
-              <span className="text-xs text-slate-500 font-bold uppercase block pb-1 border-b border-slate-850">Active Employees Directory</span>
-              <div className="grid grid-cols-1 gap-2 mt-2">
-                {user.employees && user.employees.length > 0 ? (
-                  user.employees.map(emp => (
-                    <div key={emp} className="bg-dark-900/60 border border-slate-800/60 p-2.5 rounded-lg text-xs font-bold text-slate-350 flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <div className="bg-primary/10 border border-primary/25 text-primary w-5 h-5 rounded flex items-center justify-center font-bold text-xs">
-                          {emp.substring(0, 2).toUpperCase()}
-                        </div>
-                        <span className="text-slate-200 font-semibold">{emp}</span>
-                      </div>
-                      <span className="text-xs bg-slate-800 px-2 py-0.5 border border-slate-700/65 text-slate-400 rounded-full font-semibold uppercase">{user.department || 'Staff'} team</span>
+          <div style={P}>
+            <div style={PH}><div style={ST}><span style={{ width: 6, height: 6, borderRadius: '50%', background: '#223670', display: 'inline-block' }} />Corporate Business Units Status</div></div>
+            <div style={{ padding: '16px 20px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 12, padding: 14 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: 8, borderBottom: '1px solid #dcfce7', marginBottom: 10 }}>
+                    <h4 style={{ fontSize: 12, fontWeight: 800, color: '#16a34a', margin: 0 }}>Delivery Division (Farming)</h4>
+                    <span style={{ fontSize: 10, color: '#64748b', fontWeight: 500 }}>Managed under ITG</span>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 12 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span style={{ color: '#64748b' }}>Main Delivery Head:</span>
+                      <span style={{ fontWeight: 700, color: '#0f172a' }}>
+                        {usersList.find(u => (u.userType || u.role) === 'Delivery Head' && !u.position?.toLowerCase().includes('insurance') && !u.position?.toLowerCase().includes('industrial') && !u.position?.toLowerCase().includes('healthcare'))?.name || 'Vacant'}
+                      </span>
                     </div>
-                  ))
-                ) : (
-                  <span className="text-xs text-slate-500 text-center block py-2 italic">No employee records mapped to this department.</span>
-                )}
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span style={{ color: '#64748b' }}>Sub-Divisions:</span>
+                      <span style={{ fontWeight: 600, color: '#374151', textAlign: 'right', maxWidth: '60%' }}>Insurance, Industrial, Healthcare & Mobility</span>
+                    </div>
+                  </div>
+                </div>
+                <div style={{ background: '#faf5ff', border: '1px solid #e9d5ff', borderRadius: 12, padding: 14 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: 8, borderBottom: '1px solid #ede9fe', marginBottom: 10 }}>
+                    <h4 style={{ fontSize: 12, fontWeight: 800, color: '#7c3aed', margin: 0 }}>P&L Division (Hunting & Mining)</h4>
+                    <span style={{ fontSize: 10, color: '#64748b', fontWeight: 500 }}>Sales Consultation</span>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 12 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span style={{ color: '#64748b' }}>P&L BU Head:</span>
+                      <span style={{ fontWeight: 700, color: '#0f172a' }}>{usersList.find(u => u.position?.toLowerCase().includes('p&l head'))?.name || 'Vacant'}</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span style={{ color: '#64748b' }}>Key Roster:</span>
+                      <span style={{ fontWeight: 600, color: '#374151' }}>BFS BU Consultants, Sales Managers</span>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
         </div>
       )}
 
-      {/* Completion Note Modal */}
-      {completionModalState.isOpen && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
-          <div className="bg-white border border-dark-800 w-full max-w-md rounded-2xl p-6 shadow-2xl relative">
-            <button 
-              onClick={() => {
-                setCompletionModalState({ isOpen: false, task: null, newStatus: '' });
-                setCompletionNote('');
-                setCompletionFile(null);
-              }}
-              className="absolute top-4 right-4 p-1.5 rounded-lg bg-dark-700 hover:bg-dark-800 text-slate-500 hover:text-black transition-colors cursor-pointer"
-            >
-              <X className="w-4 h-4" />
-            </button>
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-full bg-emerald-5 border border-emerald-100 flex items-center justify-center shrink-0">
-                <CheckSquare className="w-5 h-5 text-emerald-600" />
-              </div>
-              <div>
-                <h3 className="text-sm font-black text-black">Complete Task</h3>
-                <p className="text-xs text-black font-semibold">Send a note back to {completionModalState.task?.loggedByName}</p>
+      {/* FUNCTIONAL HEAD */}
+      {user?.userType === 'Functional Head' && (
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 20 }}>
+          <div style={P}>
+            <div style={PH}><div style={ST}><span style={{ width: 6, height: 6, borderRadius: '50%', background: '#223670', display: 'inline-block' }} />Departmental Projects & SLA</div></div>
+            <div style={{ padding: '16px 20px' }}>
+              {user.projects && user.projects.length > 0 ? user.projects.map((p, idx) => {
+                const projName = typeof p === 'string' ? p : p.name;
+                const employeesCount = typeof p === 'string' ? 0 : (p.employees?.length || 0);
+                return (
+                  <div key={idx} style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 10, padding: '10px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, fontSize: 12 }}>
+                    <div>
+                      <p style={{ fontWeight: 800, color: '#0f172a', margin: '0 0 2px' }}>📁 {projName}</p>
+                      <p style={{ fontSize: 10, color: '#94a3b8', margin: 0 }}>Overseeing {employeesCount} employee(s)</p>
+                    </div>
+                    <span style={{ fontSize: 10, fontWeight: 800, padding: '3px 10px', borderRadius: 999, background: '#eef1f9', color: '#223670', border: '1px solid #c5ceea' }}>ACTIVE</span>
+                  </div>
+                );
+              }) : <p style={{ fontSize: 12, color: '#94a3b8', textAlign: 'center', padding: '16px 0', fontStyle: 'italic' }}>No active projects logged.</p>}
+            </div>
+          </div>
+          <div style={P}>
+            <div style={PH}><div style={ST}><span style={{ width: 6, height: 6, borderRadius: '50%', background: '#223670', display: 'inline-block' }} />Department Operations & Headcount</div></div>
+            <div style={{ padding: '16px 20px' }}>
+              <p style={{ fontSize: 10, fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>Active Employees</p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {user.employees && user.employees.length > 0 ? user.employees.map(emp => (
+                  <div key={emp} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 10, padding: '8px 12px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <div style={{ width: 28, height: 28, borderRadius: 7, background: '#eef1f9', border: '1px solid #c5ceea', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 800, color: '#223670' }}>
+                        {emp.substring(0, 2).toUpperCase()}
+                      </div>
+                      <span style={{ fontSize: 12, fontWeight: 700, color: '#374151' }}>{emp}</span>
+                    </div>
+                    <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 999, background: '#f8fafc', border: '1px solid #e2e8f0', color: '#64748b' }}>{user.department || 'Staff'} team</span>
+                  </div>
+                )) : <p style={{ fontSize: 12, color: '#94a3b8', textAlign: 'center', fontStyle: 'italic' }}>No employee records mapped.</p>}
               </div>
             </div>
-            
+          </div>
+        </div>
+      )}
+
+      {/* COMPLETION MODAL */}
+      {completionModalState.isOpen && (
+        <div style={MO}>
+          <div style={MB}>
+            <button style={MC} onClick={() => { setCompletionModalState({ isOpen: false, task: null, newStatus: '' }); setCompletionNote(''); setCompletionFile(null); }}><X size={14} /></button>
+            <div style={{ display: 'flex', alignItems: 'center', marginBottom: 20 }}>
+              <div style={{ width: 44, height: 44, borderRadius: 12, background: 'linear-gradient(135deg,#d1fae5,#a7f3d0)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginRight: 14, flexShrink: 0 }}><CheckSquare size={20} color="#059669" /></div>
+              <div>
+                <h3 style={{ fontSize: 15, fontWeight: 800, color: '#0f172a', margin: '0 0 2px' }}>Complete Task</h3>
+                <p style={{ fontSize: 12, color: '#64748b', fontWeight: 500, margin: 0 }}>Send a note back to {completionModalState.task?.loggedByName}</p>
+              </div>
+            </div>
             <form onSubmit={async (e) => {
               e.preventDefault();
               const { task, newStatus } = completionModalState;
               const taskKey = task.isInteractionTask ? `${task.interactionId}-${task.uid}` : task.taskId;
-              
               let finalNote = `Task Completion Note: ${completionNote.trim() || 'No note provided'}`;
               if (completionFile) {
                 const uploaded = await uploadFile(completionFile);
-                if (uploaded && uploaded.url) {
-                  finalNote += `\n\n📎 Attached: [${uploaded.name}](${uploaded.url})`;
-                }
+                if (uploaded && uploaded.url) finalNote += `\n\n📎 Attached: [${uploaded.name}](${uploaded.url})`;
               }
-
               if (task.isInteractionTask) {
                 const ok = await updateTaskStatus(task.interactionId, task.uid, newStatus);
-                if (ok) {
-                  if (completionNote.trim() || completionFile) {
-                    await replyToInteraction(task.interactionId, finalNote);
-                  }
-                  fetchInteractions();
-                }
+                if (ok) { if (completionNote.trim() || completionFile) await replyToInteraction(task.interactionId, finalNote); fetchInteractions(); }
               } else {
                 const ok = await updateStaffTaskStatus(task.taskId, newStatus, finalNote, finalNote);
-                if (ok) {
-                  fetchStaffTasks('assigned-to-me');
-                }
+                if (ok) fetchStaffTasks('assigned-to-me');
               }
               setTaskStatuses(prev => ({ ...prev, [taskKey]: newStatus }));
-              setCompletionModalState({ isOpen: false, task: null, newStatus: '' });
-              setCompletionNote('');
-              setCompletionFile(null);
-            }} className="space-y-4">
+              setCompletionModalState({ isOpen: false, task: null, newStatus: '' }); setCompletionNote(''); setCompletionFile(null);
+            }} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
               <div>
-                <label className="block text-xs font-bold text-black mb-1.5">Completion Note</label>
-                <textarea
-                  value={completionNote}
-                  onChange={(e) => setCompletionNote(e.target.value)}
-                  className="w-full bg-dark-700 border border-dark-800 rounded-xl p-3 text-xs text-black focus:outline-none focus:border-emerald-500/50 min-h-[100px]"
-                  placeholder="E.g., Task completed successfully. Attached the required files."
-                  required
-                />
+                <label style={FL}>Completion Note</label>
+                <textarea value={completionNote} onChange={e => setCompletionNote(e.target.value)} style={{ ...FI, minHeight: 100 }} placeholder="E.g., Task completed successfully." required />
               </div>
               <div>
-                <label className="block text-xs font-bold text-black mb-1.5">Attachments (Optional)</label>
-                <input
-                  type="file"
-                  onChange={(e) => setCompletionFile(e.target.files[0])}
-                  className="w-full text-xs text-black file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border file:border-dark-800 file:text-xs file:font-semibold file:bg-dark-700 file:text-black hover:file:bg-dark-800"
-                />
+                <label style={FL}>Attachments (Optional)</label>
+                <input type="file" onChange={e => setCompletionFile(e.target.files[0])} style={{ fontSize: 12, color: '#374151' }} />
               </div>
-              <div className="flex justify-end pt-2">
-                <button
-                  type="submit"
-                  className="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl transition-all"
-                >
-                  Mark Completed
-                </button>
+              <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                <button type="submit" style={SB('linear-gradient(135deg,#059669,#10b981)')}>Mark Completed</button>
               </div>
             </form>
           </div>
         </div>
       )}
 
-      {/* Forward Task Modal */}
+      {/* FORWARD MODAL */}
       {forwardModalState.isOpen && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
-          <div className="bg-white border border-dark-800 w-full max-w-md rounded-2xl p-6 shadow-2xl relative">
-            <button 
-              onClick={() => {
-                setForwardModalState({ isOpen: false, task: null, newStatus: 'Forwarded' });
-                setForwardToUid('');
-                setForwardReason('');
-                setForwardFile(null);
-              }}
-              className="absolute top-4 right-4 p-1.5 rounded-lg bg-dark-700 hover:bg-dark-800 text-slate-500 hover:text-black transition-colors cursor-pointer"
-            >
-              <X className="w-4 h-4" />
-            </button>
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-full bg-blue-5 border border-blue-100 flex items-center justify-center shrink-0">
-                <Send className="w-5 h-5 text-blue-500" />
-              </div>
+        <div style={MO}>
+          <div style={MB}>
+            <button style={MC} onClick={() => { setForwardModalState({ isOpen: false, task: null, newStatus: 'Forwarded' }); setForwardToUid(''); setForwardReason(''); setForwardFile(null); }}><X size={14} /></button>
+            <div style={{ display: 'flex', alignItems: 'center', marginBottom: 20 }}>
+              <div style={{ width: 44, height: 44, borderRadius: 12, background: 'linear-gradient(135deg,#dde3f2,#c5ceea)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginRight: 14, flexShrink: 0 }}><Send size={20} color="#2b4590" /></div>
               <div>
-                <h3 className="text-sm font-black text-black">Forward Task</h3>
-                <p className="text-xs text-black font-semibold">Select a team member to forward this task to</p>
+                <h3 style={{ fontSize: 15, fontWeight: 800, color: '#0f172a', margin: '0 0 2px' }}>Forward Task</h3>
+                <p style={{ fontSize: 12, color: '#64748b', fontWeight: 500, margin: 0 }}>Select a team member to forward this task to</p>
               </div>
             </div>
-            
-            <form onSubmit={handleForwardSubmit} className="space-y-4 text-xs font-semibold">
-              <div className="space-y-1.5">
-                <label className="block text-xs font-bold text-black">Forward To</label>
-                <select
-                  value={forwardToUid}
-                  onChange={(e) => setForwardToUid(e.target.value)}
-                  className="w-full bg-dark-700 border border-dark-800 rounded-xl p-3 text-xs text-black outline-none focus:border-blue-500/50 cursor-pointer font-semibold"
-                  required
-                >
+            <form onSubmit={handleForwardSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <div>
+                <label style={FL}>Forward To</label>
+                <select value={forwardToUid} onChange={e => setForwardToUid(e.target.value)} style={FS} required>
                   <option value="">Select Team Member</option>
-                  {(staffList || [])
-                    .filter(s => s.uid !== user?.uid)
-                    .map(s => (
-                      <option key={s.uid} value={s.uid}>
-                        {s.name} ({s.role || s.position || 'Team Member'})
-                      </option>
-                    ))}
+                  {(staffList || []).filter(s => s.uid !== user?.uid).map(s => (
+                    <option key={s.uid} value={s.uid}>{s.name} ({s.role || s.position || 'Team Member'})</option>
+                  ))}
                 </select>
               </div>
-              <div className="space-y-1.5">
-                <label className="block text-xs font-bold text-black">Forwarding Note / Reason</label>
-                <textarea
-                  value={forwardReason}
-                  onChange={(e) => setForwardReason(e.target.value)}
-                  className="w-full bg-dark-700 border border-dark-800 rounded-xl p-3 text-xs text-black outline-none focus:border-blue-500/50 min-h-[100px]"
-                  placeholder="E.g., Forwarding to you as you are leading the deployment module."
-                />
+              <div>
+                <label style={FL}>Forwarding Note / Reason</label>
+                <textarea value={forwardReason} onChange={e => setForwardReason(e.target.value)} style={{ ...FI, minHeight: 90 }} placeholder="E.g., Forwarding as you are leading the deployment module." />
               </div>
-              <div className="space-y-1.5">
-                <label className="block text-xs font-bold text-black">Attachments (Optional)</label>
-                <input
-                  type="file"
-                  onChange={(e) => setForwardFile(e.target.files[0])}
-                  className="w-full text-xs text-black file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border file:border-dark-800 file:text-xs file:font-semibold file:bg-dark-700 file:text-black hover:file:bg-dark-800"
-                />
+              <div>
+                <label style={FL}>Attachments (Optional)</label>
+                <input type="file" onChange={e => setForwardFile(e.target.files[0])} style={{ fontSize: 12, color: '#374151' }} />
               </div>
-              <div className="flex justify-end pt-2">
-                <button
-                  type="submit"
-                  disabled={!forwardToUid}
-                  className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-bold rounded-xl transition-all cursor-pointer shadow-lg shadow-blue-600/15"
-                >
-                  Forward Task
-                </button>
+              <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                <button type="submit" disabled={!forwardToUid} style={{ ...SB('linear-gradient(135deg,#1a2d5a,#2b4590)'), opacity: !forwardToUid ? 0.5 : 1 }}>Forward Task</button>
               </div>
             </form>
           </div>
         </div>
       )}
 
-      {/* Accept Task Modal */}
+      {/* ACCEPT MODAL */}
       {acceptModalState.isOpen && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
-          <div className="bg-white border border-dark-800 w-full max-w-md rounded-2xl p-6 shadow-2xl relative">
-            <button
-              onClick={() => {
-                setAcceptModalState({ isOpen: false, task: null });
-                setAcceptNote('');
-              }}
-              className="absolute top-4 right-4 p-1.5 rounded-lg bg-dark-700 hover:bg-dark-800 text-slate-500 hover:text-black transition-colors cursor-pointer"
-            >
-              <X className="w-4 h-4" />
-            </button>
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-full bg-amber-5 border border-amber-100 flex items-center justify-center shrink-0">
-                <ThumbsUp className="w-5 h-5 text-amber-500" />
-              </div>
+        <div style={MO}>
+          <div style={MB}>
+            <button style={MC} onClick={() => { setAcceptModalState({ isOpen: false, task: null }); setAcceptNote(''); }}><X size={14} /></button>
+            <div style={{ display: 'flex', alignItems: 'center', marginBottom: 20 }}>
+              <div style={{ width: 44, height: 44, borderRadius: 12, background: 'linear-gradient(135deg,#fef3c7,#fde68a)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginRight: 14, flexShrink: 0 }}><ThumbsUp size={20} color="#d97706" /></div>
               <div>
-                <h3 className="text-sm font-black text-black">Accept Task</h3>
-                <p className="text-xs text-black font-semibold">Confirm acceptance and optionally add a note</p>
+                <h3 style={{ fontSize: 15, fontWeight: 800, color: '#0f172a', margin: '0 0 2px' }}>Accept Task</h3>
+                <p style={{ fontSize: 12, color: '#64748b', fontWeight: 500, margin: 0 }}>Confirm acceptance and optionally add a note</p>
               </div>
             </div>
-
-            <form
-              onSubmit={async (e) => {
-                e.preventDefault();
-                const { task } = acceptModalState;
-                const taskKey = task.isInteractionTask ? `${task.interactionId}-${task.uid}` : task.taskId;
-                if (task.isInteractionTask) {
-                  const ok = await updateTaskStatus(task.interactionId, task.uid, 'Accept');
-                  if (ok) {
-                    if (acceptNote.trim()) {
-                      await replyToInteraction(task.interactionId, `Acceptance Note: ${acceptNote}`);
-                    }
-                    fetchInteractions();
-                  }
-                } else {
-                  const ok = await updateStaffTaskStatus(task.taskId, 'Accept', '', acceptNote.trim());
-                  if (ok) {
-                    fetchStaffTasks('assigned-to-me');
-                  }
-                }
-                setTaskStatuses(prev => ({ ...prev, [taskKey]: 'Accept' }));
-                setAcceptModalState({ isOpen: false, task: null });
-                setAcceptNote('');
-              }}
-              className="space-y-4 text-xs font-semibold"
-            >
-              <div className="space-y-1.5">
-                <label className="block text-xs font-bold text-black">Acceptance Note (Optional)</label>
-                <textarea
-                  value={acceptNote}
-                  onChange={(e) => setAcceptNote(e.target.value)}
-                  className="w-full bg-dark-700 border border-dark-800 rounded-xl p-3 text-xs text-black focus:outline-none focus:border-amber-550/50 min-h-[100px]"
-                  placeholder="E.g., I will begin working on this task immediately."
-                />
+            <form onSubmit={async (e) => {
+              e.preventDefault();
+              const { task } = acceptModalState;
+              const taskKey = task.isInteractionTask ? `${task.interactionId}-${task.uid}` : task.taskId;
+              if (task.isInteractionTask) {
+                const ok = await updateTaskStatus(task.interactionId, task.uid, 'Accept');
+                if (ok) { if (acceptNote.trim()) await replyToInteraction(task.interactionId, `Acceptance Note: ${acceptNote}`); fetchInteractions(); }
+              } else {
+                const ok = await updateStaffTaskStatus(task.taskId, 'Accept', '', acceptNote.trim());
+                if (ok) fetchStaffTasks('assigned-to-me');
+              }
+              setTaskStatuses(prev => ({ ...prev, [taskKey]: 'Accept' }));
+              setAcceptModalState({ isOpen: false, task: null }); setAcceptNote('');
+            }} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <div>
+                <label style={FL}>Acceptance Note (Optional)</label>
+                <textarea value={acceptNote} onChange={e => setAcceptNote(e.target.value)} style={{ ...FI, minHeight: 100 }} placeholder="E.g., I will begin working on this task immediately." />
               </div>
-              <div className="flex justify-end pt-2">
-                <button
-                  type="submit"
-                  className="px-5 py-2.5 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-xl transition-all cursor-pointer shadow-lg shadow-amber-600/15"
-                >
-                  Accept Task
-                </button>
+              <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                <button type="submit" style={SB('linear-gradient(135deg,#d97706,#f59e0b)')}>Accept Task</button>
               </div>
             </form>
           </div>
         </div>
       )}
 
-      {/* Decline Task Modal */}
+      {/* DECLINE MODAL */}
       {declineModalState.isOpen && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
-          <div className="bg-white border border-dark-800 w-full max-w-md rounded-2xl p-6 shadow-2xl relative">
-            <button
-              onClick={() => {
-                setDeclineModalState({ isOpen: false, task: null });
-                setDeclineReason('');
-              }}
-              className="absolute top-4 right-4 p-1.5 rounded-lg bg-dark-700 hover:bg-dark-800 text-slate-500 hover:text-black transition-colors cursor-pointer"
-            >
-              <X className="w-4 h-4" />
-            </button>
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-full bg-rose-5 border border-rose-100 flex items-center justify-center shrink-0">
-                <ShieldAlert className="w-5 h-5 text-rose-600" />
-              </div>
+        <div style={MO}>
+          <div style={MB}>
+            <button style={MC} onClick={() => { setDeclineModalState({ isOpen: false, task: null }); setDeclineReason(''); }}><X size={14} /></button>
+            <div style={{ display: 'flex', alignItems: 'center', marginBottom: 20 }}>
+              <div style={{ width: 44, height: 44, borderRadius: 12, background: 'linear-gradient(135deg,#fee2e2,#fecaca)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginRight: 14, flexShrink: 0 }}><ShieldAlert size={20} color="#dc2626" /></div>
               <div>
-                <h3 className="text-sm font-black text-black">Decline Task</h3>
-                <p className="text-xs text-black font-semibold">Provide a reason for declining this task</p>
+                <h3 style={{ fontSize: 15, fontWeight: 800, color: '#0f172a', margin: '0 0 2px' }}>Decline Task</h3>
+                <p style={{ fontSize: 12, color: '#64748b', fontWeight: 500, margin: 0 }}>Provide a reason for declining this task</p>
               </div>
             </div>
-
-            <form
-              onSubmit={async (e) => {
-                e.preventDefault();
-                const { task } = declineModalState;
-                const taskKey = task.isInteractionTask ? `${task.interactionId}-${task.uid}` : task.taskId;
-                if (task.isInteractionTask) {
-                  const ok = await updateTaskStatus(task.interactionId, task.uid, 'Decline');
-                  if (ok) {
-                    if (declineReason.trim()) {
-                      await replyToInteraction(task.interactionId, `Decline Reason: ${declineReason}`);
-                    }
-                    fetchInteractions();
-                  }
-                } else {
-                  const ok = await updateStaffTaskStatus(task.taskId, 'Decline', '', declineReason.trim());
-                  if (ok) {
-                    fetchStaffTasks('assigned-to-me');
-                  }
-                }
-                setTaskStatuses(prev => ({ ...prev, [taskKey]: 'Decline' }));
-                setDeclineModalState({ isOpen: false, task: null });
-                setDeclineReason('');
-              }}
-              className="space-y-4 text-xs font-semibold"
-            >
-              <div className="space-y-1.5">
-                <label className="block text-xs font-bold text-black">Reason for Declining</label>
-                <textarea
-                  value={declineReason}
-                  onChange={(e) => setDeclineReason(e.target.value)}
-                  className="w-full bg-dark-700 border border-dark-800 rounded-xl p-3 text-xs text-black focus:outline-none focus:border-rose-550/50 min-h-[100px]"
-                  placeholder="E.g., Unable to complete due to conflicting priorities or missing resources."
-                  required
-                />
+            <form onSubmit={async (e) => {
+              e.preventDefault();
+              const { task } = declineModalState;
+              const taskKey = task.isInteractionTask ? `${task.interactionId}-${task.uid}` : task.taskId;
+              if (task.isInteractionTask) {
+                const ok = await updateTaskStatus(task.interactionId, task.uid, 'Decline');
+                if (ok) { if (declineReason.trim()) await replyToInteraction(task.interactionId, `Decline Reason: ${declineReason}`); fetchInteractions(); }
+              } else {
+                const ok = await updateStaffTaskStatus(task.taskId, 'Decline', '', declineReason.trim());
+                if (ok) fetchStaffTasks('assigned-to-me');
+              }
+              setTaskStatuses(prev => ({ ...prev, [taskKey]: 'Decline' }));
+              setDeclineModalState({ isOpen: false, task: null }); setDeclineReason('');
+            }} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <div>
+                <label style={FL}>Reason for Declining</label>
+                <textarea value={declineReason} onChange={e => setDeclineReason(e.target.value)} style={{ ...FI, minHeight: 100 }} placeholder="E.g., Unable to complete due to conflicting priorities." required />
               </div>
-              <div className="flex justify-end pt-2">
-                <button
-                  type="submit"
-                  className="px-5 py-2.5 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-xl transition-all cursor-pointer shadow-lg shadow-rose-600/15"
-                >
-                  Submit Decline
-                </button>
+              <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                <button type="submit" style={SB('linear-gradient(135deg,#dc2626,#ef4444)')}>Submit Decline</button>
               </div>
             </form>
           </div>
