@@ -118,10 +118,8 @@ export function startSyncScheduler() {
     clearInterval(syncTimer);
   }
   
-  // Run synchronization on startup (with a small 5s delay to let server boot up first)
-  setTimeout(() => {
-    syncEmployees();
-  }, 5000);
+  // Run synchronization immediately on startup
+  syncEmployees();
   
   // Set up periodic sync
   syncTimer = setInterval(() => {
