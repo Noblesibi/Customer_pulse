@@ -328,20 +328,6 @@ router.get('/stats', async (req, res) => {
       });
     }
 
-    // UC-40: Recommend Festival Greeting (Diwali approaching in 5 days)
-    const today = new Date();
-    today.setHours(0,0,0,0);
-    const diwaliDate = new Date(today);
-    diwaliDate.setDate(today.getDate() + 5);
-    const diwaliStr = diwaliDate.toLocaleDateString();
-
-    aiRecommendations.push({
-      id: 'rec-festival-diwali',
-      title: 'Recommend Festival Greeting: Diwali',
-      description: `Diwali is approaching in 5 days (${diwaliStr}). Prepare and send warm festival greetings to your key client stakeholders.`,
-      priority: 'Medium'
-    });
-
     // UC-43: Upcoming Customer Commitments scanner
     const upcomingCommitments = [];
     const todayDate = new Date();

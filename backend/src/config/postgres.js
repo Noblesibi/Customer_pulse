@@ -33,7 +33,8 @@ const tableMap = {
   taskreplies: 'TaskReplies',
   emailqueue: 'EmailQueue',
   emailtemplates: 'EmailTemplates',
-  emaillogs: 'EmailLogs'
+  emaillogs: 'EmailLogs',
+  notificationpreferences: 'NotificationPreferences'
 };
 
 // Map collection names to primary key fields
@@ -52,7 +53,8 @@ const keyFields = {
   taskreplies: 'replyId',
   emailqueue: 'queueId',
   emailtemplates: 'templateId',
-  emaillogs: 'logId'
+  emaillogs: 'logId',
+  notificationpreferences: 'uid'
 };
 
 /**
@@ -84,6 +86,12 @@ function parseRow(tableName, row) {
   
   if (tableName === 'Notifications') {
     data.read = !!data.read;
+  }
+
+  if (tableName === 'EmailQueue') {
+    if (typeof data.variables === 'string') {
+      try { data.variables = JSON.parse(data.variables); } catch (e) { data.variables = {}; }
+    }
   }
   
   // Ensure dates are stringified back into ISO strings for application uniformity
@@ -455,6 +463,30 @@ class FirestoreSQLAdapter {
 const db = new FirestoreSQLAdapter();
 
 /**
+ * Ensures target database exists, creating it via postgres default DB if missing.
+ */
+async function ensureDatabaseExists() {
+  const targetDb = config.database;
+  if (!targetDb) return;
+  const bootstrapConfig = { ...config, database: 'postgres' };
+  const client = new pg.Client(bootstrapConfig);
+  try {
+    await client.connect();
+    const checkRes = await client.query('SELECT 1 FROM pg_database WHERE datname = $1', [targetDb]);
+    if (checkRes.rows.length === 0) {
+      console.log(`🛠️ Database "${targetDb}" does not exist. Creating database...`);
+      const safeDbName = targetDb.replace(/"/g, '""');
+      await client.query(`CREATE DATABASE "${safeDbName}"`);
+      console.log(`✅ Database "${targetDb}" created successfully.`);
+    }
+  } catch (err) {
+    console.warn(`⚠️ Warning during database existence check: ${err.message}`);
+  } finally {
+    await client.end().catch(() => {});
+  }
+}
+
+/**
  * Retrieves the initialized PostgreSQL pool, connecting if needed.
  */
 async function getPool() {
@@ -471,6 +503,7 @@ async function getPool() {
 async function initializeDatabase() {
   let connection;
   try {
+    await ensureDatabaseExists();
     connection = await getPool();
     console.log('\uD83D\uDD0C Connected to PostgreSQL Server successfully.');
     

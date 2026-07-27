@@ -482,42 +482,6 @@ export default function Dashboard() {
         {/* Sidebar */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
 
-          {/* AI Guidance */}
-          <div style={P}>
-            <div style={PH}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <div style={IB('linear-gradient(135deg, #16244b, #223670)')}><Sparkles size={15} color="white" /></div>
-                <div>
-                  <p style={{ fontSize: 13, fontWeight: 800, color: '#0f172a', margin: 0 }}>AI Relationship Guidance</p>
-                  <p style={{ fontSize: 10, color: '#94a3b8', fontWeight: 500, margin: 0 }}>Powered by REL Intelligence</p>
-                </div>
-              </div>
-            </div>
-            <div style={{ padding: '14px 16px' }}>
-              {widgets.aiRecommendations.length === 0 ? (
-                <div style={{ textAlign: 'center', padding: '24px 0', color: '#94a3b8' }}>
-                  <Sparkles size={28} style={{ margin: '0 auto 8px', opacity: 0.3 }} />
-                  <p style={{ fontSize: 12, fontWeight: 600 }}>No recommendations yet</p>
-                </div>
-              ) : widgets.aiRecommendations.map(rec => (
-                <div key={rec.id} style={{ background: 'linear-gradient(135deg,#eef2f9,#f4f6fc)', border: '1px solid #c7d1e8', borderRadius: 12, padding: '12px 14px', marginBottom: 8, display: 'flex', alignItems: 'flex-start', gap: 10 }}>
-                  <div style={{ width: 30, height: 30, borderRadius: 8, background: 'linear-gradient(135deg, #16244b, #223670)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                    <Sparkles size={13} color="white" />
-                  </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <p style={{ fontSize: 12, fontWeight: 800, color: '#0f172a', margin: '0 0 3px' }}>{rec.title}</p>
-                    <p style={{ fontSize: 11, color: '#475569', lineHeight: 1.5, margin: 0 }}>{rec.description}</p>
-                    {rec.priority && (
-                      <span style={{ display: 'inline-block', marginTop: 6, fontSize: 10, fontWeight: 800, padding: '2px 8px', borderRadius: 999, background: rec.priority === 'High' ? '#fef2f2' : '#eef2f9', color: rec.priority === 'High' ? '#dc2626' : '#223670' }}>
-                        {rec.priority} Priority
-                      </span>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
           {/* Top Risks */}
           <div style={P}>
             <div style={PH}>
