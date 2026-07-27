@@ -124,7 +124,7 @@ router.post('/', (req, res, next) => {
 }, async (req, res) => {
   const {
     companyName, industry, region, email, phone, ceoName, domain, ownerId, ownerName, contacts,
-    contactName, contactEmail, contactPhone, contactPosition, contactDepartment, contactProjects
+    contactName, contactEmail, contactPhone, contactPosition, contactDepartment, contactProjects, projectName
   } = req.body;
 
   // ── Input Validation ───────────────────────────────────────
