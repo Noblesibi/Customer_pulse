@@ -43,12 +43,21 @@ export default function AccountDetails() {
 
   const [account, setAccount] = useState(null);
   const [loading, setLoading] = useState(true);
+
+  // Owner searchable dropdown state
+  const [ownerSearch, setOwnerSearch] = useState('');
+  const [showOwnerDropdown, setShowOwnerDropdown] = useState(false);
+  const [stakeholderSearch, setStakeholderSearch] = useState({});
+  const [showStakeholderDropdown, setShowStakeholderDropdown] = useState({});
   
   // Modals state
   const [isLogInteractionOpen, setIsLogInteractionOpen] = useState(false);
   const [isHealthExplanationOpen, setIsHealthExplanationOpen] = useState(false);
   const [explanationData, setExplanationData] = useState(null);
   const [explanationLoading, setExplanationLoading] = useState(false);
+
+  // Permission: only Admin role OR user whose name starts with 'Nazneen'
+  const canEditOwners = user?.role === 'Admin' || user?.name?.toLowerCase().startsWith('nazneen');
 
   const getLocalDateString = () => {
     const d = new Date();
@@ -348,9 +357,9 @@ export default function AccountDetails() {
         <div className="lg:col-span-5 space-y-6">
           
           {/* Corporate details Card */}
-          <div className="glass p-6 rounded-2xl border border-slate-800/80 space-y-5">
+          <div className="glass p-6 rounded-2xl border border-slate-800/80 space-y-5 overflow-visible relative z-30">
             <h3 className="text-sm font-extrabold uppercase tracking-widest text-slate-400 border-b border-slate-850 pb-2">Corporate Profile</h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-4 overflow-visible">
               <div className="p-4 bg-slate-900/40 rounded-xl border border-slate-850 flex flex-col gap-1.5">
                 <span className="text-[10px] text-slate-500 font-black uppercase tracking-wider">CEO / Executive Head</span>
                 <span className="text-sm text-slate-200 font-bold">{account.ceoName || 'Not Specified'}</span>
@@ -369,38 +378,62 @@ export default function AccountDetails() {
               </div>
 
               {/* Owner selection dropdown */}
-              <div className="sm:col-span-2 lg:col-span-1 p-4 bg-slate-905/40 rounded-xl border border-slate-800 flex flex-col gap-3">
+              <div className="sm:col-span-2 lg:col-span-1 p-4 bg-slate-905/40 rounded-xl border border-slate-800 flex flex-col gap-3 overflow-visible relative z-30">
                 <div className="flex flex-col gap-0.5">
                   <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">Account Owner</span>
                   <span className="text-slate-200 font-bold text-sm">{account.ownerName || 'Unassigned'}</span>
                 </div>
-                {['Admin', 'Sales Manager', 'Executive'].includes(user?.role) ? (
-                  <select
-                    value={account.ownerId || ''}
-                    disabled={staffList.length === 0}
-                    onChange={async (e) => {
-                      const newOwnerId = e.target.value;
-                      const selectedUser = staffList.find(s => s.uid === newOwnerId);
-                      const newOwnerName = selectedUser ? selectedUser.name : 'Unknown User';
-                      setAccount(prev => ({
-                        ...prev,
-                        ownerId: newOwnerId,
-                        ownerName: newOwnerName
-                      }));
-                      await updateAccount(id, {
-                        ownerId: newOwnerId,
-                        ownerName: newOwnerName
-                      });
-                    }}
-                    className="w-full bg-slate-800 border border-slate-700 text-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:border-primary text-xs font-bold cursor-pointer disabled:opacity-50"
-                  >
-                    <option value="">Unassigned</option>
-                    {staffList.map(staff => (
-                      <option key={staff.uid} value={staff.uid}>
-                        {staff.name} ({staff.role})
-                      </option>
-                    ))}
-                  </select>
+                {canEditOwners ? (
+                  <div className="relative z-40">
+                    <input
+                      type="text"
+                      value={ownerSearch}
+                      placeholder="Type @name to search..."
+                      onFocus={() => { setOwnerSearch(''); setShowOwnerDropdown(true); }}
+                      onChange={(e) => setOwnerSearch(e.target.value)}
+                      onBlur={() => setTimeout(() => setShowOwnerDropdown(false), 180)}
+                      className="w-full bg-dark-700/50 border border-slate-700 text-xs rounded-xl px-3 py-2.5 focus:outline-none focus:border-primary/50 text-black placeholder-slate-450 font-semibold"
+                    />
+                    {showOwnerDropdown && (() => {
+                      const q = ownerSearch.replace(/^@/, '').toLowerCase();
+                      const filtered = staffList.filter(s =>
+                        s.name.toLowerCase().includes(q) || (s.email || '').toLowerCase().includes(q)
+                      );
+                      if (!filtered.length) return null;
+                      return (
+                        <div className="absolute z-[100] w-full top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-2xl overflow-hidden max-h-48 overflow-y-auto">
+                          <button
+                            type="button"
+                            onMouseDown={async () => {
+                              setAccount(prev => ({ ...prev, ownerId: '', ownerName: 'Unassigned' }));
+                              await updateAccount(id, { ownerId: '', ownerName: '' });
+                              setOwnerSearch('');
+                              setShowOwnerDropdown(false);
+                            }}
+                            className="w-full text-left px-3 py-2 text-xs text-slate-400 font-semibold"
+                          >
+                            Unassigned
+                          </button>
+                          {filtered.map(s => (
+                            <button
+                              key={s.uid}
+                              type="button"
+                              onMouseDown={async () => {
+                                setAccount(prev => ({ ...prev, ownerId: s.uid, ownerName: s.name }));
+                                await updateAccount(id, { ownerId: s.uid, ownerName: s.name });
+                                setOwnerSearch(s.name);
+                                setShowOwnerDropdown(false);
+                              }}
+                              className="w-full flex flex-col items-start px-3 py-2.5 text-xs"
+                            >
+                              <span className="font-bold text-black">{s.name}</span>
+                              <span className="text-slate-500 font-semibold">{s.position || s.jobRole || s.role}{s.department ? ` · ${s.department}` : ''}</span>
+                            </button>
+                          ))}
+                        </div>
+                      );
+                    })()}
+                  </div>
                 ) : null}
               </div>
             </div>
@@ -413,14 +446,14 @@ export default function AccountDetails() {
         <div className="lg:col-span-7 space-y-6">
           
           {/* Key Contacts */}
-          <div className="glass p-6 rounded-2xl border border-slate-800/80 space-y-5">
+          <div className="glass p-6 rounded-2xl border border-slate-800/80 space-y-5 overflow-visible relative z-30">
             <h3 className="text-sm font-extrabold uppercase tracking-widest text-slate-400 border-b border-slate-850 pb-2">Key Contacts Mapped</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5 overflow-visible relative z-30">
               {contacts.length === 0 ? (
                 <span className="text-sm text-slate-500 col-span-2 py-8 text-center font-bold">No contacts currently mapped to this client account.</span>
               ) : (
                 contacts.map(c => (
-                  <div key={c.contactId} className="bg-dark-900/60 p-5 rounded-2xl border border-slate-800 relative flex flex-col justify-between hover:border-slate-700/80 transition-all shadow-md">
+                  <div key={c.contactId} className="bg-dark-900/60 p-5 rounded-2xl border border-slate-800 relative flex flex-col justify-between hover:border-slate-700/80 transition-all shadow-md overflow-visible z-30">
                     <div>
                       <div className="flex items-center justify-between gap-2">
                         <h4 className="text-base font-black text-white truncate" title={c.name}>{c.name}</h4>
@@ -463,31 +496,62 @@ export default function AccountDetails() {
                     </div>
 
                     {/* Contact Owner Select */}
-                    <div className="mt-4 pt-3.5 border-t border-slate-800/30">
+                    <div className="mt-4 pt-3.5 border-t border-slate-800/30 relative z-30">
                       <label className="text-[10px] font-black text-slate-500 uppercase block mb-1.5 tracking-wider">Stakeholder Owner</label>
-                      {['Admin', 'Sales Manager', 'Employee', 'Executive'].includes(user?.role) ? (
-                        <select
-                          value={c.ownerId || ''}
-                          disabled={staffList.length === 0}
-                          onChange={async (e) => {
-                            const newOwnerId = e.target.value;
-                            const selectedUser = staffList.find(s => s.uid === newOwnerId);
-                            const newOwnerName = selectedUser ? selectedUser.name : 'Unknown User';
-                            await updateContact(c.contactId, {
-                              ownerId: newOwnerId,
-                              ownerName: newOwnerName
-                            });
-                            fetchContacts(id);
-                          }}
-                          className="w-full bg-slate-805 border border-slate-700 text-slate-200 rounded px-3 py-1.5 text-xs focus:outline-none focus:border-primary cursor-pointer font-bold disabled:opacity-50"
-                        >
-                          <option value="">Unassigned</option>
-                          {staffList.map(staff => (
-                            <option key={staff.uid} value={staff.uid}>
-                              {staff.name}
-                            </option>
-                          ))}
-                        </select>
+                      {canEditOwners ? (
+                        <div className="relative z-40">
+                          <input
+                            type="text"
+                            value={stakeholderSearch[c.contactId] ?? ''}
+                            placeholder="Type @name to search..."
+                            onFocus={() => {
+                              setStakeholderSearch(prev => ({ ...prev, [c.contactId]: '' }));
+                              setShowStakeholderDropdown(prev => ({ ...prev, [c.contactId]: true }));
+                            }}
+                            onChange={(e) => setStakeholderSearch(prev => ({ ...prev, [c.contactId]: e.target.value }))}
+                            onBlur={() => setTimeout(() => setShowStakeholderDropdown(prev => ({ ...prev, [c.contactId]: false })), 180)}
+                            className="w-full bg-dark-700/50 border border-slate-700 text-xs rounded-xl px-3 py-2 focus:outline-none focus:border-primary/50 text-black placeholder-slate-450 font-semibold"
+                          />
+                          {showStakeholderDropdown[c.contactId] && (() => {
+                            const q = (stakeholderSearch[c.contactId] || '').replace(/^@/, '').toLowerCase();
+                            const filtered = staffList.filter(s =>
+                              s.name.toLowerCase().includes(q) || (s.email || '').toLowerCase().includes(q)
+                            );
+                            if (!filtered.length) return null;
+                            return (
+                              <div className="absolute z-[100] w-full top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-2xl overflow-hidden max-h-40 overflow-y-auto">
+                                <button
+                                  type="button"
+                                  onMouseDown={async () => {
+                                    await updateContact(c.contactId, { ownerId: '', ownerName: '' });
+                                    fetchContacts(id);
+                                    setStakeholderSearch(prev => ({ ...prev, [c.contactId]: '' }));
+                                    setShowStakeholderDropdown(prev => ({ ...prev, [c.contactId]: false }));
+                                  }}
+                                  className="w-full text-left px-3 py-2 text-xs text-slate-400 font-semibold"
+                                >
+                                  Unassigned
+                                </button>
+                                {filtered.map(s => (
+                                  <button
+                                    key={s.uid}
+                                    type="button"
+                                    onMouseDown={async () => {
+                                      await updateContact(c.contactId, { ownerId: s.uid, ownerName: s.name });
+                                      fetchContacts(id);
+                                      setStakeholderSearch(prev => ({ ...prev, [c.contactId]: s.name }));
+                                      setShowStakeholderDropdown(prev => ({ ...prev, [c.contactId]: false }));
+                                    }}
+                                    className="w-full flex flex-col items-start px-3 py-2.5 text-xs"
+                                  >
+                                    <span className="font-bold text-black">{s.name}</span>
+                                    <span className="text-slate-500 font-semibold">{s.position || s.jobRole || s.role}{s.department ? ` · ${s.department}` : ''}</span>
+                                  </button>
+                                ))}
+                              </div>
+                            );
+                          })()}
+                        </div>
                       ) : (
                         <span className="text-xs text-slate-250 font-bold block">
                           👤 {c.ownerName || 'Unassigned'}
@@ -501,7 +565,7 @@ export default function AccountDetails() {
           </div>
 
           {/* Interaction Timeline */}
-          <div className="glass p-6 rounded-2xl border border-slate-800/80 space-y-5">
+          <div className="glass p-6 rounded-2xl border border-slate-800/80 space-y-5 relative z-10">
             <h3 className="text-sm font-extrabold uppercase tracking-widest text-slate-400 border-b border-slate-850 pb-2">Interaction Timeline</h3>
             
             <div className="space-y-5 max-h-[600px] overflow-y-auto pr-1">

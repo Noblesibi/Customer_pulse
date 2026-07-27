@@ -15,7 +15,18 @@ router.get('/', async (req, res) => {
   try {
     const { db } = await import('../config/database.js');
     await ensureNestGroupEmployees(db);
-    const snap = await db.collection('users').get();
+    let snap = await db.collection('users').get();
+    
+    // Auto-sync employees from secondary database if local DB has low user count (< 50)
+    if (!snap.docs || snap.docs.length < 50) {
+      console.log('🔄 [Employees] Low user count in local DB (< 50). Auto-syncing from secondary DB...');
+      try {
+        await syncEmployees();
+        snap = await db.collection('users').get();
+      } catch (syncErr) {
+        console.error('⚠️ [Employees] Auto-sync on GET /api/employees failed:', syncErr.message);
+      }
+    }
     const employees = snap.docs.map(doc => {
       const u = doc.data();
       return {

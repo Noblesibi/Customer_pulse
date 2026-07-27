@@ -178,18 +178,26 @@ CREATE TABLE IF NOT EXISTS "TaskReplies" (
 -- EmailQueue Table
 CREATE TABLE IF NOT EXISTS "EmailQueue" (
     "queueId" VARCHAR(50) PRIMARY KEY,
-    "recipientEmail" VARCHAR(150) NOT NULL,
-    "subject" VARCHAR(250) NOT NULL,
-    "htmlBody" TEXT NOT NULL,
-    "status" VARCHAR(50) DEFAULT 'queued',
+    "recipientUid" VARCHAR(50),
+    "recipientEmail" VARCHAR(150),
+    "recipientName" VARCHAR(150),
     "eventType" VARCHAR(100),
+    "templateId" VARCHAR(100),
+    "subject" VARCHAR(250),
+    "htmlBody" TEXT,
+    "textBody" TEXT,
+    "variables" TEXT,
+    "relatedTaskId" VARCHAR(50),
+    "relatedAccountId" VARCHAR(50),
+    "status" VARCHAR(50) DEFAULT 'queued',
     "retryCount" INT DEFAULT 0,
     "maxRetries" INT DEFAULT 3,
     "scheduledAt" VARCHAR(50),
     "processedAt" VARCHAR(50),
+    "failureReason" TEXT,
     "smtpResponse" TEXT,
     "error" TEXT,
-    "createdAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    "createdAt" VARCHAR(50) DEFAULT CURRENT_TIMESTAMP
 );
 
 -- EmailTemplates Table
@@ -205,12 +213,37 @@ CREATE TABLE IF NOT EXISTS "EmailTemplates" (
 -- EmailLogs Table
 CREATE TABLE IF NOT EXISTS "EmailLogs" (
     "logId" VARCHAR(50) PRIMARY KEY,
-    "recipientEmail" VARCHAR(150) NOT NULL,
-    "subject" VARCHAR(250) NOT NULL,
+    "queueId" VARCHAR(50),
+    "recipientUid" VARCHAR(50),
+    "recipientEmail" VARCHAR(150),
+    "recipientName" VARCHAR(150),
+    "subject" VARCHAR(250),
     "eventType" VARCHAR(100),
-    "status" VARCHAR(50) NOT NULL,
-    "isMock" BOOLEAN DEFAULT FALSE,
+    "templateId" VARCHAR(100),
+    "status" VARCHAR(50),
     "sentAt" VARCHAR(50),
+    "smtpResponse" TEXT,
+    "failureReason" TEXT,
     "error" TEXT,
-    "timestamp" TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    "isMock" BOOLEAN DEFAULT FALSE,
+    "createdAt" VARCHAR(50) DEFAULT CURRENT_TIMESTAMP
+);
+
+-- NotificationPreferences Table
+CREATE TABLE IF NOT EXISTS "NotificationPreferences" (
+    "uid" VARCHAR(50) PRIMARY KEY,
+    "taskAssigned" BOOLEAN DEFAULT TRUE,
+    "taskReassigned" BOOLEAN DEFAULT TRUE,
+    "taskUpdated" BOOLEAN DEFAULT TRUE,
+    "taskReminders" BOOLEAN DEFAULT TRUE,
+    "taskStatusUpdates" BOOLEAN DEFAULT TRUE,
+    "taskComments" BOOLEAN DEFAULT TRUE,
+    "taskAttachments" BOOLEAN DEFAULT TRUE,
+    "taskOverdue" BOOLEAN DEFAULT TRUE,
+    "taskCompleted" BOOLEAN DEFAULT TRUE,
+    "taskCancelled" BOOLEAN DEFAULT TRUE,
+    "greetingEmails" BOOLEAN DEFAULT TRUE,
+    "companyAnnouncements" BOOLEAN DEFAULT TRUE,
+    "customerFollowups" BOOLEAN DEFAULT TRUE,
+    "updatedAt" VARCHAR(50) DEFAULT CURRENT_TIMESTAMP
 );

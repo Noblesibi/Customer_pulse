@@ -588,13 +588,13 @@ export default function LogInteraction() {
                                 key={s.uid}
                                 type="button"
                                 onMouseDown={() => insertMention(taskIdx, s)}
-                                className={`w-full flex items-center justify-between px-3 py-2.5 text-xs hover:bg-slate-800 transition-colors text-slate-700 ${
+                                className={`w-full flex items-center justify-between px-3 py-2.5 text-xs text-slate-700 ${
                                   isSelected ? 'bg-primary/5 text-primary' : ''
                                 }`}
                               >
                                 <div className="flex flex-col items-start text-left">
                                   <span className="font-bold text-black">{s.name}</span>
-                                  <span className="text-xs text-slate-500 font-semibold">{s.role}{s.department ? ` · ${s.department}` : ''}</span>
+                                  <span className="text-xs text-slate-500 font-semibold">{s.position || s.jobRole || s.role}{s.department ? ` · ${s.department}` : ''}</span>
                                 </div>
                                 {isSelected ? <CheckSquare className="w-3.5 h-3.5 text-primary" /> : <Square className="w-3.5 h-3.5 text-slate-400" />}
                               </button>
