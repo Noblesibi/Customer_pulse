@@ -5,6 +5,7 @@ import {
   Mail, Video, Phone, MessageSquare, X, Paperclip, Upload, FileText, Trash2, Loader2, ChevronLeft, Plus
 } from 'lucide-react';
 import { useStore } from '../store/index.js';
+import { getCurrentKolkataDate, getCurrentKolkataTime } from '../utils/dateFormat.js';
 
 export default function LogInteraction() {
   const navigate = useNavigate();
@@ -21,18 +22,12 @@ export default function LogInteraction() {
     generateTaskHeader
   } = useStore();
 
-  const getLocalDateString = () => {
-    const d = new Date();
-    const offset = d.getTimezoneOffset() * 60000;
-    return new Date(d.getTime() - offset).toISOString().split('T')[0];
-  };
-
   // Log Interaction Form States
   const [interactionSource, setInteractionSource] = useState('Outlook Mail');
   const [subject, setSubject] = useState('');
   const [interactionText, setInteractionText] = useState('');
-  const [interactionDate, setInteractionDate] = useState(getLocalDateString());
-  const [interactionTime, setInteractionTime] = useState(new Date().toTimeString().slice(0, 5));
+  const [interactionDate, setInteractionDate] = useState(getCurrentKolkataDate());
+  const [interactionTime, setInteractionTime] = useState(getCurrentKolkataTime());
   const [interactionContactId, setInteractionContactId] = useState('');
   const [interactionAccountId, setInteractionAccountId] = useState('');
 
@@ -67,7 +62,7 @@ export default function LogInteraction() {
           reader.onerror = (error) => reject(error);
         });
 
-        const res = await fetch('http://localhost:5000/api/interactions/upload', {
+        const res = await fetch('/CustomerPulse/api/interactions/upload', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

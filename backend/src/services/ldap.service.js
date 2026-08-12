@@ -65,17 +65,17 @@ export async function authenticateLdapUser(username, password) {
   const bindAttr   = process.env.LDAP_BIND_ATTRIBUTE  || 'userPrincipalName';
   const domain     = process.env.LDAP_DOMAIN          || 'nestgroup.net';
 
-  if (!bindDn || !bindPwd) {
-    console.error('❌ LDAP is enabled but LDAP_BIND_DN or LDAP_BIND_PASSWORD is not set in .env');
-    return { authenticated: false, error: 'LDAP service account not configured' };
-  }
 
-  // Normalize username: strip domain suffix to get bare sAMAccountName for search
-  const sAMAccountName = username.includes('@') ? username.split('@')[0] : username;
-  // Build the full UPN for final user bind
-  const userUpn = username.includes('@') ? username : `${username}@${domain}`;
 
-  console.log(`🔍 LDAP auth attempt — sAMAccountName: ${sAMAccountName} | server: ${url}`);
+  // Normalize username: preserve full email / UPN if available, or append domain
+  const cleanUsername = (username || '').trim().toLowerCase();
+  const userUpn = cleanUsername.includes('@') ? cleanUsername : `${cleanUsername}@${domain}`;
+  const sAMAccountName = cleanUsername.includes('@') ? cleanUsername.split('@')[0] : cleanUsername;
+
+  // Determine query value for search based on LDAP_LOGIN_ATTRIBUTE (userPrincipalName or sAMAccountName)
+  const queryValue = loginAttr === 'userPrincipalName' ? userUpn : sAMAccountName;
+
+  console.log(`🔍 LDAP auth attempt — ${loginAttr}: ${queryValue} | server: ${url}`);
 
   return new Promise((resolve) => {
     let client;
@@ -96,104 +96,169 @@ export async function authenticateLdapUser(username, password) {
       resolve({ authenticated: false, error: 'LDAP connection failed: ' + err.message });
     });
 
-    // ── Step 1: Admin/service account bind to search directory ─────────────
-    client.bind(bindDn, bindPwd, (bindErr) => {
-      if (bindErr) {
-        console.error('❌ LDAP service account bind failed:', bindErr.message);
-        client.destroy();
-        return resolve({ authenticated: false, error: 'LDAP service bind failed: ' + bindErr.message });
-      }
+    const searchAndAuthenticateUser = (boundClient, userBindTarget) => {
+      const searchFilter = process.env.LDAP_USER_SEARCH_FILTER
+        ? process.env.LDAP_USER_SEARCH_FILTER.replace('{{username}}', queryValue)
+        : `(${loginAttr}=${queryValue})`;
 
-      // ── Step 2: Search for the target user ──────────────────────────────
-      const searchFilter = `(${loginAttr}=${sAMAccountName})`;
       const searchOptions = {
         filter: searchFilter,
         scope: 'sub',
         attributes: [
-          'dn',
-          'mail',
-          'cn',
-          'displayName',
-          'sAMAccountName',
-          'userPrincipalName',
-          'department',
-          'title',
-          'memberOf',
-          'distinguishedName'
+          'dn', 'mail', 'cn', 'displayName', 'sAMAccountName',
+          'userPrincipalName', 'department', 'title', 'memberOf', 'distinguishedName'
         ]
       };
 
-      client.search(searchBase, searchOptions, (searchErr, searchRes) => {
+      boundClient.search(searchBase, searchOptions, (searchErr, searchRes) => {
         if (searchErr) {
-          console.error('❌ LDAP search failed:', searchErr.message);
-          client.destroy();
-          return resolve({ authenticated: false, error: 'LDAP search failed: ' + searchErr.message });
+          console.warn('⚠️  LDAP search failed after user bind, using default profile:', searchErr.message);
+          boundClient.destroy();
+          return resolve({
+            authenticated: true,
+            user: {
+              username:   sAMAccountName,
+              upn:        userUpn,
+              email:      userUpn,
+              name:       sAMAccountName,
+              role:       'Employee',
+              department: 'Corporate',
+              position:   'Nest Digital Professional'
+            }
+          });
         }
 
         let userEntry = null;
-
         searchRes.on('searchEntry', (entry) => {
-          // Take the first matching entry only
-          if (!userEntry) {
-            userEntry = entryToObject(entry);
-          }
+          if (!userEntry) userEntry = entryToObject(entry);
         });
 
         searchRes.on('error', (err) => {
-          console.error('❌ LDAP search stream error:', err.message);
-          client.destroy();
-          resolve({ authenticated: false, error: 'LDAP search error: ' + err.message });
+          console.warn('⚠️  LDAP search stream error:', err.message);
         });
 
         searchRes.on('end', () => {
-          if (!userEntry) {
-            console.warn(`⚠️  User not found in LDAP: ${sAMAccountName} (base: ${searchBase})`);
+          boundClient.destroy();
+          const entry = userEntry || {};
+          const role = mapAdGroupsToRole(entry.memberOf, cleanUsername, domain);
+
+          resolve({
+            authenticated: true,
+            user: {
+              username:   sAMAccountName,
+              upn:        entry.userPrincipalName || userUpn,
+              email:      entry.mail || entry.userPrincipalName || userUpn,
+              name:       entry.displayName || entry.cn || sAMAccountName,
+              role,
+              department: entry.department || 'Corporate',
+              position:   entry.title || 'Nest Digital Professional'
+            }
+          });
+        });
+      });
+    };
+
+    // Helper for direct user bind attempt
+    const attemptDirectUserBind = () => {
+      console.log(`🔐 Attempting direct user bind fallback: ${userUpn}`);
+      client.bind(userUpn, password, (userBindErr) => {
+        if (userBindErr) {
+          console.warn(`❌ Direct user bind failed for: ${userUpn} (${userBindErr.message})`);
+          client.destroy();
+          return resolve({ authenticated: false, error: 'Invalid AD credentials' });
+        }
+
+        console.log(`✅ Direct user LDAP bind successful: ${userUpn}`);
+        searchAndAuthenticateUser(client, userUpn);
+      });
+    };
+
+    // ── Step 1: Try Service Account Bind First (if configured) ─────────────
+    if (bindDn && bindPwd) {
+      client.bind(bindDn, bindPwd, (bindErr) => {
+        if (bindErr) {
+          console.warn(`⚠️ Service account bind failed (${bindErr.message}). Falling back to direct user bind...`);
+          return attemptDirectUserBind();
+        }
+
+        // Service account bound successfully -> search for user entry
+        const searchFilter = process.env.LDAP_USER_SEARCH_FILTER
+          ? process.env.LDAP_USER_SEARCH_FILTER.replace('{{username}}', queryValue)
+          : `(${loginAttr}=${queryValue})`;
+
+        const searchOptions = {
+          filter: searchFilter,
+          scope: 'sub',
+          attributes: [
+            'dn', 'mail', 'cn', 'displayName', 'sAMAccountName',
+            'userPrincipalName', 'department', 'title', 'memberOf', 'distinguishedName'
+          ]
+        };
+
+        client.search(searchBase, searchOptions, (searchErr, searchRes) => {
+          if (searchErr) {
+            console.error('❌ LDAP search failed:', searchErr.message);
             client.destroy();
-            return resolve({ authenticated: false, error: 'User not found in Active Directory' });
+            return resolve({ authenticated: false, error: 'LDAP search failed: ' + searchErr.message });
           }
 
-          // ── Step 3: Bind as the user to verify their password ──────────
-          // For Nest Digital AD: userPrincipalName bind = user@nestgroup.net
-          let userBindDn;
-          if (bindAttr === 'userPrincipalName') {
-            // Use the UPN from the directory entry, or fall back to constructed UPN
-            userBindDn = userEntry.userPrincipalName || userUpn;
-          } else {
-            // Use the full distinguished name
-            userBindDn = userEntry.distinguishedName || userEntry.dn;
-          }
+          let userEntry = null;
 
-          console.log(`🔐 Verifying user password via bind: ${userBindDn}`);
+          searchRes.on('searchEntry', (entry) => {
+            if (!userEntry) userEntry = entryToObject(entry);
+          });
 
-          client.bind(userBindDn, password, (userBindErr) => {
-            client.destroy();
+          searchRes.on('error', (err) => {
+            console.error('❌ LDAP search stream error:', err.message);
+          });
 
-            if (userBindErr) {
-              console.warn(`❌ User password bind failed for: ${userBindDn}`);
-              return resolve({ authenticated: false, error: 'Invalid AD credentials' });
+          searchRes.on('end', () => {
+            if (!userEntry) {
+              console.warn(`⚠️ User not found via service search. Attempting direct user bind...`);
+              return attemptDirectUserBind();
             }
 
-            console.log(`✅ LDAP authentication successful: ${userBindDn}`);
+            // ── Step 2: Bind as the user to verify password ──────────────
+            let userBindDn;
+            if (bindAttr === 'userPrincipalName') {
+              userBindDn = userEntry.userPrincipalName || userUpn;
+            } else {
+              userBindDn = userEntry.distinguishedName || userEntry.dn || userEntry.userPrincipalName || userUpn;
+            }
 
-            // ── Map AD group memberships to CRM roles ──────────────────
-            const role = mapAdGroupsToRole(userEntry.memberOf, username, domain);
+            console.log(`🔐 Verifying user password via bind: ${userBindDn}`);
 
-            resolve({
-              authenticated: true,
-              user: {
-                username:   sAMAccountName,
-                upn:        userEntry.userPrincipalName || userUpn,
-                email:      userEntry.mail || userUpn,
-                name:       userEntry.displayName || userEntry.cn || sAMAccountName,
-                role,
-                department: userEntry.department || 'Corporate',
-                position:   userEntry.title       || 'Nest Digital Professional'
+            client.bind(userBindDn, password, (userBindErr) => {
+              client.destroy();
+
+              if (userBindErr) {
+                console.warn(`❌ User password bind failed for: ${userBindDn}`);
+                return resolve({ authenticated: false, error: 'Invalid AD credentials' });
               }
+
+              console.log(`✅ LDAP authentication successful: ${userBindDn}`);
+
+              const role = mapAdGroupsToRole(userEntry.memberOf, cleanUsername, domain);
+
+              resolve({
+                authenticated: true,
+                user: {
+                  username:   sAMAccountName,
+                  upn:        userEntry.userPrincipalName || userUpn,
+                  email:      userEntry.mail || userEntry.userPrincipalName || userUpn,
+                  name:       userEntry.displayName || userEntry.cn || sAMAccountName,
+                  role,
+                  department: userEntry.department || 'Corporate',
+                  position:   userEntry.title       || 'Nest Digital Professional'
+                }
+              });
             });
           });
         });
       });
-    });
+    } else {
+      attemptDirectUserBind();
+    }
   });
 }
 
@@ -243,30 +308,42 @@ function mapAdGroupsToRole(memberOf, username, domain) {
  */
 function simulateLdapAuth(username, password) {
   const MOCK_LDAP_USERS = {
-    'amina.rashad':       { email: 'amina.rashad@nestgroup.net', name: 'Amina Rashad',   role: 'Employee',     department: 'Engineering', position: 'CRM Professional' },
-    'admin':              { email: 'admin@pulse.com',            name: 'Admin User',      role: 'Admin',        department: 'IT',          position: 'System Administrator' },
-    'executive':          { email: 'executive@pulse.com',        name: 'Executive User',  role: 'Executive',    department: 'Management',  position: 'Chief Executive Officer' },
-    'manager':            { email: 'manager@pulse.com',          name: 'Manager User',    role: 'Sales Manager',department: 'Sales',       position: 'Logistics Division Lead' },
-    'employee':           { email: 'employee@pulse.com',         name: 'Employee User',   role: 'Employee',     department: 'Engineering', position: 'Frontend Engineer' },
+    'amina.rashad@nestgroup.net': { email: 'amina.rashad@nestgroup.net', name: 'Amina Rashad',   role: 'Employee',     department: 'Engineering', position: 'CRM Professional' },
+    'amina.rashad':               { email: 'amina.rashad@nestgroup.net', name: 'Amina Rashad',   role: 'Employee',     department: 'Engineering', position: 'CRM Professional' },
+    'admin@pulse.com':            { email: 'admin@pulse.com',            name: 'Admin User',      role: 'Admin',        department: 'IT',          position: 'System Administrator' },
+    'admin':                      { email: 'admin@pulse.com',            name: 'Admin User',      role: 'Admin',        department: 'IT',          position: 'System Administrator' },
+    'executive@pulse.com':        { email: 'executive@pulse.com',        name: 'Executive User',  role: 'Executive',    department: 'Management',  position: 'Chief Executive Officer' },
+    'executive':                  { email: 'executive@pulse.com',        name: 'Executive User',  role: 'Executive',    department: 'Management',  position: 'Chief Executive Officer' },
+    'manager@pulse.com':          { email: 'manager@pulse.com',          name: 'Manager User',    role: 'Sales Manager',department: 'Sales',       position: 'Logistics Division Lead' },
+    'manager':                    { email: 'manager@pulse.com',          name: 'Manager User',    role: 'Sales Manager',department: 'Sales',       position: 'Logistics Division Lead' },
+    'employee@pulse.com':         { email: 'employee@pulse.com',         name: 'Employee User',   role: 'Employee',     department: 'Engineering', position: 'Frontend Engineer' },
+    'employee':                   { email: 'employee@pulse.com',         name: 'Employee User',   role: 'Employee',     department: 'Engineering', position: 'Frontend Engineer' },
   };
 
   const MOCK_LDAP_PASSWORDS = {
-    'amina.rashad': 'nestgroup',
-    'admin':        'admin123',
-    'executive':    'exec123',
-    'manager':      'manager123',
-    'employee':     'employee123'
+    'amina.rashad@nestgroup.net': 'nestgroup',
+    'amina.rashad':               'nestgroup',
+    'admin@pulse.com':            'admin123',
+    'admin':                      'admin123',
+    'executive@pulse.com':        'exec123',
+    'executive':                  'exec123',
+    'manager@pulse.com':          'manager123',
+    'manager':                    'manager123',
+    'employee@pulse.com':         'employee123',
+    'employee':                   'employee123'
   };
 
-  const sAMAccountName = username.includes('@') ? username.split('@')[0] : username;
-  const userProfile    = MOCK_LDAP_USERS[sAMAccountName];
-  const expectedPwd    = MOCK_LDAP_PASSWORDS[sAMAccountName];
+  const cleanUser      = (username || '').trim().toLowerCase();
+  const sAMAccountName = cleanUser.includes('@') ? cleanUser.split('@')[0] : cleanUser;
+
+  const userProfile = MOCK_LDAP_USERS[cleanUser] || MOCK_LDAP_USERS[sAMAccountName];
+  const expectedPwd = MOCK_LDAP_PASSWORDS[cleanUser] || MOCK_LDAP_PASSWORDS[sAMAccountName];
 
   if (!userProfile || !expectedPwd || expectedPwd !== password) {
     return { authenticated: false, error: 'Invalid mock LDAP credentials' };
   }
 
-  console.log(`🎭 Mock LDAP authenticated: ${sAMAccountName}`);
+  console.log(`🎭 Mock LDAP authenticated: ${cleanUser}`);
   return {
     authenticated: true,
     user: {

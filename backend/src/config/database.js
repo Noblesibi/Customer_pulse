@@ -67,22 +67,24 @@ class MockFirestore {
         if (!this.data.interactions['int-dummy-all-users']) {
           console.log('🌱 Seeding dummy task for all 14 users in mock database...');
           
-          const getLocalDateString = () => {
-            const d = new Date();
-            const offset = d.getTimezoneOffset() * 60000;
-            return new Date(d.getTime() - offset).toISOString().split('T')[0];
+          const getKolkataDateString = (d = new Date()) => {
+            const dateObj = d instanceof Date ? d : new Date(d);
+            const yyyy = dateObj.getFullYear();
+            const mm = String(dateObj.getMonth() + 1).padStart(2, '0');
+            const dd = String(dateObj.getDate()).padStart(2, '0');
+            return `${yyyy}-${mm}-${dd}`;
           };
           
-          const getLocalTimeString = () => {
-            const d = new Date();
-            const offset = d.getTimezoneOffset() * 60000;
-            return new Date(d.getTime() - offset).toISOString().split('T')[1].slice(0, 5);
+          const getKolkataTimeString = (d = new Date()) => {
+            const dateObj = d instanceof Date ? d : new Date(d);
+            const hh = String(dateObj.getHours()).padStart(2, '0');
+            const min = String(dateObj.getMinutes()).padStart(2, '0');
+            return `${hh}:${min}`;
           };
 
           const taskDueDate = new Date();
           taskDueDate.setDate(taskDueDate.getDate() + 7);
-          const taskDueDateOffset = taskDueDate.getTimezoneOffset() * 60000;
-          const taskDueDateStr = new Date(taskDueDate.getTime() - taskDueDateOffset).toISOString().split('T')[0];
+          const taskDueDateStr = getKolkataDateString(taskDueDate);
 
           this.data.interactions['int-dummy-all-users'] = {
             id: 'int-dummy-all-users',
@@ -92,8 +94,8 @@ class MockFirestore {
             source: 'Meeting',
             subject: 'All-Hands Portfolio Review',
             messageText: 'We held a portfolio review meeting with Acme Corporation. All team members must review their client updates and key deliverables.',
-            date: getLocalDateString(),
-            time: getLocalTimeString(),
+            date: getKolkataDateString(),
+            time: getKolkataTimeString(),
             loggedByUid: 'mock-admin-uid',
             loggedByName: 'Admin User',
             sentiment: 'Neutral',

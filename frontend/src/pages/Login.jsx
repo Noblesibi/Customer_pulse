@@ -1,20 +1,19 @@
 import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Mail, Lock, User, Briefcase, LayoutDashboard, AlertCircle, ExternalLink } from 'lucide-react';
+import { AlertCircle } from 'lucide-react';
 import { useStore } from '../store/index.js';
 
+
 export default function Login() {
-  const { login, loginWithMicrosoft, authLoading, authError } = useStore();
-  
-  // Form fields
-  const [email, setEmail] = useState('');
+  const { login, authLoading, authError } = useStore();
+
+  const [email, setEmail]       = useState('');
   const [password, setPassword] = useState('');
-
-  const navigate = useNavigate();
-  const location = useLocation();
-  const from = location.state?.from?.pathname || '/dashboard';
-
   const [validationError, setValidationError] = useState('');
+
+  const navigate  = useNavigate();
+  const location  = useLocation();
+  const from      = location.state?.from?.pathname || '/dashboard';
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -35,117 +34,210 @@ export default function Login() {
     }
 
     const success = await login(email.trim(), password);
-    if (success) {
-      navigate(from, { replace: true });
-    }
+    if (success) navigate(from, { replace: true });
   };
 
-  const handleMSLogin = async () => {
-    // Default ms login info mapping to Executive
-    const success = await loginWithMicrosoft('executive@pulse.com', 'Executive Corporate User');
-    if (success) {
-      navigate(from, { replace: true });
-    }
-  };
-
-  // Preset accounts for ease of evaluation
-  // Preset accounts for ease of evaluation
-  const setPresetCredentials = (userType) => {
-    const presets = {
-      admin: { email: 'admin@pulse.com', pass: 'admin123' },
-      exec: { email: 'executive@pulse.com', pass: 'exec123' },
-      manager: { email: 'manager@pulse.com', pass: 'manager123' },
-      employee: { email: 'employee@pulse.com', pass: 'employee123' }
-    };
-    const creds = presets[userType];
-    if (creds) {
-      setEmail(creds.email);
-      setPassword(creds.pass);
-    }
-  };
-
-  const [selectedPreset, setSelectedPreset] = useState('');
-  const handlePresetSelect = (val) => {
-    setSelectedPreset(val);
-    setPresetCredentials(val);
-  };
+  const displayError = validationError || authError;
 
   return (
-    <div className="min-h-screen bg-dark-950 flex items-center justify-center p-6 relative overflow-hidden select-none">
-      {/* Decorative backdrop gradients */}
-      <div className="absolute top-[-20%] left-[-20%] w-[60%] h-[60%] rounded-full bg-primary/10 blur-[120px]" />
-      <div className="absolute bottom-[-20%] right-[-20%] w-[60%] h-[60%] rounded-full bg-emerald-500/5 blur-[120px]" />
+    <div style={styles.page}>
+      {/* ── Brand header ── */}
+      <div style={styles.brand}>
+        <div style={styles.brandName}>Customer Pulse</div>
+        <div style={styles.brandSub}>RELATIONSHIPS, MEASURED</div>
+      </div>
 
-      <div className="w-full max-w-md relative z-10">
-        {/* Brand header */}
-        <div className="flex items-center gap-3 justify-center mb-8">
-          <div className="bg-primary/20 p-2.5 rounded-2xl border border-primary/40 text-primary animate-soft-pulse">
-            <LayoutDashboard className="w-8 h-8" />
+      {/* ── Auth card ── */}
+      <div style={styles.card}>
+        <h2 style={styles.cardTitle}>Sign In to Dashboard</h2>
+
+        {/* Error banner */}
+        {displayError && (
+          <div style={styles.errorBox}>
+            <AlertCircle size={14} style={{ flexShrink: 0, marginTop: 1 }} />
+            <span>{displayError}</span>
           </div>
-          <div>
-            <h1 className="text-2xl font-black text-white tracking-wide">Customer Pulse</h1>
-            <p className="text-xs text-primary font-bold tracking-wider uppercase">Relationship Intelligence Hub</p>
+        )}
+
+        <form onSubmit={handleSubmit} style={styles.form}>
+          {/* Corporate Email */}
+          <div style={styles.fieldGroup}>
+            <label style={styles.label}>Corporate Email</label>
+            <div style={styles.inputWrap}>
+              <span style={styles.inputIcon}>
+                {/* Mail icon */}
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="2" y="4" width="20" height="16" rx="2"/>
+                  <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>
+                </svg>
+              </span>
+              <input
+                id="login-email"
+                type="email"
+                placeholder="name@nestgroup.net"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                style={styles.input}
+                onFocus={e => e.target.style.borderColor = '#223670'}
+                onBlur={e => e.target.style.borderColor = '#e2e8f0'}
+              />
+            </div>
           </div>
-        </div>
 
-        {/* Auth form card */}
-        <div className="glass rounded-3xl p-8 border border-slate-800/80 shadow-2xl">
-          <h2 className="text-xl font-bold text-white text-center mb-6">
-            Sign In to Dashboard
-          </h2>
-
-          {(validationError || authError) && (
-            <div className="mb-5 bg-danger/10 border border-danger/30 text-rose-200 text-xs p-3.5 rounded-xl flex items-start gap-2.5">
-              <AlertCircle className="w-4 h-4 text-danger shrink-0 mt-0.5" />
-              <span>{validationError || authError}</span>
+          {/* Password */}
+          <div style={styles.fieldGroup}>
+            <label style={styles.label}>Password</label>
+            <div style={styles.inputWrap}>
+              <span style={styles.inputIcon}>
+                {/* Lock icon */}
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="3" y="11" width="18" height="11" rx="2"/>
+                  <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                </svg>
+              </span>
+              <input
+                id="login-password"
+                type="password"
+                placeholder="••••••••"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                style={styles.input}
+                onFocus={e => e.target.style.borderColor = '#223670'}
+                onBlur={e => e.target.style.borderColor = '#e2e8f0'}
+              />
             </div>
-          )}
+          </div>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {/* Email Address */}
-            <div className="space-y-1.5">
-              <label className="text-xs text-slate-400 font-semibold">Corporate Email</label>
-              <div className="relative">
-                <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
-                <input 
-                  type="email" 
-                  placeholder="name@company.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                  className="w-full bg-dark-900/60 border border-slate-800 focus:border-primary/50 text-white rounded-xl py-3 pl-11 pr-4 text-sm focus:outline-none transition-colors duration-150"
-                />
-              </div>
-            </div>
-
-            {/* Password */}
-            <div className="space-y-1.5">
-              <label className="text-xs text-slate-400 font-semibold">Password</label>
-              <div className="relative">
-                <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
-                <input 
-                  type="password" 
-                  placeholder="••••••••"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                  className="w-full bg-dark-900/60 border border-slate-800 focus:border-primary/50 text-white rounded-xl py-3 pl-11 pr-4 text-sm focus:outline-none transition-colors duration-150"
-                />
-              </div>
-            </div>
-
-            <button 
-              type="submit" 
-              disabled={authLoading}
-              className="w-full bg-primary hover:bg-blue-600 active:scale-98 text-white text-sm font-semibold rounded-xl py-3.5 shadow-lg shadow-primary/20 transition-all duration-200"
-            >
-              {authLoading ? 'Signing in...' : 'Sign In'}
-            </button>
-          </form>
-
-        </div>
-
+          {/* Sign In button */}
+          <button
+            id="login-submit"
+            type="submit"
+            disabled={authLoading}
+            style={{
+              ...styles.btn,
+              opacity: authLoading ? 0.75 : 1,
+              cursor: authLoading ? 'not-allowed' : 'pointer'
+            }}
+          >
+            {authLoading ? 'Signing in…' : 'Sign In'}
+          </button>
+        </form>
       </div>
     </div>
   );
 }
+
+// ── Inline styles (matches the screenshot exactly) ─────────────────────────
+const styles = {
+  page: {
+    minHeight: '100vh',
+    background: 'linear-gradient(135deg, #eef2f7 0%, #e8edf5 50%, #dde4ef 100%)',
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: '24px',
+    fontFamily: "'Montserrat', sans-serif",
+  },
+  brand: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    marginBottom: '28px',
+  },
+  brandName: {
+    fontSize: '24px',
+    fontWeight: '800',
+    color: '#1e293b',
+    letterSpacing: '-0.3px',
+    lineHeight: '1.15',
+  },
+  brandSub: {
+    fontSize: '10px',
+    fontWeight: '700',
+    color: '#223670',
+    letterSpacing: '2.5px',
+    textTransform: 'uppercase',
+    marginTop: '2px',
+  },
+  card: {
+    background: '#ffffff',
+    borderRadius: '16px',
+    padding: '36px 40px',
+    width: '100%',
+    maxWidth: '420px',
+    boxShadow: '0 4px 24px rgba(0,0,0,0.07)',
+  },
+  cardTitle: {
+    fontSize: '18px',
+    fontWeight: '700',
+    color: '#1e293b',
+    textAlign: 'center',
+    marginBottom: '24px',
+  },
+  errorBox: {
+    display: 'flex',
+    alignItems: 'flex-start',
+    gap: '8px',
+    background: '#fef2f2',
+    border: '1px solid #fecaca',
+    color: '#b91c1c',
+    fontSize: '12px',
+    padding: '10px 14px',
+    borderRadius: '10px',
+    marginBottom: '18px',
+  },
+  form: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '18px',
+  },
+  fieldGroup: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '6px',
+  },
+  label: {
+    fontSize: '12px',
+    fontWeight: '600',
+    color: '#475569',
+    letterSpacing: '0.2px',
+  },
+  inputWrap: {
+    position: 'relative',
+  },
+  inputIcon: {
+    position: 'absolute',
+    left: '13px',
+    top: '50%',
+    transform: 'translateY(-50%)',
+    display: 'flex',
+    alignItems: 'center',
+    pointerEvents: 'none',
+  },
+  input: {
+    width: '100%',
+    padding: '11px 14px 11px 40px',
+    border: '1.5px solid #e2e8f0',
+    borderRadius: '10px',
+    fontSize: '13px',
+    color: '#1e293b',
+    background: '#f8fafc',
+    outline: 'none',
+    boxSizing: 'border-box',
+  },
+  btn: {
+    width: '100%',
+    padding: '13px',
+    background: '#223670',
+    color: '#ffffff',
+    fontSize: '14px',
+    fontWeight: '700',
+    border: 'none',
+    borderRadius: '10px',
+    marginTop: '4px',
+    letterSpacing: '0.2px',
+  },
+};

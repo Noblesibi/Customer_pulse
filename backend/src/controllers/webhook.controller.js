@@ -1,6 +1,7 @@
 import { db } from '../config/database.js';
 import { analyzeCommunication, generateTaskHeader } from '../services/ai.service.js';
 import { calculateAccountHealth } from '../services/health.service.js';
+import { getSystemDateString, getSystemTimeString } from '../utils/dateUtils.js';
 
 /**
  * Finds account and contact based on email address.
@@ -104,6 +105,8 @@ export async function handleOutlookWebhook(req, res) {
         message: `New risk alert detected: [${analysis.riskCategory}] - ${analysis.summary}`,
         severity: analysis.riskLevel,
         read: false,
+        date: getSystemDateString(),
+        time: getSystemTimeString(),
         timestamp: new Date().toISOString()
       });
     }
@@ -117,6 +120,8 @@ export async function handleOutlookWebhook(req, res) {
       message: `New Email received from ${senderEmail}`,
       severity: 'Low',
       read: false,
+      date: getSystemDateString(),
+      time: getSystemTimeString(),
       timestamp: new Date().toISOString()
     });
 
@@ -197,6 +202,8 @@ export async function handleTeamsWebhook(req, res) {
         message: `New risk alert detected on Teams: [${analysis.riskCategory}] - ${analysis.summary}`,
         severity: analysis.riskLevel,
         read: false,
+        date: getSystemDateString(),
+        time: getSystemTimeString(),
         timestamp: new Date().toISOString()
       });
     }
@@ -210,6 +217,8 @@ export async function handleTeamsWebhook(req, res) {
       message: `New Teams message from ${senderEmail}`,
       severity: 'Low',
       read: false,
+      date: getSystemDateString(),
+      time: getSystemTimeString(),
       timestamp: new Date().toISOString()
     });
 

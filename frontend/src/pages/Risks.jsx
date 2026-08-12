@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { 
   ShieldAlert, ShieldCheck, Check, Sparkles, Filter, Building2, Clock, X
 } from 'lucide-react';
@@ -7,6 +7,8 @@ import { useStore } from '../store/index.js';
 
 export default function Risks() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const highlightedRef = useRef(null);
   const { 
     user,
     risks, 
@@ -19,10 +21,30 @@ export default function Risks() {
   const [statusFilter, setStatusFilter] = useState('Open');
   const [selectedRisk, setSelectedRisk] = useState(null);
   const [resolutionComments, setResolutionComments] = useState('');
+  const [highlightedRiskId, setHighlightedRiskId] = useState(null);
 
   useEffect(() => {
     fetchRisks();
   }, []);
+
+  // Deep-link: auto-highlight + scroll to specific risk from notification
+  useEffect(() => {
+    const deepRiskId = location.state?.selectedRiskId;
+    if (!deepRiskId || risks.length === 0) return;
+    // Show all statuses so the risk is always visible
+    setStatusFilter('');
+    setSeverityFilter('');
+    setHighlightedRiskId(deepRiskId);
+    // Scroll after a brief render delay
+    setTimeout(() => {
+      if (highlightedRef.current) {
+        highlightedRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }, 300);
+    // Remove highlight after 3 seconds
+    const t = setTimeout(() => setHighlightedRiskId(null), 3000);
+    return () => clearTimeout(t);
+  }, [location.state?.selectedRiskId, risks]);
 
   const handleResolveRisk = async (e) => {
     e.preventDefault();
@@ -109,8 +131,18 @@ export default function Risks() {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredRisks.map(risk => (
-            <div key={risk.riskId || risk.id} className="glass rounded-2xl border border-slate-800 hover:border-slate-700/80 p-5 flex flex-col justify-between space-y-4 transition-all duration-200">
+          {filteredRisks.map(risk => {
+            const isHighlighted = highlightedRiskId === (risk.riskId || risk.id);
+            return (
+            <div 
+              key={risk.riskId || risk.id}
+              ref={isHighlighted ? highlightedRef : null}
+              className={`glass rounded-2xl border p-5 flex flex-col justify-between space-y-4 transition-all duration-500 ${
+                isHighlighted
+                  ? 'border-amber-400 shadow-[0_0_0_3px_rgba(251,191,36,0.35)] scale-[1.02]'
+                  : 'border-slate-800 hover:border-slate-700/80'
+              }`}
+            >
               
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
@@ -170,7 +202,8 @@ export default function Risks() {
               )}
 
             </div>
-          ))}
+            );
+          })}
         </div>
       )}
 

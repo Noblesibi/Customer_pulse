@@ -1,6 +1,6 @@
-﻿import { create } from 'zustand';
+import { create } from 'zustand';
 
-const API_BASE = 'http://localhost:5000/api';
+const API_BASE = '/CustomerPulse/api';
 
 export const useStore = create((set, get) => ({
   // Authentication State — always start unauthenticated so the login page shows first
@@ -22,9 +22,15 @@ export const useStore = create((set, get) => ({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password })
       });
+
+      const contentType = res.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) {
+        throw new Error('Backend server is offline or unreachable. Please start the backend service (npm start).');
+      }
+
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Login failed');
-      
+
       localStorage.setItem('cp_token', data.token);
       localStorage.setItem('cp_user', JSON.stringify(data.user));
       set({ token: data.token, user: data.user, authLoading: false });
@@ -816,7 +822,7 @@ export const useStore = create((set, get) => ({
 
   createStaffTask: async (taskData) => {
     const token = get().token;
-    if (!token) return null;
+    if (!token) return { success: false, error: 'Authentication token missing' };
     try {
       const res = await fetch(`${API_BASE}/tasks`, {
         method: 'POST',
@@ -828,13 +834,13 @@ export const useStore = create((set, get) => ({
       });
       const data = await res.json();
       if (res.ok) {
-        set(state => ({ staffTasks: [data, ...state.staffTasks] }));
-        return data;
+        set(state => ({ staffTasks: [data, ...(state.staffTasks || [])] }));
+        return { success: true, task: data, ...data };
       }
-      return null;
+      return { success: false, error: data.error || 'Failed to create task' };
     } catch (err) {
       console.error('Error creating staff task:', err);
-      return null;
+      return { success: false, error: err.message || 'Error creating staff task' };
     }
   },
 
@@ -855,8 +861,8 @@ export const useStore = create((set, get) => ({
         set(state => ({
           staffTasks: state.staffTasks.map(t => {
             if (t.taskId === taskId) {
-              const updated = { 
-                ...t, 
+              const updated = {
+                ...t,
                 status: data.status,
                 assignedToUid: data.assignedToUid || t.assignedToUid,
                 assignedToName: data.assignedToName || t.assignedToName

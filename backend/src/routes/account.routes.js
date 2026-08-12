@@ -2,6 +2,8 @@ import { Router } from 'express';
 import { db, logActivity } from '../config/database.js';
 import { authenticateToken, requireRole } from '../middleware/auth.middleware.js';
 import { calculateAccountHealth, getAccountHealthExplanation } from '../services/health.service.js';
+import { NotificationEngine } from '../services/notification/NotificationEngine.js';
+import { getSystemDateString, getSystemTimeString } from '../utils/dateUtils.js';
 
 const router = Router();
 
@@ -215,6 +217,19 @@ router.post('/', (req, res, next) => {
 
     await db.collection('accounts').doc(accountId).set(newAccount);
 
+    // Create system notification for new account
+    const notifId = 'notif-' + Math.random().toString(36).substring(2, 11);
+    await db.collection('notifications').doc(notifId).set({
+      notificationId: notifId,
+      accountId,
+      type: 'New Account',
+      message: `${req.user.name || req.user.email} added a new account: "${companyName}"`,
+      read: false,
+      date: getSystemDateString(),
+      time: getSystemTimeString(),
+      timestamp: new Date().toISOString()
+    });
+
     // If contacts array is provided, create multiple contacts
     if (contacts && Array.isArray(contacts)) {
       for (const contact of contacts) {
@@ -286,6 +301,8 @@ router.post('/', (req, res, next) => {
       message: `New account ${companyName} has been created.`,
       severity: 'Low',
       read: false,
+      date: getSystemDateString(),
+      time: getSystemTimeString(),
       timestamp: new Date().toISOString()
     });
 
@@ -385,6 +402,22 @@ router.put('/:id', requireRole(['Admin', 'Sales Manager', 'Executive']), async (
     }
 
     await docRef.update(updates);
+
+    // If owner changed, publish account_assignment_changed event
+    if (updates.ownerId && updates.ownerId !== existingAccount.ownerId) {
+      try {
+        await NotificationEngine.publishEvent('account_assignment_changed', {
+          CompanyName: updates.companyName || existingAccount.companyName,
+          NewOwnerName: updates.ownerName || 'New Owner',
+          OwnerName: updates.ownerName || 'New Owner',
+          PreviousOwnerName: existingAccount.ownerName || 'Previous Owner',
+          UpdatedBy: req.user.name || req.user.email,
+          InAppMessage: `Account "${updates.companyName || existingAccount.companyName}" owner assigned to ${updates.ownerName}`
+        }, [updates.ownerId], { relatedAccountId: id });
+      } catch (err) {
+        console.error('[AccountRoutes] NotificationEngine owner change error:', err.message);
+      }
+    }
 
     // Sync contacts
     if (contacts && Array.isArray(contacts)) {

@@ -1,41 +1,42 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { 
-  Plus, Search, Edit2, Trash2, Globe, Building2, ShieldAlert, UserPlus, Send, X, 
+import {
+  Plus, Search, Edit2, Trash2, Globe, Building2, ShieldAlert, UserPlus, Send, X,
   MessageSquare, Mail, Calendar, Clock, Users, AtSign, CheckSquare, Square, Mic, Video,
   CheckCheck, Phone, Paperclip, Upload, FileText, Loader2, ArrowLeft, BrainCircuit, ChevronLeft
 } from 'lucide-react';
 import { useStore } from '../store/index.js';
+import { formatDate, formatTime, formatDateTime, getCurrentKolkataDate, getCurrentKolkataTime } from '../utils/dateFormat.js';
 
 export default function AccountDetails() {
   const { id } = useParams();
   const navigate = useNavigate();
-  
-  const { 
+
+  const {
     user,
     token,
     updateAccount,
     fetchHealthExplanation,
-    
+
     contacts,
     fetchContacts,
     updateContact,
     deleteContact,
-    
+
     interactions,
     fetchInteractions,
     addInteraction,
-    
+
     risks,
     fetchRisks,
-    
+
     activeAccountSummary,
     fetchAccountSummary,
     summaryLoading,
-    
+
     staffList,
     fetchStaff,
-    
+
     repliesByInteraction,
     fetchReplies,
     replyToInteraction
@@ -49,7 +50,7 @@ export default function AccountDetails() {
   const [showOwnerDropdown, setShowOwnerDropdown] = useState(false);
   const [stakeholderSearch, setStakeholderSearch] = useState({});
   const [showStakeholderDropdown, setShowStakeholderDropdown] = useState({});
-  
+
   // Modals state
   const [isLogInteractionOpen, setIsLogInteractionOpen] = useState(false);
   const [isHealthExplanationOpen, setIsHealthExplanationOpen] = useState(false);
@@ -59,17 +60,11 @@ export default function AccountDetails() {
   // Permission: only Admin role OR user whose name starts with 'Nazneen'
   const canEditOwners = user?.role === 'Admin' || user?.name?.toLowerCase().startsWith('nazneen');
 
-  const getLocalDateString = () => {
-    const d = new Date();
-    const offset = d.getTimezoneOffset() * 60000;
-    return new Date(d.getTime() - offset).toISOString().split('T')[0];
-  };
-
   // Log Interaction Form States
   const [interactionSource, setInteractionSource] = useState('Outlook Mail');
   const [interactionText, setInteractionText] = useState('');
-  const [interactionDate, setInteractionDate] = useState(getLocalDateString());
-  const [interactionTime, setInteractionTime] = useState(new Date().toTimeString().slice(0, 5));
+  const [interactionDate, setInteractionDate] = useState(getCurrentKolkataDate());
+  const [interactionTime, setInteractionTime] = useState(getCurrentKolkataTime());
   const [interactionContactId, setInteractionContactId] = useState('');
   const [selectedMentions, setSelectedMentions] = useState([]);
   const [mentionSearch, setMentionSearch] = useState('');
@@ -82,8 +77,8 @@ export default function AccountDetails() {
   const resetInteractionForm = () => {
     setInteractionSource('Outlook Mail');
     setInteractionText('');
-    setInteractionDate(getLocalDateString());
-    setInteractionTime(new Date().toTimeString().slice(0, 5));
+    setInteractionDate(getCurrentKolkataDate());
+    setInteractionTime(getCurrentKolkataTime());
     setInteractionContactId('');
     setSelectedMentions([]);
     setMentionSearch('');
@@ -96,7 +91,7 @@ export default function AccountDetails() {
     if (!id || !token) return;
     try {
       setLoading(true);
-      const res = await fetch(`http://localhost:5000/api/accounts/${id}`, {
+      const res = await fetch(`/CustomerPulse/api/accounts/${id}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (res.ok) {
@@ -160,7 +155,7 @@ export default function AccountDetails() {
           reader.onerror = (error) => reject(error);
         });
 
-        const res = await fetch('http://localhost:5000/api/interactions/upload', {
+        const res = await fetch('/CustomerPulse/api/interactions/upload', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -206,7 +201,7 @@ export default function AccountDetails() {
     const beforeAt = mentionSearch.slice(0, lastAtIndex);
     const newText = beforeAt + `@${staffMember.name} `;
     setMentionSearch(newText);
-    
+
     const parsed = [];
     staffList.forEach(s => {
       if (newText.includes(`@${s.name}`)) {
@@ -237,7 +232,7 @@ export default function AccountDetails() {
       } else {
         updated = [...prev, { uid: staffMember.uid, name: staffMember.name }];
       }
-      
+
       let text = mentionSearch;
       if (exists) {
         text = text.replace(`@${staffMember.name}`, '').replace(/\s+/g, ' ').trim();
@@ -279,9 +274,9 @@ export default function AccountDetails() {
       date: interactionDate,
       time: interactionTime,
       attachments: attachmentsList,
-      actionMentions: selectedMentions.map(m => ({ 
-        uid: m.uid, 
-        name: m.name, 
+      actionMentions: selectedMentions.map(m => ({
+        uid: m.uid,
+        name: m.name,
         task: taskText,
         dueDate: taskDueDate || null,
         priority: taskPriority
@@ -308,7 +303,7 @@ export default function AccountDetails() {
       {/* 1. Header Toolbar */}
       <div className="glass p-6 rounded-2xl border border-slate-800/80 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-xl">
         <div className="flex items-center gap-4">
-          <button 
+          <button
             onClick={() => navigate('/accounts')}
             className="flex items-center gap-1.5 cursor-pointer text-black hover:bg-dark-700 transition-colors font-bold text-base px-3.5 py-1.5 rounded-full"
           >
@@ -318,7 +313,7 @@ export default function AccountDetails() {
           <div>
             <div className="flex items-center gap-3">
               <h1 className="text-3xl font-extrabold text-white tracking-wide">{account.companyName}</h1>
-              <span 
+              <span
                 onClick={handleShowHealthExplanation}
                 className={`px-3.5 py-1.5 text-xs font-black rounded-full border cursor-help hover:scale-105 transition-transform duration-150 ${getHealthPillColor(account.healthScore)}`}
               >
@@ -333,7 +328,7 @@ export default function AccountDetails() {
         </div>
         <div className="flex items-center gap-2">
           {['Admin', 'Sales Manager', 'Executive'].includes(user?.role) && (
-            <button 
+            <button
               onClick={() => navigate(`/accounts/${id}/edit`)}
               className="bg-slate-800 hover:bg-slate-700 border border-slate-700 px-4 py-2.5 rounded-xl text-xs font-bold text-slate-200 flex items-center gap-2 cursor-pointer transition-all"
             >
@@ -341,7 +336,7 @@ export default function AccountDetails() {
               Edit Account
             </button>
           )}
-          <button 
+          <button
             onClick={() => setIsLogInteractionOpen(true)}
             className="bg-primary hover:bg-blue-600 px-5 py-3 rounded-xl text-xs font-bold text-white flex items-center gap-2 cursor-pointer transition-all shadow-lg shadow-primary/20"
           >
@@ -355,7 +350,7 @@ export default function AccountDetails() {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         {/* Left Hand side info panel: Corporate details & AI summary */}
         <div className="lg:col-span-5 space-y-6">
-          
+
           {/* Corporate details Card */}
           <div className="glass p-6 rounded-2xl border border-slate-800/80 space-y-5 overflow-visible relative z-30">
             <h3 className="text-sm font-extrabold uppercase tracking-widest text-slate-400 border-b border-slate-850 pb-2">Corporate Profile</h3>
@@ -444,7 +439,7 @@ export default function AccountDetails() {
 
         {/* Right Hand side content panel: Contacts & Interactions */}
         <div className="lg:col-span-7 space-y-6">
-          
+
           {/* Key Contacts */}
           <div className="glass p-6 rounded-2xl border border-slate-800/80 space-y-5 overflow-visible relative z-30">
             <h3 className="text-sm font-extrabold uppercase tracking-widest text-slate-400 border-b border-slate-850 pb-2">Key Contacts Mapped</h3>
@@ -462,12 +457,12 @@ export default function AccountDetails() {
                         </span>
                       </div>
                       <p className="text-xs text-primary font-black mt-1 uppercase tracking-wider">{c.designation}</p>
-                      
+
                       <div className="mt-3.5 space-y-1.5 text-xs text-slate-350">
                         <p className="flex items-center gap-1.5 font-bold truncate" title={c.email}><Mail className="w-3.5 h-3.5 text-slate-500" /> {c.email}</p>
                         {c.phone && <p className="flex items-center gap-1.5 font-bold"><Phone className="w-3.5 h-3.5 text-slate-500" /> {c.phone}</p>}
                       </div>
-                      
+
                       {c.projectName && (
                         <div className="mt-3.5 text-xs flex items-center gap-1.5 bg-slate-950/40 p-2.5 rounded-xl border border-slate-850 truncate font-bold text-slate-200">
                           <span className="text-slate-500 font-extrabold uppercase text-[10px] tracking-wider">Project:</span>
@@ -475,13 +470,13 @@ export default function AccountDetails() {
                         </div>
                       )}
                     </div>
-                    
+
                     <div className="flex items-center justify-between mt-5 pt-3.5 border-t border-slate-800/40">
                       <span className="text-[10px] font-extrabold bg-blue-500/10 border border-blue-500/20 text-blue-300 rounded px-2 py-0.5 uppercase tracking-wider">
                         {c.influenceTag}
                       </span>
                       {['Admin', 'Sales Manager', 'Executive'].includes(user?.role) && (
-                        <button 
+                        <button
                           onClick={async () => {
                             if (confirm(`Remove contact ${c.name}?`)) {
                               await deleteContact(c.contactId, id);
@@ -496,8 +491,13 @@ export default function AccountDetails() {
                     </div>
 
                     {/* Contact Owner Select */}
-                    <div className="mt-4 pt-3.5 border-t border-slate-800/30 relative z-30">
-                      <label className="text-[10px] font-black text-slate-500 uppercase block mb-1.5 tracking-wider">Stakeholder Owner</label>
+                    <div className="mt-4 pt-3.5 border-t border-slate-800/30 relative z-30 flex flex-col gap-2">
+                      <div className="flex flex-col gap-0.5">
+                        <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">Stakeholder Owner</span>
+                        <span className="text-slate-200 font-bold text-sm">
+                          {c.ownerName || (c.ownerId ? staffList.find(s => s.uid === c.ownerId)?.name : null) || 'Unassigned'}
+                        </span>
+                      </div>
                       {canEditOwners ? (
                         <div className="relative z-40">
                           <input
@@ -552,11 +552,7 @@ export default function AccountDetails() {
                             );
                           })()}
                         </div>
-                      ) : (
-                        <span className="text-xs text-slate-250 font-bold block">
-                          👤 {c.ownerName || 'Unassigned'}
-                        </span>
-                      )}
+                      ) : null}
                     </div>
                   </div>
                 ))
@@ -567,7 +563,7 @@ export default function AccountDetails() {
           {/* Interaction Timeline */}
           <div className="glass p-6 rounded-2xl border border-slate-800/80 space-y-5 relative z-10">
             <h3 className="text-sm font-extrabold uppercase tracking-widest text-slate-400 border-b border-slate-850 pb-2">Interaction Timeline</h3>
-            
+
             <div className="space-y-5 max-h-[600px] overflow-y-auto pr-1">
               {interactions.length === 0 ? (
                 <div className="text-center py-12 text-xs text-slate-500 font-bold">No interaction records logged yet against this client account.</div>
@@ -580,164 +576,163 @@ export default function AccountDetails() {
                   })
                   .map(item => {
                     const replies = repliesByInteraction[item.interactionId] || item.replies || [];
-                  return (
-                    <div key={item.interactionId} className="bg-dark-900/60 p-5 rounded-2xl border border-slate-800/80 space-y-3 relative shadow-md">
-                      <div className="flex items-center justify-between text-xs font-black">
-                        <span className="bg-slate-800 text-slate-205 border border-slate-700 px-3 py-1 rounded-full text-[10px] tracking-wide uppercase">
-                          {item.source}
-                        </span>
-                        <span className="text-slate-400 font-bold">
-                          {new Date(item.timestamp).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}
-                        </span>
-                      </div>
-                      
-                      {(() => {
-                        const title = (item.messageText && item.messageText.trim()) 
-                          ? item.messageText.trim().split('\n')[0] 
-                          : (item.subject || 'Interaction Note');
-                        const hasMore = item.messageText && item.messageText.trim().split('\n').length > 1;
-                        return (
-                          <div className="space-y-1.5 mt-1">
-                            <p className="text-sm font-extrabold text-slate-100 leading-relaxed">{title}</p>
-                            {hasMore && (
-                              <details className="group text-xs text-slate-500 cursor-pointer">
-                                <summary className="hover:text-primary transition-colors focus:outline-none list-none [&::-webkit-details-marker]:hidden flex items-center gap-1 select-none font-bold">
-                                  <span>View full notes</span>
-                                </summary>
-                                <p className="text-slate-300 mt-2 pl-3 border-l-2 border-slate-750 leading-relaxed whitespace-pre-wrap font-semibold text-xs">
-                                  {item.messageText}
-                                </p>
-                              </details>
-                            )}
-                          </div>
-                        );
-                      })()}
-
-                      {/* @Mention Tags */}
-                      {item.actionMentions && item.actionMentions.length > 0 && (
-                        <div className="space-y-2 pt-2 border-t border-slate-800/40 w-full mt-3">
-                          <div className="flex flex-col gap-2">
-                            {item.actionMentions.map(m => {
-                              const notif = item.notifications?.find(n => n.toUserId === m.uid && n.type === 'Task Assigned');
-                              let displayMessage = m.task;
-                              if (!displayMessage) {
-                                const match = notif?.message?.match(/:\s*"([^"]+)"/);
-                                displayMessage = match ? match[1] : (notif ? notif.message : item.messageText);
-                              }
-
-                              const currentStatus = m.status || 'Pending';
-                              const today = new Date();
-                              today.setHours(0,0,0,0);
-                              const taskDue = m.dueDate ? new Date(m.dueDate) : null;
-                              if (taskDue) {
-                                taskDue.setHours(0,0,0,0);
-                              }
-                              const isTaskOverdue = taskDue && taskDue < today && currentStatus !== 'Completed';
-                              const isStatusUnchanged = currentStatus === 'Pending' || currentStatus === 'Task Assigned';
-                              const showAsOverdued = isTaskOverdue && isStatusUnchanged;
-
-                              let displayStatus = currentStatus === 'Pending' ? 'Task Assigned' : currentStatus;
-                              if (displayStatus === 'Accept/Decline') displayStatus = 'Accept';
-                              if (displayStatus === 'Completed/Forwarded') displayStatus = 'Completed';
-                              if (showAsOverdued) {
-                                displayStatus = 'Overdued';
-                              }
-
-                              let statusText = displayStatus;
-                              let statusColor = 'text-slate-500';
-                              let StatusIcon = Clock;
-
-                              if (displayStatus === 'Completed') {
-                                statusText = 'Completed';
-                                statusColor = 'text-emerald-400';
-                                StatusIcon = CheckCheck;
-                              } else if (displayStatus === 'Forwarded') {
-                                const forwardedTo = m.forwardedToName;
-                                statusText = forwardedTo ? `Forwarded to @${forwardedTo}` : 'Forwarded';
-                                statusColor = 'text-sky-400';
-                                StatusIcon = Send;
-                              } else if (displayStatus === 'Accept') {
-                                statusText = 'Accepted';
-                                statusColor = 'text-amber-400';
-                                StatusIcon = CheckSquare;
-                              } else if (displayStatus === 'Decline') {
-                                statusText = 'Declined';
-                                statusColor = 'text-rose-400';
-                                StatusIcon = X;
-                              } else if (displayStatus === 'Overdued') {
-                                statusText = 'Overdue';
-                                statusColor = 'text-rose-500 font-extrabold animate-pulse';
-                                StatusIcon = ShieldAlert;
-                              } else {
-                                statusText = 'Pending';
-                                statusColor = 'text-slate-500';
-                                StatusIcon = Clock;
-                              }
-
-                              return (
-                                <div key={m.uid} className="bg-slate-900/40 p-3 rounded-xl border border-slate-800 space-y-1.5 w-full text-xs leading-relaxed">
-                                  <div className="flex items-center justify-between">
-                                    <span className="flex items-center gap-1 bg-primary/10 border border-primary/25 text-primary font-black rounded-full px-2.5 py-0.5">
-                                      <AtSign className="w-3 h-3" />{m.name}
-                                    </span>
-                                    <span className={`font-black flex items-center gap-1 ${statusColor}`}>
-                                      <StatusIcon className="w-4 h-4" />
-                                      {statusText}
-                                    </span>
-                                  </div>
-                                  <p className="text-slate-350 pl-1 font-bold">
-                                    <span className="text-slate-500 font-extrabold">Task: </span>
-                                    "{displayMessage}"
-                                  </p>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      )}
-
-                      <div className="flex items-center gap-2.5 pt-3 border-t border-slate-800/40 text-[10px] font-black uppercase tracking-wider">
-                        <span className={`px-2 py-0.5 rounded border ${
-                          item.sentiment === 'Positive' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' :
-                          item.sentiment === 'Negative' ? 'bg-rose-500/10 border-rose-500/20 text-rose-400' :
-                          'bg-slate-800 border-slate-700 text-slate-350'
-                        }`}>
-                          {item.sentiment} Sentiment
-                        </span>
-                        {item.riskDetected && (
-                          <span className="bg-rose-500/10 border border-rose-500/20 text-rose-400 px-2 py-0.5 rounded flex items-center gap-1">
-                            <ShieldAlert className="w-3.5 h-3.5 text-rose-500" />
-                            Risk: {item.riskCategory}
+                    return (
+                      <div key={item.interactionId} className="bg-dark-900/60 p-5 rounded-2xl border border-slate-800/80 space-y-3 relative shadow-md">
+                        <div className="flex items-center justify-between text-xs font-black">
+                          <span className="bg-slate-800 text-slate-205 border border-slate-700 px-3 py-1 rounded-full text-[10px] tracking-wide uppercase">
+                            {item.source}
                           </span>
-                        )}
-                        <button
-                          onClick={() => fetchReplies(item.interactionId)}
-                          className="ml-auto text-slate-400 hover:text-primary font-black underline cursor-pointer"
-                        >
-                          {replies.length > 0 ? `${replies.length} repl${replies.length === 1 ? 'y' : 'ies'}` : 'Load replies'}
-                        </button>
-                      </div>
-
-                      {/* Replies feed */}
-                      {replies.length > 0 && (
-                        <div className="border-t border-slate-800/60 pt-2.5 space-y-2 ml-2 mt-2.5">
-                          {replies.map(r => (
-                            <div key={r.replyId} className="flex items-start gap-2.5 text-xs">
-                              <span className="text-slate-600 mt-0.5">└─</span>
-                              <div className="flex-1 leading-relaxed">
-                                <span className="text-primary font-black">{r.authorName}</span>
-                                <span className="text-slate-300 ml-2 font-bold">{r.text}</span>
-                                <span className="text-slate-500 ml-2 font-bold text-[10px]">
-                                  {new Date(r.timestamp).toLocaleString([], { timeStyle: 'short' })}
-                                </span>
-                              </div>
-                            </div>
-                          ))}
+                          <span className="text-slate-400 font-bold">
+                            {formatDateTime(item.date, item.time, item.timestamp)}
+                          </span>
                         </div>
-                      )}
-                    </div>
-                  );
-                })
+
+                        {(() => {
+                          const title = (item.messageText && item.messageText.trim())
+                            ? item.messageText.trim().split('\n')[0]
+                            : (item.subject || 'Interaction Note');
+                          const hasMore = item.messageText && item.messageText.trim().split('\n').length > 1;
+                          return (
+                            <div className="space-y-1.5 mt-1">
+                              <p className="text-sm font-extrabold text-slate-100 leading-relaxed">{title}</p>
+                              {hasMore && (
+                                <details className="group text-xs text-slate-500 cursor-pointer">
+                                  <summary className="hover:text-primary transition-colors focus:outline-none list-none [&::-webkit-details-marker]:hidden flex items-center gap-1 select-none font-bold">
+                                    <span>View full notes</span>
+                                  </summary>
+                                  <p className="text-slate-300 mt-2 pl-3 border-l-2 border-slate-750 leading-relaxed whitespace-pre-wrap font-semibold text-xs">
+                                    {item.messageText}
+                                  </p>
+                                </details>
+                              )}
+                            </div>
+                          );
+                        })()}
+
+                        {/* @Mention Tags */}
+                        {item.actionMentions && item.actionMentions.length > 0 && (
+                          <div className="space-y-2 pt-2 border-t border-slate-800/40 w-full mt-3">
+                            <div className="flex flex-col gap-2">
+                              {item.actionMentions.map(m => {
+                                const notif = item.notifications?.find(n => n.toUserId === m.uid && n.type === 'Task Assigned');
+                                let displayMessage = m.task;
+                                if (!displayMessage) {
+                                  const match = notif?.message?.match(/:\s*"([^"]+)"/);
+                                  displayMessage = match ? match[1] : (notif ? notif.message : item.messageText);
+                                }
+
+                                const currentStatus = m.status || 'Pending';
+                                const today = new Date();
+                                today.setHours(0, 0, 0, 0);
+                                const taskDue = m.dueDate ? new Date(m.dueDate) : null;
+                                if (taskDue) {
+                                  taskDue.setHours(0, 0, 0, 0);
+                                }
+                                const isTaskOverdue = taskDue && taskDue < today && currentStatus !== 'Completed';
+                                const isStatusUnchanged = currentStatus === 'Pending' || currentStatus === 'Task Assigned';
+                                const showAsOverdued = isTaskOverdue && isStatusUnchanged;
+
+                                let displayStatus = currentStatus === 'Pending' ? 'Task Assigned' : currentStatus;
+                                if (displayStatus === 'Accept/Decline') displayStatus = 'Accept';
+                                if (displayStatus === 'Completed/Forwarded') displayStatus = 'Completed';
+                                if (showAsOverdued) {
+                                  displayStatus = 'Overdued';
+                                }
+
+                                let statusText = displayStatus;
+                                let statusColor = 'text-slate-500';
+                                let StatusIcon = Clock;
+
+                                if (displayStatus === 'Completed') {
+                                  statusText = 'Completed';
+                                  statusColor = 'text-emerald-400';
+                                  StatusIcon = CheckCheck;
+                                } else if (displayStatus === 'Forwarded') {
+                                  const forwardedTo = m.forwardedToName;
+                                  statusText = forwardedTo ? `Forwarded to @${forwardedTo}` : 'Forwarded';
+                                  statusColor = 'text-sky-400';
+                                  StatusIcon = Send;
+                                } else if (displayStatus === 'Accept') {
+                                  statusText = 'Accepted';
+                                  statusColor = 'text-amber-400';
+                                  StatusIcon = CheckSquare;
+                                } else if (displayStatus === 'Decline') {
+                                  statusText = 'Declined';
+                                  statusColor = 'text-rose-400';
+                                  StatusIcon = X;
+                                } else if (displayStatus === 'Overdued') {
+                                  statusText = 'Overdue';
+                                  statusColor = 'text-rose-500 font-extrabold animate-pulse';
+                                  StatusIcon = ShieldAlert;
+                                } else {
+                                  statusText = 'Pending';
+                                  statusColor = 'text-slate-500';
+                                  StatusIcon = Clock;
+                                }
+
+                                return (
+                                  <div key={m.uid} className="bg-slate-900/40 p-3 rounded-xl border border-slate-800 space-y-1.5 w-full text-xs leading-relaxed">
+                                    <div className="flex items-center justify-between">
+                                      <span className="flex items-center gap-1 bg-primary/10 border border-primary/25 text-primary font-black rounded-full px-2.5 py-0.5">
+                                        <AtSign className="w-3 h-3" />{m.name}
+                                      </span>
+                                      <span className={`font-black flex items-center gap-1 ${statusColor}`}>
+                                        <StatusIcon className="w-4 h-4" />
+                                        {statusText}
+                                      </span>
+                                    </div>
+                                    <p className="text-slate-350 pl-1 font-bold">
+                                      <span className="text-slate-500 font-extrabold">Task: </span>
+                                      "{displayMessage}"
+                                    </p>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
+
+                        <div className="flex items-center gap-2.5 pt-3 border-t border-slate-800/40 text-[10px] font-black uppercase tracking-wider">
+                          <span className={`px-2 py-0.5 rounded border ${item.sentiment === 'Positive' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' :
+                            item.sentiment === 'Negative' ? 'bg-rose-500/10 border-rose-500/20 text-rose-400' :
+                              'bg-slate-800 border-slate-700 text-slate-350'
+                            }`}>
+                            {item.sentiment} Sentiment
+                          </span>
+                          {item.riskDetected && (
+                            <span className="bg-rose-500/10 border border-rose-500/20 text-rose-400 px-2 py-0.5 rounded flex items-center gap-1">
+                              <ShieldAlert className="w-3.5 h-3.5 text-rose-500" />
+                              Risk: {item.riskCategory}
+                            </span>
+                          )}
+                          <button
+                            onClick={() => fetchReplies(item.interactionId)}
+                            className="ml-auto text-slate-400 hover:text-primary font-black underline cursor-pointer"
+                          >
+                            {replies.length > 0 ? `${replies.length} repl${replies.length === 1 ? 'y' : 'ies'}` : 'Load replies'}
+                          </button>
+                        </div>
+
+                        {/* Replies feed */}
+                        {replies.length > 0 && (
+                          <div className="border-t border-slate-800/60 pt-2.5 space-y-2 ml-2 mt-2.5">
+                            {replies.map(r => (
+                              <div key={r.replyId} className="flex items-start gap-2.5 text-xs">
+                                <span className="text-slate-600 mt-0.5">└─</span>
+                                <div className="flex-1 leading-relaxed">
+                                  <span className="text-primary font-black">{r.authorName}</span>
+                                  <span className="text-slate-300 ml-2 font-bold">{r.text}</span>
+                                  <span className="text-slate-500 ml-2 font-bold text-[10px]">
+                                    {formatDateTime(r.timestamp)}
+                                  </span>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })
               )}
             </div>
           </div>
@@ -752,7 +747,7 @@ export default function AccountDetails() {
       {isLogInteractionOpen && (
         <div className="fixed inset-0 bg-dark-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="glass w-full max-w-2xl rounded-2xl border border-slate-700/80 flex flex-col shadow-2xl max-h-[92vh] overflow-hidden">
-            
+
             {/* Header */}
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800 bg-dark-900/40">
               <div className="flex items-center gap-2.5">
@@ -785,11 +780,10 @@ export default function AccountDetails() {
                           key={ch.id}
                           type="button"
                           onClick={() => setInteractionSource(ch.id)}
-                          className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold border cursor-pointer transition-all duration-150 ${
-                            isActive
-                              ? 'bg-primary border-primary text-white shadow-lg shadow-primary/20'
-                              : 'bg-dark-900/60 border-slate-700 text-slate-350 hover:border-slate-550'
-                          }`}
+                          className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold border cursor-pointer transition-all duration-150 ${isActive
+                            ? 'bg-primary border-primary text-white shadow-lg shadow-primary/20'
+                            : 'bg-dark-900/60 border-slate-700 text-slate-350 hover:border-slate-550'
+                            }`}
                         >
                           <Icon className={`w-3.5 h-3.5 ${isActive ? 'text-white' : ch.color}`} />
                           {ch.label}
@@ -930,8 +924,8 @@ export default function AccountDetails() {
                     />
                     {showMentionDropdown && (() => {
                       const query = getMentionSearchQuery(mentionSearch);
-                      const filteredStaff = staffList.filter(s => 
-                        s.name.toLowerCase().includes(query.toLowerCase()) || 
+                      const filteredStaff = staffList.filter(s =>
+                        s.name.toLowerCase().includes(query.toLowerCase()) ||
                         s.email.toLowerCase().includes(query.toLowerCase())
                       );
                       if (filteredStaff.length === 0 || !mentionSearch.includes('@')) return null;
@@ -944,9 +938,8 @@ export default function AccountDetails() {
                                 key={s.uid}
                                 type="button"
                                 onMouseDown={() => insertMention(s)}
-                                className={`w-full flex items-center justify-between px-3 py-2 text-xs hover:bg-slate-800 transition-colors text-slate-700 ${
-                                  isSelected ? 'bg-primary/5 text-primary' : ''
-                                }`}
+                                className={`w-full flex items-center justify-between px-3 py-2 text-xs hover:bg-slate-800 transition-colors text-slate-700 ${isSelected ? 'bg-primary/5 text-primary' : ''
+                                  }`}
                               >
                                 <div className="flex flex-col items-start text-left">
                                   <span className="font-bold text-black">{s.name}</span>
@@ -1027,7 +1020,7 @@ export default function AccountDetails() {
       {isHealthExplanationOpen && (
         <div className="fixed inset-0 bg-dark-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="glass w-full max-w-2xl rounded-2xl border border-slate-700/80 flex flex-col shadow-2xl max-h-[92vh] overflow-hidden">
-            
+
             {/* Header */}
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800">
               <div className="flex items-center gap-2.5">
@@ -1037,7 +1030,7 @@ export default function AccountDetails() {
                   <p className="text-xs text-slate-500">Pillar calculations contributing to client health status</p>
                 </div>
               </div>
-              <button 
+              <button
                 onClick={() => { setIsHealthExplanationOpen(false); setExplanationData(null); }}
                 className="text-slate-400 hover:text-white transition-colors cursor-pointer"
               >
@@ -1067,9 +1060,9 @@ export default function AccountDetails() {
                     <div className="space-y-1">
                       <h4 className="text-sm font-bold text-white">Status: <span className={
                         explanationData.healthScore >= 90 ? 'text-emerald-400' :
-                        explanationData.healthScore >= 75 ? 'text-blue-400' :
-                        explanationData.healthScore >= 50 ? 'text-amber-400' :
-                        'text-rose-400'
+                          explanationData.healthScore >= 75 ? 'text-blue-400' :
+                            explanationData.healthScore >= 50 ? 'text-amber-400' :
+                              'text-rose-400'
                       }>{explanationData.status}</span></h4>
                       <p className="text-xs text-slate-400 leading-relaxed">
                         The score is derived from a weighted calculation across four primary health categories (25% weight each).
@@ -1141,7 +1134,7 @@ export default function AccountDetails() {
                               <span className="text-slate-500 truncate">{s.subject || 'Interaction'}</span>
                               <span className={
                                 s.sentiment === 'Positive' ? 'text-emerald-400' :
-                                s.sentiment === 'Negative' ? 'text-rose-400' : 'text-slate-400'
+                                  s.sentiment === 'Negative' ? 'text-rose-400' : 'text-slate-400'
                               }>{s.sentiment}</span>
                             </div>
                           ))
@@ -1181,7 +1174,7 @@ export default function AccountDetails() {
 
             {/* Footer */}
             <div className="px-6 py-4 border-t border-slate-800 flex justify-end">
-              <button 
+              <button
                 onClick={() => { setIsHealthExplanationOpen(false); setExplanationData(null); }}
                 className="bg-primary hover:bg-blue-600 text-xs text-white font-semibold rounded-xl px-5 py-2 transition-colors cursor-pointer"
               >

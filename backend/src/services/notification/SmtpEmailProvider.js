@@ -13,7 +13,7 @@ dotenv.config();
  *   SMTP_SECURE  — Use TLS (default false for port 25)
  *   SMTP_USER    — Auth username (leave blank for anonymous relay)
  *   SMTP_PASS    — Auth password (leave blank for anonymous relay)
- *   EMAIL_FROM   — Sender string, e.g. "Test Admin <test@nestgroup.net>"
+ *   EMAIL_FROM   — Sender string, e.g. "Test Admin <customerpulse@nestgroup.net>"
  *
  * When SMTP_HOST is not configured, the provider falls back to
  * MOCK MODE — emails are logged to console only. This is intentional
@@ -26,7 +26,7 @@ export class SmtpEmailProvider extends IEmailProvider {
   constructor() {
     super();
     this._transporter = null;
-    this._from = process.env.EMAIL_FROM || '"CustomerPulse CRM" <noreply@nestgroup.net>';
+    this._from = process.env.EMAIL_FROM || '"CustomerPulse" <noreply@nestgroup.net>';
     this._isMock = false;
     this._initialize();
   }

@@ -68,7 +68,7 @@ export default function EditAccount() {
       try {
         setIsLoading(true);
         // Fetch account profile
-        const accRes = await fetch(`http://localhost:5000/api/accounts/${id}`, {
+        const accRes = await fetch(`/CustomerPulse/api/accounts/${id}`, {
           headers: { 'Authorization': `Bearer ${token}` }
         });
         if (!accRes.ok) {
@@ -85,7 +85,7 @@ export default function EditAccount() {
         setDomain(accData.domain || '');
 
         // Fetch contacts
-        const conRes = await fetch(`http://localhost:5000/api/contacts?accountId=${id}`, {
+        const conRes = await fetch(`/CustomerPulse/api/contacts?accountId=${id}`, {
           headers: { 'Authorization': `Bearer ${token}` }
         });
         if (conRes.ok) {
