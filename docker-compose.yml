@@ -1,0 +1,19 @@
+version: '3.8'
+
+services:
+  db:
+    image: percona/percona-server:8.0
+    container_name: customer-pulse-db
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: YourStrongRootPasswordHere
+      MYSQL_DATABASE: customer_pulse
+      MYSQL_USER: root
+      MYSQL_PASSWORD: YourStrongRootPasswordHere
+    ports:
+      - "3306:3306"
+    volumes:
+      - percona_data:/var/lib/mysql
+
+volumes:
+  percona_data:

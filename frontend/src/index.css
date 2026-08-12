@@ -1,0 +1,143 @@
+@import "tailwindcss";
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&display=swap');
+
+@theme {
+  --color-primary: #223670;
+  --color-success: #22C55E;
+  --color-warning: #F59E0B;
+  --color-danger: #EF4444;
+
+  /* Redefine dark colors to light mode equivalents */
+  --color-dark-950: #F8FAFC; /* Light gray body bg */
+  --color-dark-900: #FFFFFF; /* Pure white card/section bg */
+  --color-dark-800: #E2E8F0; /* Slate border & dividers */
+  --color-dark-700: #F1F5F9; /* Muted input background */
+  --color-dark-600: #000000; /* Dark text */
+
+  /* Invert Slate scale for high-contrast light mode black text & styling */
+  --color-slate-50: #000000;
+  --color-slate-100: #000000;
+  --color-slate-200: #000000;
+  --color-slate-300: #000000;
+  --color-slate-350: #000000;
+  --color-slate-400: #000000;
+  --color-slate-450: #000000;
+  --color-slate-500: #000000;
+  --color-slate-600: #000000;
+  --color-slate-700: #E2E8F0;
+  --color-slate-800: #F1F5F9;
+  --color-slate-900: #F8FAFC;
+  --color-slate-950: #FFFFFF;
+
+  --font-sans: 'Montserrat', sans-serif;
+}
+
+/* ===== GLOBAL: Disable all animations & transitions ===== */
+*,
+*::before,
+*::after {
+  animation: none !important;
+  animation-duration: 0s !important;
+  animation-delay: 0s !important;
+  transition: none !important;
+  transition-duration: 0s !important;
+}
+
+html {
+  font-size: 16px;
+  scroll-behavior: smooth;
+}
+
+body {
+  background-color: var(--color-dark-950);
+  color: #000000 !important;
+  font-family: var(--font-sans);
+  font-size: 1rem;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+
+/* Glassmorphism utility - Light Mode optimized */
+.glass {
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.02);
+}
+
+.glass-hover:hover {
+  background: rgba(255, 255, 255, 0.85);
+  border-color: rgba(37, 99, 235, 0.2);
+  box-shadow: 0 10px 30px -10px rgba(37, 99, 235, 0.08);
+}
+
+/* Premium Custom Scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(15, 23, 42, 0.25);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(37, 99, 235, 0.5);
+}
+
+/* Form Controls styling overrides for Light mode readability */
+input,
+select,
+textarea {
+  color: #000000 !important;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: #64748b !important;
+}
+
+/* ===== GLOBAL TEXT COLOR OVERRIDES ===== */
+/* Force all text elements, headings, paragraphs, labels, spans, table cells to black */
+h1, h2, h3, h4, h5, h6, p, span, label, td, th, li, a, strong, b, em {
+  color: #000000;
+}
+
+.text-white {
+  color: #000000 !important;
+}
+
+.text-slate-300,
+.text-slate-350,
+.text-slate-400,
+.text-slate-450,
+.text-slate-500,
+.text-slate-600,
+.text-dark-600,
+.text-gray-400,
+.text-gray-500,
+.text-gray-600 {
+  color: #000000 !important;
+}
+
+/* Retain crisp white text ONLY for solid filled primary/danger/success buttons and badges */
+button.bg-primary,
+button.bg-primary *,
+button.bg-danger,
+button.bg-danger *,
+button.bg-emerald-600,
+button.bg-emerald-600 *,
+.bg-primary.text-white,
+.bg-primary .text-white,
+.bg-primary,
+.bg-emerald-500.text-white,
+.bg-rose-500.text-white,
+.bg-danger.text-white,
+.bg-success.text-white {
+  color: #ffffff !important;
+}
