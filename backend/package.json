@@ -1,0 +1,30 @@
+{
+  "name": "customer-pulse-backend",
+  "version": "1.0.0",
+  "description": "Customer Pulse Relationship Intelligence CRM Backend",
+  "main": "src/server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node --use-system-ca src/server.js",
+    "dev": "nodemon --exec \"node --use-system-ca\" src/server.js"
+  },
+  "dependencies": {
+    "@google/generative-ai": "^0.13.0",
+    "bcryptjs": "^3.0.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "express-rate-limit": "^8.6.0",
+    "helmet": "^8.3.0",
+    "jsonwebtoken": "^9.0.2",
+    "ldapjs": "^3.0.7",
+    "morgan": "^1.10.0",
+    "mssql": "^12.5.5",
+    "mysql2": "^3.22.5",
+    "nodemailer": "^6.9.13",
+    "pg": "^8.21.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.2"
+  }
+}

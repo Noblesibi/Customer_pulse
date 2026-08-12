@@ -1,0 +1,1151 @@
+import { create } from 'zustand';
+
+const API_BASE = '/CustomerPulse/api';
+
+export const useStore = create((set, get) => ({
+  // Authentication State — always start unauthenticated so the login page shows first
+  user: null,
+  token: null,
+  authError: null,
+  authLoading: false,
+
+  // HR Employee State
+  hrEmployeeData: null,
+  hrEmployeeLoading: false,
+  hrEmployeeError: null,
+
+  login: async (email, password) => {
+    set({ authLoading: true, authError: null });
+    try {
+      const res = await fetch(`${API_BASE}/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password })
+      });
+
+      const contentType = res.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) {
+        throw new Error('Backend server is offline or unreachable. Please start the backend service (npm start).');
+      }
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Login failed');
+
+      localStorage.setItem('cp_token', data.token);
+      localStorage.setItem('cp_user', JSON.stringify(data.user));
+      set({ token: data.token, user: data.user, authLoading: false });
+      return true;
+    } catch (err) {
+      set({ authError: err.message, authLoading: false });
+      return false;
+    }
+  },
+
+  signup: async (email, password, name, role) => {
+    set({ authLoading: true, authError: null });
+    try {
+      const res = await fetch(`${API_BASE}/auth/signup`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password, name, role })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Signup failed');
+
+      if (data.token) {
+        localStorage.setItem('cp_token', data.token);
+        localStorage.setItem('cp_user', JSON.stringify(data.user));
+        set({ token: data.token, user: data.user });
+      }
+      set({ authLoading: false });
+      return true;
+    } catch (err) {
+      set({ authError: err.message, authLoading: false });
+      return false;
+    }
+  },
+
+  loginWithMicrosoft: async (email, name) => {
+    set({ authLoading: true, authError: null });
+    try {
+      const res = await fetch(`${API_BASE}/auth/microsoft-login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, name, microsoftToken: 'mock-sso-token' })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Microsoft login failed');
+
+      localStorage.setItem('cp_token', data.token);
+      localStorage.setItem('cp_user', JSON.stringify(data.user));
+      set({ token: data.token, user: data.user, authLoading: false });
+      return true;
+    } catch (err) {
+      set({ authError: err.message, authLoading: false });
+      return false;
+    }
+  },
+
+  logout: () => {
+    localStorage.removeItem('cp_token');
+    localStorage.removeItem('cp_user');
+    set({ token: null, user: null, authError: null });
+  },
+
+  // Accounts CRUD
+  accounts: [],
+  totalAccounts: 0,
+  totalPages: 1,
+  currentPage: 1,
+  accountsLoading: false,
+  accountsError: null,
+
+  fetchAccounts: async (page = 1, search = '', filters = {}) => {
+    const token = get().token;
+    if (!token) return;
+    set({ accountsLoading: true });
+    try {
+      const queryParams = new URLSearchParams({
+        page,
+        search,
+        ...filters
+      }).toString();
+
+      const res = await fetch(`${API_BASE}/accounts?${queryParams}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (res.ok) {
+        set({
+          accounts: data.accounts,
+          totalAccounts: data.total,
+          currentPage: data.page,
+          totalPages: data.totalPages,
+          accountsLoading: false
+        });
+      }
+    } catch (err) {
+      console.error(err);
+      set({ accountsLoading: false });
+    }
+  },
+
+  addAccount: async (accountData) => {
+    const token = get().token;
+    set({ accountsError: null });
+    try {
+      const res = await fetch(`${API_BASE}/accounts`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(accountData)
+      });
+      const data = await res.json();
+      if (res.ok) {
+        set(state => ({ accounts: [data, ...state.accounts] }));
+        get().fetchDashboardStats();
+        return true;
+      }
+      set({ accountsError: data.error || 'Failed to create account.' });
+      return false;
+    } catch (err) {
+      console.error(err);
+      set({ accountsError: err.message || 'Failed to create account.' });
+      return false;
+    }
+  },
+
+  updateAccount: async (id, updatedData) => {
+    const token = get().token;
+    set({ accountsError: null });
+    try {
+      const res = await fetch(`${API_BASE}/accounts/${id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(updatedData)
+      });
+      const data = await res.json();
+      if (res.ok) {
+        set(state => ({
+          accounts: state.accounts.map(a => (a.accountId === id ? data : a))
+        }));
+        get().fetchDashboardStats();
+        return true;
+      }
+      set({ accountsError: data.error || 'Failed to update account.' });
+      return false;
+    } catch (err) {
+      console.error(err);
+      set({ accountsError: err.message || 'Failed to update account.' });
+      return false;
+    }
+  },
+
+  deleteAccount: async (id) => {
+    const token = get().token;
+    try {
+      const res = await fetch(`${API_BASE}/accounts/${id}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        set(state => ({
+          accounts: state.accounts.filter(a => a.accountId !== id)
+        }));
+        get().fetchDashboardStats();
+        return true;
+      }
+      return false;
+    } catch (err) {
+      console.error(err);
+      return false;
+    }
+  },
+
+  fetchHealthExplanation: async (accountId) => {
+    const token = get().token;
+    if (!token) return null;
+    try {
+      const res = await fetch(`${API_BASE}/accounts/${accountId}/health-explanation`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        return await res.json();
+      }
+      return null;
+    } catch (err) {
+      console.error('Error fetching health explanation:', err);
+      return null;
+    }
+  },
+
+  // Contacts
+  contacts: [],
+  contactsLoading: false,
+  contactsError: null,
+
+  fetchContacts: async (accountId = '') => {
+    const token = get().token;
+    if (!token) return;
+    set({ contactsLoading: true });
+    try {
+      const url = accountId ? `${API_BASE}/contacts?accountId=${accountId}` : `${API_BASE}/contacts`;
+      const res = await fetch(url, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (res.ok) {
+        set({ contacts: data, contactsLoading: false });
+      }
+    } catch (err) {
+      console.error(err);
+      set({ contactsLoading: false });
+    }
+  },
+
+  addContact: async (contactData) => {
+    const token = get().token;
+    set({ contactsError: null });
+    try {
+      const res = await fetch(`${API_BASE}/contacts`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(contactData)
+      });
+      const data = await res.json();
+      if (res.ok) {
+        set(state => ({ contacts: [...state.contacts, data] }));
+        get().fetchContacts(contactData.accountId);
+        return true;
+      }
+      set({ contactsError: data.error || 'Failed to create contact.' });
+      return false;
+    } catch (err) {
+      console.error(err);
+      set({ contactsError: err.message || 'Failed to create contact.' });
+      return false;
+    }
+  },
+
+  updateContact: async (id, contactData) => {
+    const token = get().token;
+    set({ contactsError: null });
+    try {
+      const res = await fetch(`${API_BASE}/contacts/${id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(contactData)
+      });
+      const data = await res.json();
+      if (res.ok) {
+        set(state => ({
+          contacts: state.contacts.map(c => (c.contactId === id ? data : c))
+        }));
+        return true;
+      }
+      set({ contactsError: data.error || 'Failed to update contact.' });
+      return false;
+    } catch (err) {
+      console.error(err);
+      set({ contactsError: err.message || 'Failed to update contact.' });
+      return false;
+    }
+  },
+
+  deleteContact: async (id, accountId) => {
+    const token = get().token;
+    try {
+      const res = await fetch(`${API_BASE}/contacts/${id}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        set(state => ({
+          contacts: state.contacts.filter(c => c.contactId !== id)
+        }));
+        if (accountId) get().fetchContacts(accountId);
+        return true;
+      }
+      return false;
+    } catch (err) {
+      console.error(err);
+      return false;
+    }
+  },
+
+  // Interactions Timeline
+  interactions: [],
+  interactionsLoading: false,
+
+  fetchInteractions: async (accountId = '', beforeTimestamp = '') => {
+    const token = get().token;
+    if (!token) return;
+    set({ interactionsLoading: true });
+    try {
+      const query = new URLSearchParams();
+      if (accountId) query.append('accountId', accountId);
+      if (beforeTimestamp) query.append('beforeTimestamp', beforeTimestamp);
+
+      const res = await fetch(`${API_BASE}/interactions?${query.toString()}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (res.ok) {
+        set({ interactions: data, interactionsLoading: false });
+      }
+    } catch (err) {
+      console.error(err);
+      set({ interactionsLoading: false });
+    }
+  },
+
+  addInteraction: async (interactionData) => {
+    const token = get().token;
+    try {
+      const res = await fetch(`${API_BASE}/interactions`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(interactionData)
+      });
+      const data = await res.json();
+      if (res.ok) {
+        set(state => ({
+          interactions: [data.interaction, ...state.interactions]
+        }));
+        get().fetchDashboardStats();
+        get().fetchNotifications();
+        return data; // returns interaction & health score & analysis
+      }
+      return null;
+    } catch (err) {
+      console.error(err);
+      return null;
+    }
+  },
+
+  // Risks Module
+  risks: [],
+  risksLoading: false,
+
+  fetchRisks: async (accountId = '') => {
+    const token = get().token;
+    if (!token) return;
+    set({ risksLoading: true });
+    try {
+      const url = accountId ? `${API_BASE}/risks?accountId=${accountId}` : `${API_BASE}/risks`;
+      const res = await fetch(url, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (res.ok) {
+        set({ risks: data, risksLoading: false });
+      }
+    } catch (err) {
+      console.error(err);
+      set({ risksLoading: false });
+    }
+  },
+
+  resolveRisk: async (id, comments = '') => {
+    const token = get().token;
+    try {
+      const res = await fetch(`${API_BASE}/risks/${id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ status: 'Resolved', description: comments })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        set(state => ({
+          risks: state.risks.map(r => (r.riskId === id ? data : r))
+        }));
+        get().fetchDashboardStats();
+        get().fetchNotifications();
+        return true;
+      }
+      return false;
+    } catch (err) {
+      console.error(err);
+      return false;
+    }
+  },
+
+  // Dashboard Statistics
+  dashboardStats: null,
+  dashboardLoading: false,
+
+  fetchDashboardStats: async () => {
+    const token = get().token;
+    if (!token) return;
+    set({ dashboardLoading: true });
+    try {
+      const res = await fetch(`${API_BASE}/dashboard/stats`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (res.ok) {
+        set({ dashboardStats: data, dashboardLoading: false });
+      }
+    } catch (err) {
+      console.error(err);
+      set({ dashboardLoading: false });
+    }
+  },
+
+  // AI Summary
+  activeAccountSummary: null,
+  summaryLoading: false,
+
+  fetchAccountSummary: async (accountId) => {
+    const token = get().token;
+    if (!token || !accountId) return;
+    set({ summaryLoading: true, activeAccountSummary: null });
+    try {
+      const res = await fetch(`${API_BASE}/summary/${accountId}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (res.ok) {
+        set({ activeAccountSummary: data.summary, summaryLoading: false });
+      }
+    } catch (err) {
+      console.error(err);
+      set({ summaryLoading: false });
+    }
+  },
+
+  // Notifications Bell
+  notifications: [],
+  unreadNotificationsCount: 0,
+
+  fetchNotifications: async () => {
+    const token = get().token;
+    if (!token) return;
+    try {
+      const res = await fetch(`${API_BASE}/notifications`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (res.ok) {
+        const unread = data.filter(n => !n.read).length;
+        set({ notifications: data, unreadNotificationsCount: unread });
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  },
+
+  markNotificationRead: async (id) => {
+    const token = get().token;
+    try {
+      const res = await fetch(`${API_BASE}/notifications/${id}/read`, {
+        method: 'PUT',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        set(state => {
+          const updated = state.notifications.map(n => (n.notificationId === id ? { ...n, read: true } : n));
+          const unread = updated.filter(n => !n.read).length;
+          return { notifications: updated, unreadNotificationsCount: unread };
+        });
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  },
+
+  markAllNotificationsRead: async () => {
+    const token = get().token;
+    try {
+      const res = await fetch(`${API_BASE}/notifications/read-all`, {
+        method: 'PUT',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        set(state => {
+          const updated = state.notifications.map(n => ({ ...n, read: true }));
+          return { notifications: updated, unreadNotificationsCount: 0 };
+        });
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  },
+
+  // Staff Directory (for Action Tracking / Mentions)
+  staffList: [],
+
+  fetchStaff: async () => {
+    const token = get().token;
+    if (!token) return;
+    try {
+      const [resStaff, resUsers, resEmployees] = await Promise.all([
+        fetch(`${API_BASE}/auth/staff`, { headers: { 'Authorization': `Bearer ${token}` } }),
+        fetch(`${API_BASE}/auth/users`, { headers: { 'Authorization': `Bearer ${token}` } }),
+        fetch(`${API_BASE}/employees`, { headers: { 'Authorization': `Bearer ${token}` } })
+      ]);
+      let staffData = [];
+      let usersData = [];
+      let employeesData = [];
+      if (resStaff.ok) staffData = await resStaff.json();
+      if (resUsers.ok) usersData = await resUsers.json();
+      if (resEmployees.ok) employeesData = await resEmployees.json();
+      const combined = Array.from(
+        new Map([
+          ...(Array.isArray(staffData) ? staffData : []),
+          ...(Array.isArray(usersData) ? usersData : []),
+          ...(Array.isArray(employeesData) ? employeesData : [])
+        ].map(u => [u.uid || u.id || u.email?.toLowerCase(), u])).values()
+      );
+      set({ staffList: combined });
+    } catch (err) {
+      console.error(err);
+    }
+  },
+
+  // Users & Employees List
+  usersList: [],
+  usersLoading: false,
+  fetchUsersList: async () => {
+    const token = get().token;
+    if (!token) return;
+    set({ usersLoading: true });
+    try {
+      const [resUsers, resStaff, resEmployees] = await Promise.all([
+        fetch(`${API_BASE}/auth/users`, { headers: { 'Authorization': `Bearer ${token}` } }),
+        fetch(`${API_BASE}/auth/staff`, { headers: { 'Authorization': `Bearer ${token}` } }),
+        fetch(`${API_BASE}/employees`, { headers: { 'Authorization': `Bearer ${token}` } })
+      ]);
+      let usersData = [];
+      let staffData = [];
+      let employeesData = [];
+      if (resUsers.ok) usersData = await resUsers.json();
+      if (resStaff.ok) staffData = await resStaff.json();
+      if (resEmployees.ok) employeesData = await resEmployees.json();
+      const combined = Array.from(
+        new Map([
+          ...(Array.isArray(usersData) ? usersData : []),
+          ...(Array.isArray(staffData) ? staffData : []),
+          ...(Array.isArray(employeesData) ? employeesData : [])
+        ].map(u => [u.uid || u.id || u.email?.toLowerCase(), u])).values()
+      );
+      set({ usersList: combined, usersLoading: false });
+    } catch (err) {
+      console.error(err);
+      set({ usersLoading: false });
+    }
+  },
+
+  addUser: async (userData) => {
+    const token = get().token;
+    try {
+      const res = await fetch(`${API_BASE}/auth/users`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(userData)
+      });
+      const data = await res.json();
+      if (res.ok) {
+        set(state => {
+          const exists = state.usersList.some(u => u.uid === data.uid || u.email.toLowerCase() === data.email.toLowerCase());
+          const updatedList = exists
+            ? state.usersList.map(u => (u.uid === data.uid || u.email.toLowerCase() === data.email.toLowerCase() ? data : u))
+            : [...state.usersList, data];
+          return { usersList: updatedList };
+        });
+        return true;
+      }
+      return false;
+    } catch (err) {
+      console.error(err);
+      return false;
+    }
+  },
+
+  deleteUser: async (uid) => {
+    const token = get().token;
+    try {
+      const res = await fetch(`${API_BASE}/auth/users/${uid}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (res.ok) {
+        set(state => ({ usersList: state.usersList.filter(u => u.uid !== uid) }));
+        return true;
+      }
+      return false;
+    } catch (err) {
+      console.error(err);
+      return false;
+    }
+  },
+
+  // ── MY TASKS (interactions where current user is @mentioned) ──
+  myTasks: [],
+  myTasksLoading: false,
+
+  fetchMyTasks: async () => {
+    const token = get().token;
+    if (!token) return;
+    set({ myTasksLoading: true });
+    try {
+      const res = await fetch(`${API_BASE}/interactions/my-tasks`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (res.ok) {
+        set({ myTasks: data, myTasksLoading: false });
+      } else {
+        set({ myTasksLoading: false });
+      }
+    } catch (err) {
+      console.error(err);
+      set({ myTasksLoading: false });
+    }
+  },
+
+  // ── REPLIES ──
+  repliesByInteraction: {}, // { [interactionId]: [replies] }
+
+  fetchReplies: async (interactionId) => {
+    const token = get().token;
+    if (!token || !interactionId) return;
+    try {
+      const res = await fetch(`${API_BASE}/interactions/${interactionId}/replies`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (res.ok) {
+        set(state => ({
+          repliesByInteraction: {
+            ...state.repliesByInteraction,
+            [interactionId]: data
+          }
+        }));
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  },
+
+  replyToInteraction: async (interactionId, text) => {
+    const token = get().token;
+    if (!token) return null;
+    try {
+      const res = await fetch(`${API_BASE}/interactions/${interactionId}/reply`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ text })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        // Append reply locally
+        set(state => ({
+          repliesByInteraction: {
+            ...state.repliesByInteraction,
+            [interactionId]: [
+              ...(state.repliesByInteraction[interactionId] || []),
+              data
+            ]
+          },
+          // Update myTasks replyStatus for this interaction
+          myTasks: state.myTasks.map(t =>
+            t.interactionId === interactionId
+              ? { ...t, replyStatus: 'Replied', replies: [...(t.replies || []), data] }
+              : t
+          ),
+          // Update interactions list with new reply
+          interactions: state.interactions.map(i =>
+            i.interactionId === interactionId
+              ? { ...i, replies: [...(i.replies || []), data] }
+              : i
+          )
+        }));
+        get().fetchNotifications();
+        return data;
+      }
+      return null;
+    } catch (err) {
+      console.error(err);
+      return null;
+    }
+  },
+
+  updateTaskStatus: async (interactionId, mentionUid, status, completionNote = '', forwardToUid = '', forwardToName = '', completionDate = null) => {
+    const token = get().token;
+    if (!token) return false;
+    try {
+      const res = await fetch(`${API_BASE}/interactions/${interactionId}/task-status`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ mentionUid, status, completionNote, forwardToUid, forwardToName, completionDate })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        set(state => ({
+          interactions: state.interactions.map(i => {
+            if (i.interactionId === interactionId) {
+              return { ...i, actionMentions: data.actionMentions || i.actionMentions };
+            }
+            return i;
+          }),
+          myTasks: state.myTasks.map(t => {
+            if (t.interactionId === interactionId) {
+              return { ...t, actionMentions: data.actionMentions || t.actionMentions };
+            }
+            return t;
+          })
+        }));
+        return true;
+      }
+      return false;
+    } catch (err) {
+      console.error('Error updating task status in store:', err);
+      return false;
+    }
+  },
+
+  // ── ACTIVITY LOGS ──
+  activityLogs: [],
+  activityLogsLoading: false,
+
+  fetchActivityLogs: async () => {
+    const token = get().token;
+    if (!token) return;
+    set({ activityLogsLoading: true });
+    try {
+      const res = await fetch(`${API_BASE}/activity-logs`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (res.ok) {
+        set({ activityLogs: data, activityLogsLoading: false });
+      } else {
+        set({ activityLogsLoading: false });
+      }
+    } catch (err) {
+      console.error('Error fetching activity logs:', err);
+      set({ activityLogsLoading: false });
+    }
+  },
+
+  // ── STAFF TASKS CRUD ──
+  staffTasks: [],
+  staffTasksLoading: false,
+
+  fetchStaffTasks: async (filter = 'all') => {
+    const token = get().token;
+    if (!token) return;
+    set({ staffTasksLoading: true });
+    try {
+      const res = await fetch(`${API_BASE}/tasks?filter=${filter}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (res.ok) {
+        set({ staffTasks: data, staffTasksLoading: false });
+      } else {
+        set({ staffTasksLoading: false });
+      }
+    } catch (err) {
+      console.error('Error fetching staff tasks:', err);
+      set({ staffTasksLoading: false });
+    }
+  },
+
+  createStaffTask: async (taskData) => {
+    const token = get().token;
+    if (!token) return { success: false, error: 'Authentication token missing' };
+    try {
+      const res = await fetch(`${API_BASE}/tasks`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(taskData)
+      });
+      const data = await res.json();
+      if (res.ok) {
+        set(state => ({ staffTasks: [data, ...(state.staffTasks || [])] }));
+        return { success: true, task: data, ...data };
+      }
+      return { success: false, error: data.error || 'Failed to create task' };
+    } catch (err) {
+      console.error('Error creating staff task:', err);
+      return { success: false, error: err.message || 'Error creating staff task' };
+    }
+  },
+
+  updateStaffTaskStatus: async (taskId, status, completionNote = '', note = '', forwardToUid = '', forwardToName = '') => {
+    const token = get().token;
+    if (!token) return false;
+    try {
+      const res = await fetch(`${API_BASE}/tasks/${taskId}/status`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ status, completionNote, note, forwardToUid, forwardToName })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        set(state => ({
+          staffTasks: state.staffTasks.map(t => {
+            if (t.taskId === taskId) {
+              const updated = {
+                ...t,
+                status: data.status,
+                assignedToUid: data.assignedToUid || t.assignedToUid,
+                assignedToName: data.assignedToName || t.assignedToName
+              };
+              if (completionNote !== undefined) {
+                updated.completionNote = completionNote;
+              }
+              return updated;
+            }
+            return t;
+          })
+        }));
+        return true;
+      }
+      return false;
+    } catch (err) {
+      console.error('Error updating staff task status:', err);
+      return false;
+    }
+  },
+
+  fetchStaffTaskReplies: async (taskId) => {
+    const token = get().token;
+    if (!token) return [];
+    try {
+      const res = await fetch(`${API_BASE}/tasks/${taskId}/replies`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (res.ok) {
+        return data;
+      }
+      return [];
+    } catch (err) {
+      console.error('Error fetching staff task replies:', err);
+      return [];
+    }
+  },
+
+  addStaffTaskReply: async (taskId, text) => {
+    const token = get().token;
+    if (!token) return null;
+    try {
+      const res = await fetch(`${API_BASE}/tasks/${taskId}/reply`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ text })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        return data;
+      }
+      return null;
+    } catch (err) {
+      console.error('Error adding staff task reply:', err);
+      return null;
+    }
+  },
+
+  generateTaskHeader: async (description) => {
+    const token = get().token;
+    if (!token) return null;
+    try {
+      const res = await fetch(`${API_BASE}/ai/generate-task-header`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ description })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        return data.header;
+      }
+      return null;
+    } catch (err) {
+      console.error('Error generating task header:', err);
+      return null;
+    }
+  },
+
+  fetchHREmployeeData: async (email) => {
+    const token = get().token;
+    if (!token) return null;
+    set({ hrEmployeeLoading: true, hrEmployeeError: null, hrEmployeeData: null });
+    try {
+      const res = await fetch(`${API_BASE}/employees/hr-data`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ email })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to fetch HR data');
+      set({ hrEmployeeData: data, hrEmployeeLoading: false });
+      return data;
+    } catch (err) {
+      console.error('Error fetching HR employee data:', err);
+      set({ hrEmployeeError: err.message, hrEmployeeLoading: false });
+      return null;
+    }
+  },
+
+  syncDirectoryWithHR: async () => {
+    const token = get().token;
+    if (!token) return { success: false, error: 'Authentication required' };
+    try {
+      const res = await fetch(`${API_BASE}/employees/sync`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      const data = await res.json();
+      if (res.ok) {
+        await get().fetchUsersList();
+        await get().fetchStaff();
+        return data;
+      }
+      return { success: false, error: data.error || 'Sync failed' };
+    } catch (err) {
+      console.error('Error syncing directory with HR:', err);
+      return { success: false, error: err.message };
+    }
+
+  },
+
+  // ─── Email Engine ─────────────────────────────────────────────────────────
+  emailEngineStats: null,
+  emailEngineStatsLoading: false,
+  emailQueue: [],
+  emailQueueLoading: false,
+  emailLogs: [],
+  emailLogsLoading: false,
+  emailTemplates: [],
+  notificationPreferences: null,
+
+  fetchEmailEngineStats: async () => {
+    const token = get().token;
+    if (!token) return;
+    set({ emailEngineStatsLoading: true });
+    try {
+      const res = await fetch(`${API_BASE}/email-engine/stats`, { headers: { 'Authorization': `Bearer ${token}` } });
+      const data = await res.json();
+      if (res.ok) set({ emailEngineStats: data });
+    } catch (err) { console.error('fetchEmailEngineStats:', err); }
+    finally { set({ emailEngineStatsLoading: false }); }
+  },
+
+  fetchEmailQueue: async (status = '') => {
+    const token = get().token;
+    if (!token) return;
+    set({ emailQueueLoading: true });
+    try {
+      const url = status ? `${API_BASE}/email-engine/queue?status=${status}` : `${API_BASE}/email-engine/queue`;
+      const res = await fetch(url, { headers: { 'Authorization': `Bearer ${token}` } });
+      const data = await res.json();
+      if (res.ok) set({ emailQueue: data });
+    } catch (err) { console.error('fetchEmailQueue:', err); }
+    finally { set({ emailQueueLoading: false }); }
+  },
+
+  fetchEmailLogs: async (filters = {}) => {
+    const token = get().token;
+    if (!token) return;
+    set({ emailLogsLoading: true });
+    try {
+      const params = new URLSearchParams(filters).toString();
+      const url = params ? `${API_BASE}/email-engine/logs?${params}` : `${API_BASE}/email-engine/logs`;
+      const res = await fetch(url, { headers: { 'Authorization': `Bearer ${token}` } });
+      const data = await res.json();
+      if (res.ok) set({ emailLogs: data });
+    } catch (err) { console.error('fetchEmailLogs:', err); }
+    finally { set({ emailLogsLoading: false }); }
+  },
+
+  fetchEmailTemplates: async () => {
+    const token = get().token;
+    if (!token) return;
+    try {
+      const res = await fetch(`${API_BASE}/email-engine/templates`, { headers: { 'Authorization': `Bearer ${token}` } });
+      const data = await res.json();
+      if (res.ok) set({ emailTemplates: data });
+    } catch (err) { console.error('fetchEmailTemplates:', err); }
+  },
+
+  retryEmail: async (queueId) => {
+    const token = get().token;
+    if (!token) return false;
+    try {
+      const res = await fetch(`${API_BASE}/email-engine/retry/${queueId}`, { method: 'POST', headers: { 'Authorization': `Bearer ${token}` } });
+      return res.ok;
+    } catch (err) { return false; }
+  },
+
+  retryAllEmails: async () => {
+    const token = get().token;
+    if (!token) return null;
+    try {
+      const res = await fetch(`${API_BASE}/email-engine/retry-all`, { method: 'POST', headers: { 'Authorization': `Bearer ${token}` } });
+      return await res.json();
+    } catch (err) { return null; }
+  },
+
+  cancelQueuedEmail: async (queueId) => {
+    const token = get().token;
+    if (!token) return false;
+    try {
+      const res = await fetch(`${API_BASE}/email-engine/queue/${queueId}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } });
+      return res.ok;
+    } catch (err) { return false; }
+  },
+
+  bulkCancelEmails: async () => {
+    const token = get().token;
+    if (!token) return null;
+    try {
+      const res = await fetch(`${API_BASE}/email-engine/bulk-cancel`, { method: 'POST', headers: { 'Authorization': `Bearer ${token}` } });
+      return await res.json();
+    } catch (err) { return null; }
+  },
+
+  previewEmailTemplate: async (templateId) => {
+    const token = get().token;
+    if (!token) return null;
+    try {
+      const res = await fetch(`${API_BASE}/email-engine/templates/${templateId}/preview`, { headers: { 'Authorization': `Bearer ${token}` } });
+      return res.ok ? await res.json() : null;
+    } catch (err) { return null; }
+  },
+
+  fetchNotificationPreferences: async (uid) => {
+    const token = get().token;
+    if (!token) return null;
+    try {
+      const res = await fetch(`${API_BASE}/email-engine/preferences/${uid}`, { headers: { 'Authorization': `Bearer ${token}` } });
+      const data = await res.json();
+      if (res.ok) { set({ notificationPreferences: data }); return data; }
+      return null;
+    } catch (err) { return null; }
+  },
+
+  updateNotificationPreferences: async (uid, updates) => {
+    const token = get().token;
+    if (!token) return false;
+    try {
+      const res = await fetch(`${API_BASE}/email-engine/preferences/${uid}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify(updates)
+      });
+      const data = await res.json();
+      if (res.ok) { set({ notificationPreferences: data }); return true; }
+      return false;
+    } catch (err) { return false; }
+  },
+
+  sendTestEmail: async (templateId, recipientUid) => {
+    const token = get().token;
+    if (!token) return false;
+    try {
+      const res = await fetch(`${API_BASE}/email-engine/test`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ templateId, recipientUid })
+      });
+      return res.ok;
+    } catch (err) { return false; }
+  },
+
+  fetchSmtpStatus: async () => {
+    const token = get().token;
+    if (!token) return null;
+    try {
+      const res = await fetch(`${API_BASE}/email-engine/smtp-status`, { headers: { 'Authorization': `Bearer ${token}` } });
+      return res.ok ? await res.json() : null;
+    } catch (err) { return null; }
+  }
+}));
