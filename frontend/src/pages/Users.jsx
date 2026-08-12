@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { 
   Users as UsersIcon, Shield, Mail, Calendar, Key, Plus, X, Lock, 
   User, Briefcase, Trash2, ArrowLeft, PlusCircle, MinusCircle, Upload, CheckCircle2,
@@ -8,6 +9,7 @@ import {
 import { useStore } from '../store/index.js';
 
 export default function Users() {
+  const navigate = useNavigate();
   const { 
     usersList, usersLoading, fetchUsersList, staffList, fetchStaff, addUser, user, deleteUser,
     accounts, accountsLoading, fetchAccounts,
@@ -23,6 +25,9 @@ export default function Users() {
         ...(Array.isArray(usersList) ? usersList : []),
         ...(Array.isArray(staffList) ? staffList : [])
       ].map(u => [u.uid || u.id || u.email?.toLowerCase(), u])).values()
+    ).filter(u => 
+      !u.email?.toLowerCase().includes('dileep') && 
+      !u.name?.toLowerCase().includes('dileep')
     );
   }, [usersList, staffList]);
 
@@ -1666,11 +1671,23 @@ export default function Users() {
             </div>
 
             {/* Footer */}
-            <div className="pt-2 flex justify-end">
+            <div className="pt-2 flex items-center justify-between gap-3">
+              <button 
+                type="button" 
+                onClick={() => {
+                  const uid = selectedDirUser.uid || selectedDirUser.id;
+                  const name = selectedDirUser.name;
+                  setSelectedDirUser(null);
+                  navigate('/staff-tasks/new', { state: { preselectUid: uid, preselectName: name } });
+                }}
+                className="bg-primary hover:bg-blue-700 text-white text-xs font-bold rounded-lg px-5 py-2.5 flex items-center gap-2 cursor-pointer active:scale-98 transition-all shadow-md"
+              >
+                <Plus size={14} /> Assign Staff Task
+              </button>
               <button 
                 type="button" 
                 onClick={() => setSelectedDirUser(null)}
-                className="bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-lg px-6 py-2.5 border border-slate-700/50 cursor-pointer active:scale-98 transition-all"
+                className="bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-lg px-5 py-2.5 border border-slate-700/50 cursor-pointer active:scale-98 transition-all"
               >
                 Close Profile
               </button>

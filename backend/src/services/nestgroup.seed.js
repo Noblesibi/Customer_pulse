@@ -41,8 +41,22 @@ export async function ensureNestGroupEmployees(db) {
         deletedCount++;
       }
     }
+    // Automatically purge Dileep Choyappally from database
+    const snap = await db.collection('users').get();
+    if (snap && snap.docs) {
+      for (const doc of snap.docs) {
+        const data = doc.data ? doc.data() : doc;
+        if (data && (
+          (data.email && data.email.toLowerCase().includes('dileep')) ||
+          (data.name && data.name.toLowerCase().includes('dileep'))
+        )) {
+          await db.collection('users').doc(doc.id || data.uid).delete();
+          deletedCount++;
+        }
+      }
+    }
     if (deletedCount > 0) {
-      console.log(`🧹 [NestGroupSeed] Cleaned up ${deletedCount} legacy hardcoded users from the database.`);
+      console.log(`🧹 [NestGroupSeed] Cleaned up ${deletedCount} legacy hardcoded/removed users from the database.`);
     }
   } catch (error) {
     console.error('❌ [NestGroupSeed] Error cleaning up legacy employees:', error.message);

@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { db, logActivity } from '../config/database.js';
 import { authenticateToken, requireRole } from '../middleware/auth.middleware.js';
 import { calculateAccountHealth } from '../services/health.service.js';
+import { getSystemDateString, getSystemTimeString } from '../utils/dateUtils.js';
 
 const router = Router();
 
@@ -111,6 +112,8 @@ router.put('/:id', requireRole(['Admin', 'Sales Manager', 'Executive']), async (
         message: `Risk [${currentRisk.category}] resolved successfully.`,
         severity: 'Low',
         read: false,
+        date: getSystemDateString(),
+        time: getSystemTimeString(),
         timestamp: new Date().toISOString()
       });
     }

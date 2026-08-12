@@ -25,7 +25,7 @@ export default function App() {
   const { user } = useStore();
 
   return (
-    <BrowserRouter>
+    <BrowserRouter basename="/CustomerPulse">
       <Routes>
         {/* Public pages */}
         <Route path="/" element={user ? <Navigate to="/dashboard" replace /> : <Navigate to="/login" replace />} />

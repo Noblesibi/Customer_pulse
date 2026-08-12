@@ -4,6 +4,7 @@ import { authenticateToken } from '../middleware/auth.middleware.js';
 import { sendTaskAssignmentEmail } from '../services/email.service.js';
 import { generateTaskHeader } from '../services/ai.service.js';
 import { NotificationEngine } from '../services/notification/NotificationEngine.js';
+import { getSystemDateString, getSystemTimeString } from '../utils/dateUtils.js';
 
 const router = Router();
 router.use(authenticateToken);
@@ -13,18 +14,15 @@ router.use(authenticateToken);
  * Create a new task.
  */
 router.post('/', async (req, res) => {
-  const { title, description, assignedToUid, priority, dueDate, accountId, contactId } = req.body;
+  let { title, description, assignedToUid, priority, dueDate, accountId, contactId } = req.body;
 
   const validPriorities = ['Low', 'Medium', 'High', 'Critical'];
 
-  if (!title || typeof title !== 'string' || !title.trim()) {
-    return res.status(400).json({ error: 'Task Title is required and cannot be empty.' });
-  }
-  if (title.trim().length < 2) {
-    return res.status(400).json({ error: 'Task Title must be at least 2 characters.' });
-  }
   if (!description || typeof description !== 'string' || !description.trim()) {
     return res.status(400).json({ error: 'Task Description is required.' });
+  }
+  if (!title || typeof title !== 'string' || !title.trim() || title.trim().length < 2) {
+    title = description.trim().slice(0, 50) || 'Task Assignment';
   }
   if (!assignedToUid || typeof assignedToUid !== 'string' || !assignedToUid.trim()) {
     return res.status(400).json({ error: 'Assignee team member selection is required.' });
@@ -34,16 +32,37 @@ router.post('/', async (req, res) => {
   }
 
   try {
-    // Verify assignee exists
-    const assigneeDoc = await db.collection('users').doc(assignedToUid).get();
-    if (!assigneeDoc.exists) {
-      return res.status(404).json({ error: 'Assignee not found' });
+    // Verify assignee exists with fallback search
+    let assignee = null;
+    try {
+      const assigneeDoc = await db.collection('users').doc(assignedToUid).get();
+      if (assigneeDoc && assigneeDoc.exists) {
+        assignee = assigneeDoc.data();
+      }
+    } catch (err) {
+      console.warn('Direct doc lookup for assignee:', err.message);
     }
-    const assignee = assigneeDoc.data();
+
+    if (!assignee) {
+      try {
+        const allUsersSnap = await db.collection('users').get();
+        if (allUsersSnap && allUsersSnap.docs) {
+          const foundDoc = allUsersSnap.docs.find(d => {
+            const data = d.data();
+            return d.id === assignedToUid || data.uid === assignedToUid || data.email === assignedToUid || (data.name && data.name.toLowerCase() === (req.body.assignedToName || '').toLowerCase());
+          });
+          if (foundDoc) {
+            assignee = foundDoc.data();
+          }
+        }
+      } catch (err) {
+        console.warn('Fallback search for assignee:', err.message);
+      }
+    }
 
     const taskId = 'task-' + Math.random().toString(36).substring(2, 11);
-    const assignedByName = req.user.name || req.user.email;
-    const assignedToName = assignee.name || assignee.email;
+    const assignedByName = req.user.name || req.user.email || 'User';
+    const assignedToName = assignee?.name || assignee?.email || req.body.assignedToName || 'Staff Member';
 
     let cleanTitle = title;
     try {
@@ -54,6 +73,24 @@ router.post('/', async (req, res) => {
     } catch (e) {
       console.error('Error generating task title:', e);
     }
+
+    const getKolkataDateString = (d = new Date()) => {
+      try {
+        const formatter = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' });
+        return formatter.format(d);
+      } catch (e) {
+        return d.toISOString().split('T')[0];
+      }
+    };
+
+    const getKolkataTimeString = (d = new Date()) => {
+      try {
+        const formatter = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: false });
+        return formatter.format(d);
+      } catch (e) {
+        return d.toTimeString().slice(0, 5);
+      }
+    };
 
     const newTask = {
       taskId,
@@ -69,37 +106,62 @@ router.post('/', async (req, res) => {
       completionNote: '',
       accountId: accountId || null,
       contactId: contactId || null,
+      date: getKolkataDateString(),
+      time: getKolkataTimeString(),
       timestamp: new Date().toISOString()
     };
 
     await db.collection('tasks').doc(taskId).set(newTask);
 
-    // Create a personal notification for the assignee
-    const notifId = 'notif-' + Math.random().toString(36).substring(2, 11);
-    await db.collection('notifications').doc(notifId).set({
-      notificationId: notifId,
-      toUserId: assignedToUid,
-      type: 'Task Assigned',
-      message: `${assignedByName} assigned you a staff task: "${title}"`,
-      read: false,
-      timestamp: new Date().toISOString()
-    });
-
-    // Send task assignment email if possible
+    // 1. Publish event through NotificationEngine (Queues HTML Email + Writes In-App Notification)
     try {
-      sendTaskAssignmentEmail(assignedToUid, {
-        task: description,
-        taskHeader: title,
-        accountName: 'Internal Staff Assignment',
-        priority: priority || 'Medium',
-        dueDate,
-        assignerName: assignedByName
-      });
-    } catch (emailErr) {
-      console.error('Failed to send task email:', emailErr);
+      let resolvedCompanyName = 'Internal';
+      if (accountId) {
+        try {
+          const accDoc = await db.collection('accounts').doc(accountId).get();
+          if (accDoc && accDoc.exists) {
+            resolvedCompanyName = accDoc.data().companyName || 'Account';
+          }
+        } catch (accErr) {}
+      }
+
+      const eventName = accountId ? 'associated_task_assigned' : 'staff_task_assigned';
+      await NotificationEngine.publishEvent(eventName, {
+        TaskTitle: cleanTitle,
+        TaskDescription: description,
+        Priority: priority || 'Medium',
+        DueDate: dueDate || 'Not specified',
+        AssignedBy: assignedByName,
+        AssignedTo: assignedToName,
+        CompanyName: resolvedCompanyName,
+        InAppMessage: `${assignedByName} assigned you a ${accountId ? 'associated' : 'staff'} task: "${cleanTitle}"`
+      }, [assignedToUid], { relatedTaskId: taskId, relatedAccountId: accountId });
+    } catch (engineErr) {
+      console.error('[TaskRoutes] NotificationEngine publishEvent error:', engineErr.message);
     }
 
-    await logActivity(req.user.uid, req.user.name, 'Create Staff Task', `Assigned task "${title}" to @${assignedToName}`);
+    // 2. Direct in-app notification fallback
+    try {
+      const notifId = 'notif-' + Math.random().toString(36).substring(2, 11);
+      await db.collection('notifications').doc(notifId).set({
+        notificationId: notifId,
+        toUserId: assignedToUid,
+        type: 'Task Assigned',
+        message: `${assignedByName} assigned you a staff task: "${cleanTitle}"`,
+        read: false,
+        date: getSystemDateString(),
+        time: getSystemTimeString(),
+        timestamp: new Date().toISOString()
+      });
+    } catch (notifErr) {
+      console.error('[TaskRoutes] Direct notification fallback error:', notifErr.message);
+    }
+
+    try {
+      await logActivity(req.user.uid, req.user.name, 'Create Staff Task', `Assigned task "${cleanTitle}" to @${assignedToName}`);
+    } catch (logErr) {
+      console.error('[TaskRoutes] Log activity error:', logErr.message);
+    }
 
     return res.status(201).json(newTask);
   } catch (error) {
@@ -126,18 +188,74 @@ router.get('/', async (req, res) => {
     const isCeo = userProfile && (userProfile.userType === 'CEO' || userProfile.position === 'CEO');
 
     if (!isAdmin && !isCeo) {
-      // Regular staff only see tasks assigned to them or created by them
-      tasks = tasks.filter(t => t.assignedToUid === req.user.uid || t.assignedByUid === req.user.uid);
+      // Regular staff only see tasks assigned to them, created by them, or forwarded to them
+      tasks = tasks.filter(t => 
+        t.assignedToUid === req.user.uid || 
+        t.assignedByUid === req.user.uid || 
+        t.forwardedToUid === req.user.uid ||
+        (userProfile?.name && t.forwardedToName && t.forwardedToName.toLowerCase() === userProfile.name.toLowerCase())
+      );
     }
 
     if (filter === 'assigned-to-me') {
-      tasks = tasks.filter(t => t.assignedToUid === req.user.uid);
+      tasks = tasks.filter(t => 
+        t.assignedToUid === req.user.uid || 
+        t.forwardedToUid === req.user.uid ||
+        (userProfile?.name && t.forwardedToName && t.forwardedToName.toLowerCase() === userProfile.name.toLowerCase())
+      );
     } else if (filter === 'created-by-me') {
-      tasks = tasks.filter(t => t.assignedByUid === req.user.uid);
+      tasks = tasks.filter(t => 
+        t.assignedByUid === req.user.uid || 
+        t.forwardedByUid === req.user.uid ||
+        (userProfile?.name && t.forwardedByName && t.forwardedByName.toLowerCase() === userProfile.name.toLowerCase())
+      );
     }
 
-    // Sort descending by timestamp
-    tasks.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+function parseDateToTime(raw) {
+  if (!raw) return 0;
+  if (raw instanceof Date) return isNaN(raw.getTime()) ? 0 : raw.getTime();
+  if (typeof raw === 'number') return raw;
+
+  const str = String(raw).trim();
+  if (!str) return 0;
+
+  const direct = Date.parse(str);
+  if (!isNaN(direct)) return direct;
+
+  const match = str.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})(?:[,\s]+(\d{1,2}):(\d{2})(?::(\d{2}))?\s*(am|pm)?)?/i);
+  if (match) {
+    const day = parseInt(match[1], 10);
+    const month = parseInt(match[2], 10) - 1;
+    const year = parseInt(match[3], 10);
+    let hours = match[4] ? parseInt(match[4], 10) : 0;
+    const minutes = match[5] ? parseInt(match[5], 10) : 0;
+    const seconds = match[6] ? parseInt(match[6], 10) : 0;
+    const ampm = match[7] ? match[7].toLowerCase() : null;
+
+    if (ampm === 'pm' && hours < 12) hours += 12;
+    if (ampm === 'am' && hours === 12) hours = 0;
+
+    const d = new Date(year, month, day, hours, minutes, seconds);
+    if (!isNaN(d.getTime())) return d.getTime();
+  }
+  return 0;
+}
+
+function getTaskTime(task) {
+  if (!task) return 0;
+  let t = 0;
+  if (task.timestamp) t = parseDateToTime(task.timestamp);
+  if (!t && task.createdAt) t = parseDateToTime(task.createdAt);
+  if (!t && task.date) {
+    const combined = task.time ? `${task.date} ${task.time}` : task.date;
+    t = parseDateToTime(combined);
+  }
+  if (!t && task.dueDate) t = parseDateToTime(task.dueDate);
+  return t;
+}
+
+    // Sort descending by timestamp (newest first)
+    tasks.sort((a, b) => getTaskTime(b) - getTaskTime(a));
 
     // Resolve companyName and contactName
     const accountsSnapshot = await db.collection('accounts').get();
@@ -206,6 +324,18 @@ router.put('/:id/status', async (req, res) => {
       return res.status(403).json({ error: 'Unauthorized to update this task' });
     }
 
+    // Block status updates if task is already Completed or Declined
+    const currentStatusClean = String(task.status || '').trim().toLowerCase();
+    if (
+      currentStatusClean === 'completed' ||
+      currentStatusClean === 'complete' ||
+      currentStatusClean === 'declined' ||
+      currentStatusClean === 'decline' ||
+      currentStatusClean === 'accepted & completed'
+    ) {
+      return res.status(400).json({ error: `Task status is final (${task.status}) and cannot be changed.` });
+    }
+
     const updates = { status };
     if (completionNote !== undefined) {
       updates.completionNote = completionNote;
@@ -239,6 +369,12 @@ router.put('/:id/status', async (req, res) => {
 
     // Handle Forwarding
     if (status === 'Forwarded' && forwardToUid && forwardToName) {
+      updates.forwardedByUid = req.user.uid;
+      updates.forwardedByName = req.user.name;
+      updates.forwardedToUid = forwardToUid;
+      updates.forwardedToName = forwardToName;
+      updates.originalAssignedToUid = task.originalAssignedToUid || task.assignedToUid;
+      updates.originalAssignedToName = task.originalAssignedToName || task.assignedToName;
       updates.assignedToUid = forwardToUid;
       updates.assignedToName = forwardToName;
       updates.status = 'Task Assigned';
@@ -259,9 +395,12 @@ router.put('/:id/status', async (req, res) => {
       await db.collection('notifications').doc(notifId).set({
         notificationId: notifId,
         toUserId: forwardToUid,
+        taskId: id,
         type: 'Task Assigned',
         message: `${req.user.name || req.user.email} forwarded a task to you: "${task.title}"`,
         read: false,
+        date: getSystemDateString(),
+        time: getSystemTimeString(),
         timestamp: new Date().toISOString()
       });
     }
@@ -270,32 +409,58 @@ router.put('/:id/status', async (req, res) => {
 
     // Publish status change email notification to the assigner
     if (req.user.uid !== task.assignedByUid) {
+      // Format status string (e.g. Accept -> Accepted, Decline -> Declined, Complete -> Completed)
+      const rawStatus = updates.status || status;
+      const displayStatus = (rawStatus === 'Accept' || rawStatus === 'accept' || rawStatus === 'in progress') ? 'Accepted' :
+                            (rawStatus === 'Decline' || rawStatus === 'decline') ? 'Declined' :
+                            (rawStatus === 'Complete' || rawStatus === 'completed') ? 'Completed' :
+                            (rawStatus === 'Forward' || rawStatus === 'forwarded') ? 'Forwarded' :
+                            rawStatus;
+
       const notifId = 'notif-' + Math.random().toString(36).substring(2, 11);
       await db.collection('notifications').doc(notifId).set({
         notificationId: notifId,
         toUserId: task.assignedByUid,
+        taskId: id,
         type: 'Task Status Updated',
-        message: `${req.user.name} updated task "${task.title}" status to: ${status}`,
+        message: `${req.user.name} updated task "${task.title}" status to: ${displayStatus}`,
         read: false,
+        date: getSystemDateString(),
+        time: getSystemTimeString(),
         timestamp: new Date().toISOString()
       });
 
-      // Email notification for status change
-      const finalStatus = updates.status || status;
-      const emailEvent = finalStatus === 'Completed' ? 'task_completed' :
-                         finalStatus === 'Decline' || finalStatus === 'Declined' ? 'task_cancelled' :
-                         'status_changed';
+      // Email notification for status change (distinguish staff vs associated tasks)
+      const isAssociatedTask = Boolean(task.accountId || task.contactId || task.companyName);
+      let emailEvent = 'status_changed';
+      if (displayStatus === 'Completed') {
+        emailEvent = isAssociatedTask ? 'associated_task_completed' : 'staff_task_completed';
+      } else if (displayStatus === 'Declined') {
+        emailEvent = isAssociatedTask ? 'associated_task_declined' : 'staff_task_declined';
+      } else if (displayStatus === 'Accepted') {
+        emailEvent = isAssociatedTask ? 'associated_task_accepted' : 'staff_task_accepted';
+      } else if (displayStatus === 'Forwarded') {
+        emailEvent = isAssociatedTask ? 'associated_task_forwarded' : 'staff_task_forwarded';
+      } else if (displayStatus === 'Overdue') {
+        emailEvent = isAssociatedTask ? 'associated_task_overdue' : 'staff_task_overdue';
+      }
+
+      const noteText = completionNote || note || updates.completionNote || '';
+
       NotificationEngine.publishEvent(emailEvent, {
         TaskTitle: task.title || task.description,
         TaskId: id,
-        Status: finalStatus,
+        Status: displayStatus,
         PreviousStatus: task.status,
         UpdatedBy: req.user.name || req.user.email,
+        AssignedBy: task.assignedByName || 'System',
         CompanyName: task.companyName || 'Internal',
         CompletedBy: req.user.name || req.user.email,
-        CompletionDate: new Date().toLocaleDateString(),
-        CompletionNote: completionNote || note || '',
-        InAppMessage: `${req.user.name} updated task "${task.title}" status to: ${finalStatus}`
+        CompletionDate: new Date().toISOString(),
+        Note: noteText,
+        StatusNote: noteText,
+        CompletionNote: noteText,
+        InAppMessage: `${req.user.name} updated task "${task.title}" status to: ${displayStatus}`
       }, [task.assignedByUid], { relatedTaskId: id, skipInAppNotification: true });
     }
 
@@ -366,6 +531,8 @@ router.post('/:id/reply', async (req, res) => {
         type: 'Task Reply',
         message: `${newReply.authorName} commented on task "${task.title}": "${text.slice(0, 80)}"`,
         read: false,
+        date: getSystemDateString(),
+        time: getSystemTimeString(),
         timestamp: new Date().toISOString()
       });
     }

@@ -5,6 +5,7 @@ import {
   MessageSquare, Users, Award, Zap, ChevronRight 
 } from 'lucide-react';
 import { useStore } from '../store/index.js';
+import nestLogo from '../assets/nest-digital-logo.png';
 
 export default function Landing() {
   const navigate = useNavigate();
@@ -45,14 +46,14 @@ export default function Landing() {
         <div className="flex items-center gap-3">
           <div className="bg-[#0f172a] rounded-xl px-3 py-1.5">
             <img
-              src="/nest-digital-logo.png"
+              src={nestLogo}
               alt="Nest Digital"
               className="h-8 w-auto object-contain"
             />
           </div>
           <div className="border-l border-slate-600/40 pl-3">
             <span className="font-extrabold text-base text-white tracking-wide block">CustomerPulse</span>
-            <span className="text-xs text-primary font-bold tracking-wider uppercase">Relationship Intelligence</span>
+            <span className="text-xs text-primary font-bold tracking-wider uppercase">Relationships, measured</span>
           </div>
         </div>
 
@@ -425,7 +426,7 @@ export default function Landing() {
         <div className="max-w-7xl mx-auto px-6 md:px-12 flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <div className="bg-[#0f172a] rounded-xl px-2 py-1">
-              <img src="/nest-digital-logo.png" alt="NeST Digital" className="h-6 w-auto object-contain" />
+              <img src={nestLogo} alt="NeST Digital" className="h-6 w-auto object-contain" />
             </div>
             <span className="text-xs text-slate-500 font-semibold">CustomerPulse</span>
           </div>

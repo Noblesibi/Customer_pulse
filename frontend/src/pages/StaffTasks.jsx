@@ -5,51 +5,15 @@ import {
   Send, ShieldAlert, Check, Ban, HelpCircle, ChevronLeft, Calendar, ThumbsUp, MessageSquare, ExternalLink, FileText
 } from 'lucide-react';
 import { useStore } from '../store/index.js';
+import { formatDate, formatTime, formatDateTime } from '../utils/dateFormat.js';
+import TeamMemberSelect from '../components/TeamMemberSelect.jsx';
 
 const formatLoggedDateTime = (dateStr, timeStr, timestampStr) => {
-  if (dateStr) {
-    const parts = dateStr.split('-');
-    if (parts.length === 3) {
-      const [yyyy, mm, dd] = parts;
-      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-      const monthLabel = months[parseInt(mm, 10) - 1] || mm;
-      const dayVal = parseInt(dd, 10);
-      
-      let timeLabel = '';
-      if (timeStr) {
-        const timeParts = timeStr.split(':');
-        if (timeParts.length >= 2) {
-          let hours = parseInt(timeParts[0], 10);
-          const minutes = timeParts[1].substring(0, 2);
-          const ampm = hours >= 12 ? 'PM' : 'AM';
-          hours = hours % 12;
-          hours = hours ? hours : 12;
-          timeLabel = `, ${hours}:${minutes} ${ampm}`;
-        }
-      }
-      return `${dayVal} ${monthLabel} ${yyyy}${timeLabel}`;
-    }
-  }
-  if (timestampStr) {
-    const dt = new Date(timestampStr);
-    if (!isNaN(dt.getTime())) {
-      return dt.toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' });
-    }
-  }
-  return '—';
+  return formatDateTime(dateStr, timeStr, timestampStr);
 };
 
 const formatDueDate = (dateStr) => {
-  if (!dateStr) return '—';
-  const parts = dateStr.split('-');
-  if (parts.length === 3) {
-    const [yyyy, mm, dd] = parts;
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    const monthLabel = months[parseInt(mm, 10) - 1] || mm;
-    const dayVal = parseInt(dd, 10);
-    return `${dayVal} ${monthLabel} ${yyyy}`;
-  }
-  return dateStr;
+  return formatDate(dateStr);
 };
 
 export default function StaffTasks() {
@@ -142,7 +106,7 @@ export default function StaffTasks() {
       });
 
       const token = useStore.getState().token;
-      const res = await fetch('http://localhost:5000/api/interactions/upload', {
+      const res = await fetch('/CustomerPulse/api/interactions/upload', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -242,6 +206,17 @@ export default function StaffTasks() {
   };
 
   const handleStatusChange = async (task, newStatus) => {
+    const currentLower = (task.status || '').toLowerCase();
+    if (
+      currentLower === 'completed' ||
+      currentLower === 'complete' ||
+      currentLower === 'decline' ||
+      currentLower === 'declined' ||
+      currentLower === 'accepted & completed'
+    ) {
+      return;
+    }
+
     const taskId = task.taskId;
     if (newStatus === 'Completed') {
       setCompletionTask(task);
@@ -486,6 +461,23 @@ export default function StaffTasks() {
         const taskDesc = mention.task || item.messageText || item.subject || 'Task Assignment';
         const fallbackHeader = taskDesc.split(/[.!?\n]/)[0].trim();
         const cleanHeader = fallbackHeader.length <= 50 ? fallbackHeader : (fallbackHeader.slice(0, 47) + '...');
+        const forwardedToName = mention.forwardedToName || null;
+        const forwardedToUid = mention.forwardedToUid || null;
+        const forwardedFromName = mention.forwardedFromName || null;
+        const forwardedFromUid = mention.forwardedFromUid || null;
+
+        // Lookup forwarded recipient's live mention & status
+        let recipientStatus = null;
+        if (forwardedToUid || mention.status === 'Forwarded') {
+          const recipientMention = item.actionMentions.find(m => 
+            (m.uid === forwardedToUid || m.forwardedFromUid === mention.uid || (forwardedToName && m.name && m.name.toLowerCase() === forwardedToName.toLowerCase())) &&
+            m.uid !== mention.uid
+          );
+          if (recipientMention) {
+            recipientStatus = recipientMention.status;
+          }
+        }
+
         parsedInteractionTasks.push({
           ...mention,
           taskId: mention.taskId || `${item.interactionId}-${mention.uid}`,
@@ -495,12 +487,19 @@ export default function StaffTasks() {
           assignedToName: mention.name,
           assignedByUid: item.loggedByUid,
           assignedByName: item.loggedByName || 'System Admin',
+          forwardedToUid: forwardedToUid,
+          forwardedToName: forwardedToName,
+          forwardedFromUid: forwardedFromUid,
+          forwardedFromName: forwardedFromName,
+          recipientStatus: recipientStatus,
           priority: mention.priority || 'Medium',
           dueDate: mention.dueDate || null,
           status: mention.status || 'Pending',
           accountId: item.accountId,
           companyName: item.companyName || 'External Account',
           contactName: item.contactName || '',
+          date: item.date || null,
+          time: item.time || null,
           timestamp: item.timestamp,
           originalInteraction: item,
           isInteractionTask: true
@@ -513,11 +512,20 @@ export default function StaffTasks() {
 
   // Filter the combined list based on activeTab
   const tabFilteredTasks = allTasksCombined.filter(t => {
+    const isAssignedToMe = t.assignedToUid === user?.uid || 
+                           t.forwardedToUid === user?.uid || 
+                           (t.forwardedToName && user?.name && t.forwardedToName.toLowerCase() === user?.name.toLowerCase());
+    const isCreatedByMe = t.assignedByUid === user?.uid || 
+                          t.forwardedByUid === user?.uid || 
+                          t.forwardedFromUid === user?.uid || 
+                          (t.forwardedByName && user?.name && t.forwardedByName.toLowerCase() === user?.name.toLowerCase()) || 
+                          (t.forwardedFromName && user?.name && t.forwardedFromName.toLowerCase() === user?.name.toLowerCase());
+
     if (activeTab === 'assigned-to-me') {
-      return t.assignedToUid === user?.uid;
+      return isAssignedToMe;
     }
     if (activeTab === 'created-by-me') {
-      return t.assignedByUid === user?.uid;
+      return isCreatedByMe;
     }
     return true; // 'all-tasks'
   });
@@ -537,11 +545,25 @@ export default function StaffTasks() {
       if (f === 'task assigned' || f === 'pending') {
         return s === 'task assigned' || s === 'pending';
       }
-      if (f === 'accept' || f === 'in progress') {
-        return s === 'accept' || s === 'in progress';
+      if (f === 'accept' || f === 'accepted' || f === 'in progress') {
+        return s === 'accept' || s === 'accepted' || s === 'in progress';
       }
       if (f === 'decline' || f === 'declined') {
         return s === 'decline' || s === 'declined';
+      }
+      if (f === 'forwarded' || f === 'forward') {
+        return s.includes('forward') || !!task.forwardedToName || !!task.forwardedFromName;
+      }
+      if (f === 'completed' || f === 'complete') {
+        return s.includes('complete');
+      }
+      if (f === 'overdue' || f === 'overdued') {
+        const lowerStatus = (task.status || 'Pending').toLowerCase();
+        const isTaskOverdue = task.dueDate && 
+                              new Date(task.dueDate).setHours(0,0,0,0) < new Date().setHours(0,0,0,0) && 
+                              !lowerStatus.includes('complete') && 
+                              !lowerStatus.includes('decline');
+        return isTaskOverdue || s.includes('overdue');
       }
       return s === f;
     })();
@@ -549,11 +571,47 @@ export default function StaffTasks() {
     return matchesSearch && matchesStatus && matchesPriority;
   });
 
+  const parseDateToTime = (raw) => {
+    if (!raw) return 0;
+    if (raw instanceof Date) return isNaN(raw.getTime()) ? 0 : raw.getTime();
+    if (typeof raw === 'number') return raw;
+
+    const str = String(raw).trim();
+    if (!str) return 0;
+
+    const direct = Date.parse(str);
+    if (!isNaN(direct)) return direct;
+
+    const match = str.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})(?:[,\s]+(\d{1,2}):(\d{2})(?::(\d{2}))?\s*(am|pm)?)?/i);
+    if (match) {
+      const day = parseInt(match[1], 10);
+      const month = parseInt(match[2], 10) - 1;
+      const year = parseInt(match[3], 10);
+      let hours = match[4] ? parseInt(match[4], 10) : 0;
+      const minutes = match[5] ? parseInt(match[5], 10) : 0;
+      const seconds = match[6] ? parseInt(match[6], 10) : 0;
+      const ampm = match[7] ? match[7].toLowerCase() : null;
+
+      if (ampm === 'pm' && hours < 12) hours += 12;
+      if (ampm === 'am' && hours === 12) hours = 0;
+
+      const d = new Date(year, month, day, hours, minutes, seconds);
+      if (!isNaN(d.getTime())) return d.getTime();
+    }
+    return 0;
+  };
+
   const getTaskTime = (task) => {
-    if (task.timestamp) return new Date(task.timestamp);
-    if (task.createdAt) return new Date(task.createdAt);
-    if (task.date && task.time) return new Date(`${task.date}T${task.time}:00`);
-    return new Date(0);
+    if (!task) return 0;
+    let t = 0;
+    if (task.timestamp) t = parseDateToTime(task.timestamp);
+    if (!t && task.createdAt) t = parseDateToTime(task.createdAt);
+    if (!t && task.date) {
+      const combined = task.time ? `${task.date} ${task.time}` : task.date;
+      t = parseDateToTime(combined);
+    }
+    if (!t && task.dueDate) t = parseDateToTime(task.dueDate);
+    return t;
   };
 
   const sortedTasks = [...filteredTasks].sort((a, b) => getTaskTime(b) - getTaskTime(a));
@@ -676,13 +734,14 @@ export default function StaffTasks() {
             <table className="w-full text-left border-collapse text-xs">
               <thead>
                 <tr className="bg-dark-900 border-b border-slate-800/60 text-slate-400 font-bold uppercase tracking-wider">
-                  <th className="py-2.5 px-4 w-44 sticky top-0 bg-dark-900 z-10 text-left">Account</th>
+                  <th className="py-2.5 px-4 w-40 sticky top-0 bg-dark-900 z-10 text-left">Account</th>
                   <th className="py-2.5 px-4 sticky top-0 bg-dark-900 z-10 text-left">Task Header</th>
-                  <th className="py-2.5 px-4 w-32 sticky top-0 bg-dark-900 z-10 text-left">Priority</th>
-                  <th className="py-2.5 px-4 w-40 sticky top-0 bg-dark-900 z-10 text-left">Due Date</th>
-                  <th className="py-2.5 px-4 w-40 sticky top-0 bg-dark-900 z-10 text-left">Assign By</th>
-                  <th className="py-2.5 px-4 w-40 sticky top-0 bg-dark-900 z-10 text-left">Assigned To</th>
-                  <th className="py-2.5 px-4 w-44 sticky top-0 bg-dark-900 z-10 text-left">Status</th>
+                  <th className="py-2.5 px-4 w-28 sticky top-0 bg-dark-900 z-10 text-left">Priority</th>
+                  <th className="py-2.5 px-4 w-44 sticky top-0 bg-dark-900 z-10 text-left">Logged Date & Time</th>
+                  <th className="py-2.5 px-4 w-32 sticky top-0 bg-dark-900 z-10 text-left">Due Date</th>
+                  <th className="py-2.5 px-4 w-36 sticky top-0 bg-dark-900 z-10 text-left">Assign By</th>
+                  <th className="py-2.5 px-4 w-36 sticky top-0 bg-dark-900 z-10 text-left">Assigned To</th>
+                  <th className="py-2.5 px-4 w-40 sticky top-0 bg-dark-900 z-10 text-left">Status</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/40">
@@ -768,8 +827,13 @@ export default function StaffTasks() {
                         )}
                       </td>
 
+                      {/* Logged Date & Time */}
+                      <td className="py-2.5 px-4 text-xs font-semibold text-black whitespace-nowrap">
+                        {formatLoggedDateTime(task.date, task.time, task.timestamp || task.createdAt)}
+                      </td>
+
                       {/* Due Date */}
-                      <td className="py-2.5 px-4 text-xs font-semibold text-black">
+                      <td className="py-2.5 px-4 text-xs font-semibold text-black whitespace-nowrap">
                         {task.dueDate ? formatDueDate(task.dueDate) : '-'}
                       </td>
 
@@ -784,26 +848,31 @@ export default function StaffTasks() {
                           <div className="bg-primary/10 border border-primary/20 text-primary w-6 h-6 rounded-md flex items-center justify-center font-bold text-[10px] shrink-0">
                             {task.assignedToName ? task.assignedToName.substring(0, 2).toUpperCase() : 'US'}
                           </div>
-                          <span className="font-bold text-black truncate block max-w-[120px]">
-                            {task.assignedToName ? (task.assignedToName.startsWith('@') ? task.assignedToName : `@${task.assignedToName}`) : ''}
-                          </span>
+                          <div className="flex flex-col">
+                            <span className="font-bold text-black truncate block max-w-[120px]">
+                              {task.assignedToName ? (task.assignedToName.startsWith('@') ? task.assignedToName : `@${task.assignedToName}`) : ''}
+                            </span>
+                            {(task.forwardedToName || task.forwardedFromName) && (
+                              <span className="text-[10px] text-sky-600 font-semibold italic">
+                                {task.forwardedToName ? `(Fwd to @${task.forwardedToName})` : `(Fwd from @${task.forwardedFromName})`}
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </td>
 
                       {/* Status */}
                       <td className="py-2.5 px-4" onClick={(e) => e.stopPropagation()}>
-                        {activeTab === 'assigned-to-me' ? (
+                        {activeTab === 'assigned-to-me' && !isOverdue && !lowerStatus.includes('completed') && !lowerStatus.includes('complete') && !lowerStatus.includes('decline') && !lowerStatus.includes('declined') && !lowerStatus.includes('forward') && !task.forwardedToUid ? (
                           <select
-                            disabled={isOverdue}
                             value={displayStatus}
                             onChange={(e) => handleStatusChange(task, e.target.value)}
-                            className={`px-2 py-1 rounded-lg border text-xs font-black outline-none w-fit ${
-                              isOverdue 
-                                ? 'border-rose-500 bg-rose-50 text-rose-600 cursor-not-allowed opacity-75' 
-                                : 'border-slate-350 bg-white text-black cursor-pointer focus:border-primary/50'
+                            className={`px-2 py-1 rounded-lg border text-xs outline-none w-fit cursor-pointer focus:border-primary/50 ${
+                              displayStatus === 'Accept' || displayStatus === 'Accepted' || displayStatus === 'In Progress' ? 'border-amber-500/30 bg-amber-50/80 text-amber-700 font-extrabold' :
+                              displayStatus === 'Forwarded' ? 'border-sky-500/30 bg-sky-50/80 text-sky-700 font-extrabold' :
+                              'border-slate-300 bg-white text-slate-800 font-bold'
                             }`}
                           >
-                            {isOverdue && <option value="Overdue">Overdue</option>}
                             <option value="Task Assigned">Task Assigned</option>
                             <option value="Accept">Accepted</option>
                             <option value="Decline">Declined</option>
@@ -811,19 +880,51 @@ export default function StaffTasks() {
                             <option value="Forwarded">Forwarded</option>
                           </select>
                         ) : (
-                          <span className={`inline-block px-2.5 py-1 rounded-lg border text-xs font-black uppercase tracking-wider w-fit ${
-                            isOverdue ? 'bg-rose-500/10 border-rose-500/20 text-rose-600 animate-pulse' :
-                            lowerStatus === 'completed' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600' :
-                            lowerStatus === 'forwarded' ? 'bg-sky-500/10 border-sky-500/20 text-sky-600' :
-                            lowerStatus === 'accept' || lowerStatus === 'in progress' ? 'bg-amber-500/10 border-amber-500/20 text-amber-600' :
-                            lowerStatus === 'decline' || lowerStatus === 'declined' ? 'bg-rose-500/10 border-rose-500/20 text-rose-600' :
-                            'bg-slate-400/10 border-slate-400/20 text-slate-500'
-                          }`}>
-                            {isOverdue ? 'Overdue' :
-                             (displayStatus === 'Accept' || displayStatus === 'In Progress' ? 'Accepted' :
-                              displayStatus === 'Decline' || displayStatus === 'Declined' ? 'Declined' :
-                              displayStatus)}
-                          </span>
+                          (() => {
+                            const rawStatus = (task.status || 'Pending');
+                            let effectiveStatus = rawStatus;
+
+                            // If task was forwarded, display the recipient's live status
+                            if (rawStatus === 'Forwarded' || task.forwardedToUid) {
+                              if (task.recipientStatus && task.recipientStatus !== 'Forwarded') {
+                                effectiveStatus = task.recipientStatus;
+                              }
+                            }
+
+                            const lowerEffective = effectiveStatus.toLowerCase();
+                            const isTaskOverdue = task.dueDate && 
+                                                  new Date(task.dueDate).setHours(0,0,0,0) < new Date().setHours(0,0,0,0) && 
+                                                  !lowerEffective.includes('completed') && 
+                                                  !lowerEffective.includes('complete') && 
+                                                  !lowerEffective.includes('decline') && 
+                                                  !lowerEffective.includes('declined');
+
+                            let badgeText = 'Task Assigned';
+                            let badgeClass = 'bg-slate-400/10 border-slate-400/20 text-slate-500';
+
+                            if (isTaskOverdue) {
+                              badgeText = 'Overdue';
+                              badgeClass = 'bg-purple-500/10 border-purple-500/20 text-purple-600';
+                            } else if (lowerEffective.includes('completed') || lowerEffective.includes('complete')) {
+                              badgeText = 'Completed';
+                              badgeClass = 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600';
+                            } else if (lowerEffective.includes('decline') || lowerEffective.includes('declined')) {
+                              badgeText = 'Declined';
+                              badgeClass = 'bg-rose-500/10 border-rose-500/20 text-rose-600';
+                            } else if (lowerEffective.includes('accept') || lowerEffective.includes('in progress')) {
+                              badgeText = 'Accepted';
+                              badgeClass = 'bg-amber-500/10 border-amber-500/20 text-amber-600';
+                            } else if (rawStatus === 'Forwarded' || lowerEffective.includes('forward')) {
+                              badgeText = task.forwardedToName ? `Forwarded to @${task.forwardedToName}` : 'Forwarded';
+                              badgeClass = 'bg-sky-500/10 border-sky-500/20 text-sky-600';
+                            }
+
+                            return (
+                              <span className={`inline-block px-2.5 py-1 rounded-lg border text-xs font-black uppercase tracking-wider w-fit ${badgeClass}`}>
+                                {badgeText}
+                              </span>
+                            );
+                          })()
                         )}
                       </td>
                     </tr>
@@ -938,13 +1039,15 @@ export default function StaffTasks() {
                           <div className="flex items-center justify-between">
                             <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Assigned To</span>
                             <span className={`inline-block px-2.5 py-0.5 rounded-lg border text-[9px] font-black uppercase tracking-wider ${
-                              (selectedTask.status || '').toLowerCase() === 'completed' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600' :
-                              (selectedTask.status || '').toLowerCase() === 'forwarded' ? 'bg-sky-500/10 border-sky-500/20 text-sky-600' :
-                              (selectedTask.status || '').toLowerCase() === 'accept' || (selectedTask.status || '').toLowerCase() === 'in progress' ? 'bg-amber-500/10 border-amber-500/20 text-amber-600' :
-                              (selectedTask.status || '').toLowerCase() === 'decline' || (selectedTask.status || '').toLowerCase() === 'declined' ? 'bg-rose-500/10 border-rose-500/20 text-rose-600' :
+                              isSelectedTaskOverdue ? 'bg-purple-500/10 border-purple-500/20 text-purple-600' :
+                              (selectedTask.status || '').toLowerCase().includes('complete') ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600' :
+                              (selectedTask.status || '').toLowerCase().includes('forward') ? 'bg-sky-500/10 border-sky-500/20 text-sky-600' :
+                              (selectedTask.status || '').toLowerCase().includes('accept') || (selectedTask.status || '').toLowerCase().includes('progress') ? 'bg-amber-500/10 border-amber-500/20 text-amber-600' :
+                              (selectedTask.status || '').toLowerCase().includes('decline') ? 'bg-rose-500/10 border-rose-500/20 text-rose-600' :
                               'bg-slate-400/10 border-slate-400/20 text-slate-500'
                             }`}>
-                              {selectedTask.status === 'Pending' ? 'Task Assigned' : 
+                              {isSelectedTaskOverdue ? 'Overdue' :
+                               selectedTask.status === 'Pending' ? 'Task Assigned' : 
                                (selectedTask.status === 'Accept' || selectedTask.status === 'In Progress') ? 'Accepted' :
                                (selectedTask.status === 'Decline' || selectedTask.status === 'Declined') ? 'Declined' :
                                selectedTask.status || 'Task Assigned'}
@@ -975,39 +1078,69 @@ export default function StaffTasks() {
                           )}
                           {selectedTask.dueDate && (
                             <span className="text-[10px] font-bold bg-primary/10 text-primary border border-primary/20 px-1.5 py-0.5 rounded flex items-center gap-1">
-                              Due: {selectedTask.dueDate}
+                              Due: {formatDate(selectedTask.dueDate)}
                             </span>
                           )}
                         </div>
                       )}
 
-                      {selectedTask.assignedToUid === user?.uid && (
-                        <div className="pt-2 border-t border-dark-800 border-dashed space-y-1.5 flex items-center justify-between gap-2">
-                          <div className="flex items-center gap-2">
-                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Change Status:</span>
-                            <select
-                              disabled={isSelectedTaskOverdue}
-                              value={selectedTask.status === 'Pending' ? 'Task Assigned' : (selectedTask.status === 'In Progress' || selectedTask.status === 'Accept') ? 'Accept' : (selectedTask.status === 'Declined' || selectedTask.status === 'Decline') ? 'Decline' : selectedTask.status}
-                              onChange={async (e) => {
-                                const newStatus = e.target.value;
-                                await handleStatusChange(selectedTask, newStatus);
-                              }}
-                              className={`px-2 py-1 rounded-lg border text-[11px] font-bold outline-none w-fit ${
-                                isSelectedTaskOverdue
-                                  ? 'border-rose-500 bg-rose-50 text-rose-600 cursor-not-allowed opacity-75'
-                                  : 'border-dark-800 bg-dark-700/50 text-black cursor-pointer focus:border-primary'
-                              }`}
-                            >
-                              {isSelectedTaskOverdue && <option value="Overdue">Overdue</option>}
-                              <option value="Task Assigned">Task Assigned</option>
-                              <option value="Accept">Accepted</option>
-                              <option value="Decline">Declined</option>
-                              <option value="Completed">Completed</option>
-                              <option value="Forwarded">Forwarded</option>
-                            </select>
+                      {selectedTask.assignedToUid === user?.uid && (() => {
+                        const isTaskFinal = (selectedTask.status || '').toLowerCase() === 'completed' ||
+                                            (selectedTask.status || '').toLowerCase() === 'complete' ||
+                                            (selectedTask.status || '').toLowerCase() === 'declined' ||
+                                            (selectedTask.status || '').toLowerCase() === 'decline' ||
+                                            (selectedTask.status || '').toLowerCase().includes('forward') ||
+                                            (selectedTask.status || '').toLowerCase() === 'accepted & completed';
+
+                        return (
+                          <div className="pt-2 border-t border-dark-800 border-dashed space-y-1.5 flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-2">
+                              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Change Status:</span>
+                              {isTaskFinal ? (
+                                <div className="flex items-center gap-2">
+                                  <span className={`px-2.5 py-1 rounded-lg border text-xs font-black uppercase tracking-wider ${
+                                    (selectedTask.status || '').toLowerCase().includes('decline')
+                                      ? 'bg-rose-500/10 border-rose-500/20 text-rose-600'
+                                      : (selectedTask.status || '').toLowerCase().includes('forward')
+                                      ? 'bg-sky-500/10 border-sky-500/20 text-sky-600'
+                                      : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600'
+                                  }`}>
+                                    {(selectedTask.status || '').toLowerCase().includes('forward')
+                                      ? (selectedTask.forwardedToName ? `Forwarded to @${selectedTask.forwardedToName}` : 'Forwarded')
+                                      : selectedTask.status === 'Decline' || selectedTask.status === 'Declined' ? 'Declined' : selectedTask.status === 'Accept' ? 'Accepted' : selectedTask.status}
+                                  </span>
+                                  <span className="text-[10px] font-bold text-slate-500 italic">
+                                    (Status Fixed)
+                                  </span>
+                                </div>
+                              ) : (
+                                <select
+                                  disabled={isSelectedTaskOverdue}
+                                  value={selectedTask.status === 'Pending' ? 'Task Assigned' : (selectedTask.status === 'In Progress' || selectedTask.status === 'Accept') ? 'Accept' : (selectedTask.status === 'Declined' || selectedTask.status === 'Decline') ? 'Decline' : selectedTask.status}
+                                  style={{ backgroundColor: '#ffffff', color: '#000000' }}
+                                  onChange={async (e) => {
+                                    if (isTaskFinal) return;
+                                    const newStatus = e.target.value;
+                                    await handleStatusChange(selectedTask, newStatus);
+                                  }}
+                                  className={`px-2 py-1 rounded-lg border text-[11px] font-bold outline-none w-fit ${
+                                    isSelectedTaskOverdue
+                                      ? 'border-slate-300 bg-slate-100 text-slate-500 cursor-not-allowed opacity-80'
+                                      : 'border-slate-300 bg-white text-black cursor-pointer focus:border-primary'
+                                  }`}
+                                >
+                                  {isSelectedTaskOverdue && <option value="Overdue">Overdue</option>}
+                                  <option value="Task Assigned">Task Assigned</option>
+                                  <option value="Accept">Accepted</option>
+                                  <option value="Decline">Declined</option>
+                                  <option value="Completed">Completed</option>
+                                  <option value="Forwarded">Forwarded</option>
+                                </select>
+                              )}
+                            </div>
                           </div>
-                        </div>
-                      )}
+                        );
+                      })()}
                     </div>
                   </div>
 
@@ -1093,7 +1226,7 @@ export default function StaffTasks() {
                                 </div>
                                 <span className="text-xs font-bold text-black">{reply.authorName || 'Staff User'}</span>
                                 <span className="text-[10px] text-slate-400 font-medium">
-                                  {reply.timestamp ? new Date(reply.timestamp).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' }) : 'Just now'}
+                                  {reply.timestamp ? formatDateTime(reply.timestamp) : 'Just now'}
                                 </span>
                               </div>
                               <p className="text-xs font-semibold text-black leading-relaxed whitespace-pre-wrap pl-8">
@@ -1326,21 +1459,13 @@ export default function StaffTasks() {
             <form onSubmit={submitForward} className="space-y-4 text-xs font-semibold">
               <div className="space-y-1.5">
                 <label className="block text-xs font-bold text-black">Forward To</label>
-                <select
+                <TeamMemberSelect
                   value={forwardToUid}
-                  onChange={(e) => setForwardToUid(e.target.value)}
-                  className="w-full bg-dark-700 border border-dark-800 rounded-xl p-3 text-xs text-black outline-none focus:border-blue-500/50 cursor-pointer font-semibold"
+                  onChange={(uid) => setForwardToUid(uid)}
+                  staffList={staffList}
+                  currentUserId={user?.uid}
                   required
-                >
-                  <option value="">Select Team Member</option>
-                  {(staffList || [])
-                    .filter(s => s.uid !== user?.uid)
-                    .map(s => (
-                      <option key={s.uid} value={s.uid}>
-                        {s.name} ({s.role || s.position || 'Team Member'})
-                      </option>
-                    ))}
-                </select>
+                />
               </div>
               <div className="space-y-1.5">
                 <label className="block text-xs font-bold text-black">Forwarding Note / Reason</label>
@@ -1356,7 +1481,7 @@ export default function StaffTasks() {
                 <input
                   type="file"
                   onChange={(e) => setForwardFile(e.target.files[0])}
-                  className="w-full text-xs text-black file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border file:border-dark-800 file:text-xs file:font-semibold file:bg-dark-700 file:text-black hover:file:bg-dark-800"
+                  className="w-full text-xs text-slate-700 file:mr-3 file:py-2 file:px-4 file:rounded-xl file:border file:border-slate-300 file:text-xs file:font-bold file:bg-slate-100 file:text-slate-800 hover:file:bg-slate-200 file:cursor-pointer cursor-pointer transition-all"
                 />
               </div>
               <div className="flex justify-end pt-2">

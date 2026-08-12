@@ -108,6 +108,37 @@ function parseRow(tableName, row) {
   return data;
 }
 
+const tableColumnCache = new Map();
+
+async function ensureTableColumns(connection, tableName, columns) {
+  let existingCols = tableColumnCache.get(tableName.toLowerCase());
+  if (!existingCols) {
+    try {
+      const res = await connection.query(`
+        SELECT column_name FROM information_schema.columns WHERE lower(table_name) = lower($1)
+      `, [tableName]);
+      existingCols = new Set(res.rows.map(r => r.column_name));
+      tableColumnCache.set(tableName.toLowerCase(), existingCols);
+    } catch (e) {
+      existingCols = new Set();
+    }
+  }
+
+  for (const col of columns) {
+    if (col === 'id') continue;
+    if (!existingCols.has(col) && !existingCols.has(col.toLowerCase())) {
+      try {
+        await connection.query(`ALTER TABLE "${tableName}" ADD COLUMN IF NOT EXISTS "${col}" TEXT NULL`);
+        existingCols.add(col);
+        existingCols.add(col.toLowerCase());
+        console.log(`✨ [Postgres Schema] Auto-added missing column "${col}" to "${tableName}" table.`);
+      } catch (e) {
+        console.warn(`Column add warning for "${col}" on "${tableName}":`, e.message);
+      }
+    }
+  }
+}
+
 /**
  * Inserts or updates (Upsert) a row in the database with dynamic parameter binding.
  */
@@ -135,25 +166,51 @@ async function upsertRow(tableName, keyColumn, keyVal, data) {
   }
   
   const colsToBind = Object.keys(formattedData);
+  if (!colsToBind.includes(keyColumn)) {
+    colsToBind.push(keyColumn);
+    formattedData[keyColumn] = keyVal;
+  }
+
+  // Self-heal table schema if any new column is missing
+  await ensureTableColumns(connection, tableName, colsToBind);
+
   const values = colsToBind.map(col => formattedData[col]);
   
   if (checkResult.rows.length > 0) {
     // Perform UPDATE
-    const setClause = colsToBind.map((col, idx) => `"${col}" = $${idx + 1}`).join(', ');
+    const setClause = colsToBind.filter(col => col !== keyColumn).map((col, idx) => `"${col}" = $${idx + 1}`).join(', ');
     if (setClause) {
-      values.push(keyVal);
-      await connection.query(`UPDATE "${tableName}" SET ${setClause} WHERE "${keyColumn}" = $${values.length}`, values);
+      const updateValues = colsToBind.filter(col => col !== keyColumn).map(col => formattedData[col]);
+      updateValues.push(keyVal);
+      try {
+        await connection.query(`UPDATE "${tableName}" SET ${setClause} WHERE "${keyColumn}" = $${updateValues.length}`, updateValues);
+      } catch (upErr) {
+        if (upErr.message && upErr.message.includes('does not exist')) {
+          for (const col of colsToBind) {
+            try { await connection.query(`ALTER TABLE "${tableName}" ADD COLUMN IF NOT EXISTS "${col}" TEXT NULL`); } catch (e) {}
+          }
+          await connection.query(`UPDATE "${tableName}" SET ${setClause} WHERE "${keyColumn}" = $${updateValues.length}`, updateValues);
+        } else {
+          throw upErr;
+        }
+      }
     }
   } else {
     // Perform INSERT
-    if (!colsToBind.includes(keyColumn)) {
-      colsToBind.push(keyColumn);
-      values.push(keyVal);
-    }
-    
     const colList = colsToBind.map(col => `"${col}"`).join(', ');
     const placeholderList = colsToBind.map((_, idx) => `$${idx + 1}`).join(', ');
-    await connection.query(`INSERT INTO "${tableName}" (${colList}) VALUES (${placeholderList})`, values);
+    try {
+      await connection.query(`INSERT INTO "${tableName}" (${colList}) VALUES (${placeholderList})`, values);
+    } catch (insErr) {
+      if (insErr.message && insErr.message.includes('does not exist')) {
+        for (const col of colsToBind) {
+          try { await connection.query(`ALTER TABLE "${tableName}" ADD COLUMN IF NOT EXISTS "${col}" TEXT NULL`); } catch (e) {}
+        }
+        await connection.query(`INSERT INTO "${tableName}" (${colList}) VALUES (${placeholderList})`, values);
+      } else {
+        throw insErr;
+      }
+    }
   }
 }
 
@@ -179,8 +236,12 @@ async function updateRow(tableName, keyColumn, keyVal, data) {
   }
   
   const colsToBind = Object.keys(formattedData);
+  if (colsToBind.length === 0) return;
+
+  // Self-heal table schema if any column is missing
+  await ensureTableColumns(connection, tableName, colsToBind);
+
   const values = colsToBind.map(col => formattedData[col]);
-  
   const setClause = colsToBind.map((col, idx) => `"${col}" = $${idx + 1}`).join(', ');
   if (setClause) {
     values.push(keyVal);
@@ -492,6 +553,9 @@ async function ensureDatabaseExists() {
 async function getPool() {
   if (!isConnected) {
     pool = new pg.Pool(config);
+    pool.on('connect', (client) => {
+      client.query("SET TIMEZONE = 'UTC'").catch(() => {});
+    });
     isConnected = true;
   }
   return pool;
@@ -552,6 +616,12 @@ async function initializeDatabase() {
       `ALTER TABLE "Interactions" ADD COLUMN IF NOT EXISTS "attachments" TEXT NULL`,
       `ALTER TABLE "Tasks" ADD COLUMN IF NOT EXISTS "accountId" VARCHAR(50) NULL`,
       `ALTER TABLE "Tasks" ADD COLUMN IF NOT EXISTS "contactId" VARCHAR(50) NULL`,
+      `ALTER TABLE "Notifications" ADD COLUMN IF NOT EXISTS "taskId" VARCHAR(100) NULL`,
+      `ALTER TABLE "Notifications" ADD COLUMN IF NOT EXISTS "toUserId" VARCHAR(100) NULL`,
+      `ALTER TABLE "Notifications" ADD COLUMN IF NOT EXISTS "fromAdminUid" VARCHAR(100) NULL`,
+      `ALTER TABLE "Notifications" ADD COLUMN IF NOT EXISTS "fromAdminName" VARCHAR(150) NULL`,
+      `ALTER TABLE "Notifications" ADD COLUMN IF NOT EXISTS "link" TEXT NULL`,
+      `ALTER TABLE "Notifications" ADD COLUMN IF NOT EXISTS "path" TEXT NULL`,
       `CREATE TABLE IF NOT EXISTS "EmailQueue" (
         "queueId" VARCHAR(50) PRIMARY KEY,
         "recipientEmail" VARCHAR(150) NOT NULL,
@@ -613,22 +683,24 @@ async function initializeDatabase() {
     if (!dummyExists) {
       console.log('🌱 Seeding dummy task for all 14 users in PostgreSQL...');
       
-      const getLocalDateString = () => {
-        const d = new Date();
-        const offset = d.getTimezoneOffset() * 60000;
-        return new Date(d.getTime() - offset).toISOString().split('T')[0];
+      const getKolkataDateString = (d = new Date()) => {
+        const dateObj = d instanceof Date ? d : new Date(d);
+        const yyyy = dateObj.getFullYear();
+        const mm = String(dateObj.getMonth() + 1).padStart(2, '0');
+        const dd = String(dateObj.getDate()).padStart(2, '0');
+        return `${yyyy}-${mm}-${dd}`;
       };
       
-      const getLocalTimeString = () => {
-        const d = new Date();
-        const offset = d.getTimezoneOffset() * 60000;
-        return new Date(d.getTime() - offset).toISOString().split('T')[1].slice(0, 5);
+      const getKolkataTimeString = (d = new Date()) => {
+        const dateObj = d instanceof Date ? d : new Date(d);
+        const hh = String(dateObj.getHours()).padStart(2, '0');
+        const min = String(dateObj.getMinutes()).padStart(2, '0');
+        return `${hh}:${min}`;
       };
 
       const taskDueDate = new Date();
       taskDueDate.setDate(taskDueDate.getDate() + 7);
-      const taskDueDateOffset = taskDueDate.getTimezoneOffset() * 60000;
-      const taskDueDateStr = new Date(taskDueDate.getTime() - taskDueDateOffset).toISOString().split('T')[0];
+      const taskDueDateStr = getKolkataDateString(taskDueDate);
 
       const dummyAllUsersMentions = [
         { uid: 'mock-admin-uid', name: 'Admin User', task: 'Review all accounts and verify global access permissions', taskHeader: 'Review Admin Access', status: 'Task Assigned', dueDate: taskDueDateStr, priority: 'High', comments: '', completionDate: null },
@@ -657,8 +729,8 @@ async function initializeDatabase() {
         'Meeting',
         'All-Hands Portfolio Review',
         'We held a portfolio review meeting with Acme Corporation. All team members must review their client updates and key deliverables.',
-        getLocalDateString(),
-        getLocalTimeString(),
+        getKolkataDateString(),
+        getKolkataTimeString(),
         'mock-admin-uid',
         'Admin User',
         'Neutral',
