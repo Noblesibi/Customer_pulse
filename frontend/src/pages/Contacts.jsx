@@ -67,7 +67,7 @@ export default function Contacts() {
     const loadAccounts = async () => {
       if (!token) return;
       try {
-        const res = await fetch('http://localhost:5000/api/accounts?limit=1000', {
+        const res = await fetch('/CustomerPulse/api/accounts?limit=1000', {
           headers: { 'Authorization': `Bearer ${token}` }
         });
         const data = await res.json();

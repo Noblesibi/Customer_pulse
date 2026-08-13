@@ -43,7 +43,7 @@ app.use(helmet({
       styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
       fontSrc: ["'self'", "https://fonts.gstatic.com"],
       imgSrc: ["'self'", "data:", "blob:", "*"],
-      connectSrc: ["'self'", "http://localhost:5000", "http://localhost:5173", "https://hrapps.nestdigital.com:8085"]
+      connectSrc: ["'self'", "http://localhost:5000", "http://localhost:5173", "http://10.15.0.191", "https://hrapps.nestdigital.com:8085"]
     }
   },
   crossOriginResourcePolicy: { policy: "cross-origin" }

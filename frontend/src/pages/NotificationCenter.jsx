@@ -1,10 +1,12 @@
 import React, { useEffect, useState, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Bell, Mail, Clock, AlertTriangle, CheckCircle2, XCircle, RefreshCw,
   Send, Eye, RotateCcw, Trash2, Settings, BarChart3, List, FileText,
   Server, ChevronDown, ChevronUp, Search, Filter, X, Wifi, WifiOff, Check
 } from 'lucide-react';
 import { useStore } from '../store/index.js';
+import { formatDateTime } from '../utils/dateFormat.js';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend
 } from 'recharts';
@@ -12,7 +14,7 @@ import {
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 const fmtTime = (iso) => {
   if (!iso) return '—';
-  return new Date(iso).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' });
+  return formatDateTime(iso);
 };
 
 const eventLabel = (type) =>
@@ -88,6 +90,7 @@ const TABS = [
 ];
 
 export default function NotificationCenter() {
+  const navigate = useNavigate();
   const {
     user,
     emailEngineStats, emailEngineStatsLoading, fetchEmailEngineStats,
@@ -99,6 +102,8 @@ export default function NotificationCenter() {
     notificationPreferences, fetchNotificationPreferences, updateNotificationPreferences,
     sendTestEmail, fetchSmtpStatus
   } = useStore();
+
+  const isAuthorized = user?.role === 'Admin' || user?.userType === 'Admin' || user?.name?.toLowerCase().includes('nazneen') || user?.email?.toLowerCase().includes('nazneen') || user?.email === 'nj@gmail.com';
 
   const [activeTab, setActiveTab] = useState('dashboard');
   const [toast, setToast] = useState(null);
@@ -216,6 +221,28 @@ export default function NotificationCenter() {
   });
 
   const s = emailEngineStats;
+
+  if (!isAuthorized) {
+    return (
+      <div className="min-h-[75vh] flex items-center justify-center p-6 select-none">
+        <div className="bg-white rounded-2xl p-8 border border-slate-200 shadow-xl text-center max-w-md">
+          <div className="w-12 h-12 rounded-full bg-rose-50 border border-rose-200 text-rose-500 flex items-center justify-center mx-auto mb-4">
+            <XCircle className="w-6 h-6" />
+          </div>
+          <h2 className="text-lg font-black text-slate-900 mb-2">Access Restricted</h2>
+          <p className="text-xs text-slate-500 font-semibold mb-6">
+            The Automatic Email & Notification Engine is restricted exclusively to Administrators and authorized management (Nazneen).
+          </p>
+          <button
+            onClick={() => navigate('/dashboard')}
+            className="px-5 py-2.5 bg-primary text-white rounded-xl text-xs font-bold shadow-md hover:bg-blue-700 transition-all cursor-pointer"
+          >
+            Back to Dashboard
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col min-h-full" style={{ fontFamily: 'Montserrat, sans-serif' }}>
@@ -528,7 +555,7 @@ export default function NotificationCenter() {
         {activeTab === 'templates' && (
           <div className="space-y-4">
             <p className="text-xs text-black font-extrabold">
-              Built-in automatic notification templates triggered by CRM events (Task Assigned, Status Updated, Due Reminders, Overdue Alerts, Comments, etc.). Click Test Email to trigger an email to your Outlook inbox.
+              Built-in automatic notification templates triggered by CRM events (Task Assigned, Status Updated, Due Reminders, Overdue Alerts, Comments, etc.).
             </p>
             {previewLoading && (
               <div className="flex justify-center py-6"><RefreshCw className="w-5 h-5 text-black animate-spin" /></div>
@@ -548,17 +575,9 @@ export default function NotificationCenter() {
                   <div className="flex gap-2 mt-auto">
                     <button
                       onClick={() => handlePreview(tpl.id)}
-                      className="flex-1 flex items-center justify-center gap-1.5 text-xs font-black text-primary border border-primary/20 bg-primary/5 px-2 py-1.5 rounded-lg cursor-pointer hover:bg-primary/10"
+                      className="w-full flex items-center justify-center gap-1.5 text-xs font-black text-primary border border-primary/20 bg-primary/5 px-2 py-2 rounded-lg cursor-pointer hover:bg-primary/10 transition-all"
                     >
                       <Eye className="w-3.5 h-3.5" /> Preview HTML
-                    </button>
-                    <button
-                      onClick={() => handleTestEmail(tpl.id)}
-                      disabled={testTemplateSending === tpl.id}
-                      className="flex-1 flex items-center justify-center gap-1.5 text-xs font-black text-emerald-700 border border-emerald-500/30 bg-emerald-500/10 px-2 py-1.5 rounded-lg cursor-pointer hover:bg-emerald-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      {testTemplateSending === tpl.id ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
-                      Test Email
                     </button>
                   </div>
                 </div>
@@ -691,6 +710,61 @@ export default function NotificationCenter() {
         )}
 
       </div>
+
+      {/* ─── HTML Email Preview Modal ─────────────────────────────────────── */}
+      {previewModal && (
+        <div className="fixed inset-0 z-[99999] bg-slate-900/40 backdrop-blur-md flex items-center justify-center p-4 sm:p-6 animate-in fade-in duration-200">
+          <div className="bg-white/95 backdrop-blur-md border border-slate-200 shadow-2xl rounded-2xl w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden">
+            {/* Modal Header */}
+            <div className="px-6 py-4 border-b border-slate-200/80 bg-white/90 flex items-center justify-between gap-4 shrink-0">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-black uppercase tracking-widest px-2.5 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
+                    Template Preview
+                  </span>
+                  <span className="text-xs font-bold text-black font-mono">
+                    {previewModal.templateId}
+                  </span>
+                </div>
+                <h3 className="text-sm font-black text-black truncate mt-1" title={previewModal.subject}>
+                  Subject: {previewModal.subject || 'Template Preview'}
+                </h3>
+              </div>
+              <button
+                onClick={() => setPreviewModal(null)}
+                className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-100 transition-colors cursor-pointer shrink-0"
+                style={{ backgroundColor: 'transparent', color: '#0f172a' }}
+                title="Close Modal"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Body - Render HTML inside clean iframe */}
+            <div className="flex-1 p-4 bg-slate-50/60 overflow-hidden flex flex-col">
+              <iframe
+                srcDoc={previewModal.html}
+                title="Email Template Preview"
+                className="w-full h-full min-h-[500px] rounded-xl border border-slate-200 shadow-sm bg-white"
+              />
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-6 py-3.5 border-t border-slate-200/80 bg-white flex items-center justify-between gap-4 shrink-0">
+              <p className="text-xs font-bold text-slate-600">
+                Interactive preview rendered in real-time HTML engine format.
+              </p>
+              <button
+                onClick={() => setPreviewModal(null)}
+                className="px-5 py-2 rounded-xl text-xs font-extrabold border border-slate-300 hover:bg-slate-100 transition-colors cursor-pointer"
+                style={{ backgroundColor: 'transparent', color: '#0f172a' }}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

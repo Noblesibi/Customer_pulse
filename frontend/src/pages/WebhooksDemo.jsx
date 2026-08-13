@@ -19,8 +19,8 @@ export default function WebhooksDemo() {
 
     const isOutlook = webhookType === 'outlook';
     const url = isOutlook 
-      ? 'http://localhost:5000/api/webhooks/outlook' 
-      : 'http://localhost:5000/api/webhooks/teams';
+      ? '/CustomerPulse/api/webhooks/outlook' 
+      : '/CustomerPulse/api/webhooks/teams';
 
     const payload = isOutlook 
       ? { senderEmail, subject, bodyText: messageText, timestamp: new Date().toISOString() }

@@ -6,6 +6,8 @@ import {
   Paperclip, FileText, Download, ThumbsUp
 } from 'lucide-react';
 import { useStore } from '../store/index.js';
+import { formatDate, formatTime, formatDateTime } from '../utils/dateFormat.js';
+import TeamMemberSelect from '../components/TeamMemberSelect.jsx';
 
 const parseLogDetails = (details) => {
   if (!details) return { mainText: 'No additional parameters logged.', assignee: null };
@@ -17,49 +19,11 @@ const parseLogDetails = (details) => {
 };
 
 const formatLoggedDateTime = (dateStr, timeStr, timestampStr) => {
-  if (dateStr) {
-    const parts = dateStr.split('-');
-    if (parts.length === 3) {
-      const [yyyy, mm, dd] = parts;
-      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-      const monthLabel = months[parseInt(mm, 10) - 1] || mm;
-      const dayVal = parseInt(dd, 10);
-      
-      let timeLabel = '';
-      if (timeStr) {
-        const timeParts = timeStr.split(':');
-        if (timeParts.length >= 2) {
-          let hours = parseInt(timeParts[0], 10);
-          const minutes = timeParts[1].substring(0, 2);
-          const ampm = hours >= 12 ? 'PM' : 'AM';
-          hours = hours % 12;
-          hours = hours ? hours : 12;
-          timeLabel = `, ${hours}:${minutes} ${ampm}`;
-        }
-      }
-      return `${dayVal} ${monthLabel} ${yyyy}${timeLabel}`;
-    }
-  }
-  if (timestampStr) {
-    const dt = new Date(timestampStr);
-    if (!isNaN(dt.getTime())) {
-      return dt.toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' });
-    }
-  }
-  return '—';
+  return formatDateTime(dateStr, timeStr, timestampStr);
 };
 
 const formatDueDate = (dateStr) => {
-  if (!dateStr) return '—';
-  const parts = dateStr.split('-');
-  if (parts.length === 3) {
-    const [yyyy, mm, dd] = parts;
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    const monthLabel = months[parseInt(mm, 10) - 1] || mm;
-    const dayVal = parseInt(dd, 10);
-    return `${dayVal} ${monthLabel} ${yyyy}`;
-  }
-  return dateStr;
+  return formatDate(dateStr);
 };
 
 export default function InteractionLog() {
@@ -154,7 +118,7 @@ export default function InteractionLog() {
       });
 
       const token = useStore.getState().token;
-      const res = await fetch('http://localhost:5000/api/interactions/upload', {
+      const res = await fetch('/CustomerPulse/api/interactions/upload', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -354,12 +318,17 @@ export default function InteractionLog() {
     
     const forwardedTo = taskStatuses[`${item.interactionId}-${mentionToShow.uid}-forwardedToName`] || mentionToShow.forwardedToName;
     
-    const showButtons = mentionToShow.uid === user?.uid;
+    const isTaskFinal = (currentStatus || '').toLowerCase() === 'completed' ||
+                        (currentStatus || '').toLowerCase() === 'complete' ||
+                        (currentStatus || '').toLowerCase() === 'declined' ||
+                        (currentStatus || '').toLowerCase() === 'decline' ||
+                        (currentStatus || '').toLowerCase() === 'accepted & completed';
+
+    const showButtons = mentionToShow.uid === user?.uid && !isTaskFinal && !isTaskOverdue && !showAsOverdued;
     if (showButtons) {
       return (
         <div className="flex flex-col gap-1">
           <select 
-            disabled={isTaskOverdue || showAsOverdued}
             value={displayStatus === 'Accepted' ? 'Accept' : displayStatus === 'Declined' ? 'Decline' : displayStatus}
             onChange={(e) => {
               const st = e.target.value;
@@ -377,9 +346,12 @@ export default function InteractionLog() {
               }
             }}
             onClick={(e) => e.stopPropagation()}
-            className="px-2 py-1 rounded-lg border border-slate-350 bg-white text-xs text-black font-bold outline-none cursor-pointer focus:border-primary w-fit"
+            className={`px-2 py-1 rounded-lg border text-xs outline-none cursor-pointer focus:border-primary/50 w-fit ${
+              displayStatus === 'Accept' || displayStatus === 'Accepted' || displayStatus === 'In Progress' ? 'border-amber-500/30 bg-amber-50/80 text-amber-700 font-extrabold' :
+              displayStatus === 'Forwarded' ? 'border-sky-500/30 bg-sky-50/80 text-sky-700 font-extrabold' :
+              'border-slate-300 bg-white text-slate-800 font-bold'
+            }`}
           >
-            {(displayStatus === 'Overdued' || displayStatus === 'Overdue') && <option value="Overdued">Overdued</option>}
             <option value="Task Assigned">Task Assigned</option>
             <option value="Accept">Accepted</option>
             <option value="Decline">Declined</option>
@@ -616,6 +588,7 @@ export default function InteractionLog() {
                     <th className="py-2.5 px-4 w-36 sticky top-0 bg-dark-900 z-10 text-left">Interaction Type</th>
                     <th className="py-2.5 px-4 w-36 sticky top-0 bg-dark-900 z-10 text-left">Client Contact</th>
                     <th className="py-2.5 px-4 sticky top-0 bg-dark-900 z-10 text-left">Log Title</th>
+                    <th className="py-2.5 px-4 w-44 sticky top-0 bg-dark-900 z-10 text-left">Logged Date & Time</th>
                     <th className="py-2.5 px-4 w-44 sticky top-0 bg-dark-900 z-10 text-left">Associated Task</th>
                     <th className="py-2.5 px-4 w-44 sticky top-0 bg-dark-900 z-10 text-left">Status</th>
                   </tr>
@@ -691,6 +664,11 @@ export default function InteractionLog() {
                           >
                             {deriveLogTitle(item)}
                           </div>
+                        </td>
+
+                        {/* Logged Date & Time */}
+                        <td className="py-2.5 px-4 whitespace-nowrap text-xs font-semibold text-black">
+                          {formatLoggedDateTime(item.date, item.time, item.timestamp)}
                         </td>
 
                         <td className="py-2.5 px-4 max-w-[180px]">
@@ -775,10 +753,12 @@ export default function InteractionLog() {
               
               const getStatusColorClass = (st) => {
                 const s = (st || 'Pending').toLowerCase();
-                if (s.includes('complete') || s.includes('forward')) return 'bg-emerald-500/10 border-emerald-500/25 text-emerald-400';
-                if (s.includes('progress') || s.includes('accept') || s.includes('decline')) return 'bg-amber-500/10 border-amber-500/25 text-amber-400';
-                if (s.includes('overdued') || s.includes('overdue')) return 'bg-purple-500/10 border-purple-500/25 text-purple-400';
-                return 'bg-slate-800 border-slate-700 text-slate-400';
+                if (s.includes('overdue') || s.includes('overdued')) return 'bg-purple-500/10 border-purple-500/20 text-purple-600';
+                if (s.includes('complete')) return 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600';
+                if (s.includes('decline')) return 'bg-rose-500/10 border-rose-500/20 text-rose-600';
+                if (s.includes('accept') || s.includes('in progress')) return 'bg-amber-500/10 border-amber-500/20 text-amber-600';
+                if (s.includes('forward')) return 'bg-sky-500/10 border-sky-500/20 text-sky-600';
+                return 'bg-slate-400/10 border-slate-400/20 text-slate-500';
               };
 
               const getCategoryBadgeClass = (src) => {
@@ -1019,62 +999,91 @@ export default function InteractionLog() {
                                                 ? 'bg-rose-600 border-rose-500 text-white' 
                                                 : 'bg-dark-700 border-dark-800 text-black'
                                             }`}>
-                                              Due: {new Date(mention.dueDate).toLocaleDateString()} {isOverdueObj && ' (OVERDUE)'}
+                                              Due: {formatDate(mention.dueDate)} {isOverdueObj && ' (OVERDUE)'}
                                             </span>
                                           );
                                         })()}
                                       </div>
                                     )}
                                     
-                                    {isAssignee && (
-                                      <div className="pt-2 border-t border-dark-800 border-dashed space-y-1.5 flex items-center justify-between gap-2">
-                                        <div className="flex items-center gap-2">
-                                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Change Status:</span>
-                                          <select
-                                            disabled={isTaskOverdue || showAsOverdued}
-                                            value={displayStatus === 'Accepted' ? 'Accept' : displayStatus === 'Declined' ? 'Decline' : displayStatus}
-                                            onChange={async (e) => {
-                                              const st = e.target.value;
-                                              if (st === 'Completed') {
-                                                setCompletionModalState({ isOpen: true, task: { ...mention, interactionId: selectedLog.interactionId }, newStatus: st });
-                                              } else if (st === 'Forwarded') {
-                                                setForwardModalState({ isOpen: true, task: { ...mention, interactionId: selectedLog.interactionId }, newStatus: st });
-                                              } else if (st === 'Decline') {
-                                                setDeclineModalState({ isOpen: true, task: { ...mention, interactionId: selectedLog.interactionId } });
-                                              } else if (st === 'Accept') {
-                                                setAcceptModalState({ isOpen: true, task: { ...mention, interactionId: selectedLog.interactionId } });
-                                              } else {
-                                                const ok = await updateTaskStatus(selectedLog.interactionId, mention.uid, st);
-                                                if (ok) {
-                                                  fetchActivityLogs();
-                                                  fetchInteractions();
-                                                  setSelectedLog(prev => {
-                                                    const updatedMentions = (prev.actionMentions || []).map(m =>
-                                                      m.uid === mention.uid ? { ...m, status: st } : m
-                                                    );
-                                                    return { ...prev, actionMentions: updatedMentions };
-                                                  });
-                                                }
-                                                updateTaskStatuses(prev => ({ ...prev, [`${selectedLog.interactionId}-${mention.uid}`]: st }));
-                                              }
-                                            }}
-                                            className="px-2.5 py-1 rounded-lg border border-dark-800 bg-dark-750 text-xs text-black font-bold outline-none cursor-pointer focus:border-primary"
-                                          >
-                                            {displayStatus === 'Overdued' && <option value="Overdued">Overdued</option>}
-                                            <option value="Task Assigned">Task Assigned</option>
-                                            <option value="Accept">Accepted</option>
-                                            <option value="Decline">Declined</option>
-                                            <option value="Completed">Completed</option>
-                                            <option value="Forwarded">Forwarded</option>
-                                          </select>
-                                        </div>
-                                        {currentStatus === 'Forwarded' && forwardedTo && (
-                                          <span className="text-xs text-indigo-500 font-bold">
-                                            to @{forwardedTo}
-                                          </span>
-                                        )}
-                                      </div>
-                                    )}
+                                    {isAssignee && (() => {
+                                       const isTaskFinal = (currentStatus || '').toLowerCase() === 'completed' ||
+                                                           (currentStatus || '').toLowerCase() === 'complete' ||
+                                                           (currentStatus || '').toLowerCase() === 'declined' ||
+                                                           (currentStatus || '').toLowerCase() === 'decline' ||
+                                                           (currentStatus || '').toLowerCase() === 'accepted & completed';
+
+                                       return (
+                                          <div className="pt-2 border-t border-dark-800 border-dashed space-y-1.5 flex items-center justify-between gap-2">
+                                            <div className="flex items-center gap-2">
+                                              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Change Status:</span>
+                                              {isTaskFinal ? (
+                                                <div className="flex items-center gap-2">
+                                                  <span className={`px-2.5 py-1 rounded-lg border text-xs font-black uppercase tracking-wider ${
+                                                    (currentStatus || '').toLowerCase().includes('decline')
+                                                      ? 'bg-rose-500/10 border-rose-500/20 text-rose-600'
+                                                      : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600'
+                                                  }`}>
+                                                    {displayStatus === 'Decline' || displayStatus === 'Declined' ? 'Declined' : displayStatus === 'Accept' ? 'Accepted' : displayStatus}
+                                                  </span>
+                                                  <span className="text-[10px] font-bold text-slate-500 italic">
+                                                    (Status Fixed)
+                                                  </span>
+                                                </div>
+                                              ) : (
+                                                <select
+                                                  disabled={isTaskOverdue || showAsOverdued}
+                                                  value={displayStatus === 'Accepted' ? 'Accept' : displayStatus === 'Declined' ? 'Decline' : displayStatus}
+                                                  style={{ backgroundColor: '#ffffff', color: '#000000' }}
+                                                  onChange={async (e) => {
+                                                    if (isTaskFinal) return;
+                                                    const st = e.target.value;
+                                                    if (st === 'Completed') {
+                                                      setCompletionModalState({ isOpen: true, task: { ...mention, interactionId: selectedLog.interactionId }, newStatus: st });
+                                                    } else if (st === 'Forwarded') {
+                                                      setForwardModalState({ isOpen: true, task: { ...mention, interactionId: selectedLog.interactionId }, newStatus: st });
+                                                    } else if (st === 'Decline') {
+                                                      setDeclineModalState({ isOpen: true, task: { ...mention, interactionId: selectedLog.interactionId } });
+                                                    } else if (st === 'Accept') {
+                                                      setAcceptModalState({ isOpen: true, task: { ...mention, interactionId: selectedLog.interactionId } });
+                                                    } else {
+                                                      const ok = await updateTaskStatus(selectedLog.interactionId, mention.uid, st);
+                                                      if (ok) {
+                                                        fetchActivityLogs();
+                                                        fetchInteractions();
+                                                        setSelectedLog(prev => {
+                                                          const updatedMentions = (prev.actionMentions || []).map(m =>
+                                                            m.uid === mention.uid ? { ...m, status: st } : m
+                                                          );
+                                                          return { ...prev, actionMentions: updatedMentions };
+                                                        });
+                                                      }
+                                                      updateTaskStatuses(prev => ({ ...prev, [`${selectedLog.interactionId}-${mention.uid}`]: st }));
+                                                    }
+                                                  }}
+                                                  className={`px-2.5 py-1 rounded-lg border text-xs font-bold outline-none ${
+                                                    isTaskOverdue || showAsOverdued
+                                                      ? 'border-slate-300 bg-slate-100 text-slate-500 cursor-not-allowed opacity-80'
+                                                      : 'border-slate-300 bg-white text-black cursor-pointer focus:border-primary'
+                                                  }`}
+                                                >
+                                                  {displayStatus === 'Overdued' && <option value="Overdued">Overdued</option>}
+                                                  <option value="Task Assigned">Task Assigned</option>
+                                                  <option value="Accept">Accepted</option>
+                                                  <option value="Decline">Declined</option>
+                                                  <option value="Completed">Completed</option>
+                                                  <option value="Forwarded">Forwarded</option>
+                                                </select>
+                                              )}
+                                            </div>
+                                            {currentStatus === 'Forwarded' && forwardedTo && (
+                                              <span className="text-xs text-indigo-500 font-bold">
+                                                to @{forwardedTo}
+                                              </span>
+                                            )}
+                                          </div>
+                                       );
+                                     })()}
                                   </div>
                                 );
                               })}
@@ -1175,7 +1184,7 @@ export default function InteractionLog() {
                                       </div>
                                       <span className="text-xs font-bold text-black">{reply.authorName || 'Staff User'}</span>
                                       <span className="text-[10px] text-slate-400 font-medium">
-                                        {reply.timestamp ? new Date(reply.timestamp).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' }) : 'Just now'}
+                                        {reply.timestamp ? formatDateTime(reply.timestamp) : 'Just now'}
                                       </span>
                                     </div>
                                     <p className="text-xs font-semibold text-black leading-relaxed whitespace-pre-wrap pl-8">
@@ -1447,21 +1456,13 @@ export default function InteractionLog() {
             <form onSubmit={handleForwardSubmit} className="space-y-4 text-xs font-semibold">
               <div className="space-y-1.5">
                 <label className="block text-xs font-bold text-black">Forward To</label>
-                <select
+                <TeamMemberSelect
                   value={forwardToUid}
-                  onChange={(e) => setForwardToUid(e.target.value)}
-                  className="w-full bg-dark-700 border border-dark-800 rounded-xl p-3 text-xs text-black outline-none focus:border-blue-500/50 cursor-pointer font-semibold"
+                  onChange={(uid) => setForwardToUid(uid)}
+                  staffList={staffList}
+                  currentUserId={user?.uid}
                   required
-                >
-                  <option value="">Select Team Member</option>
-                  {(staffList || [])
-                    .filter(s => s.uid !== user?.uid)
-                    .map(s => (
-                      <option key={s.uid} value={s.uid}>
-                        {s.name} ({s.role || s.position || 'Team Member'})
-                      </option>
-                    ))}
-                </select>
+                />
               </div>
               <div className="space-y-1.5">
                 <label className="block text-xs font-bold text-black">Forwarding Note / Reason</label>
@@ -1477,7 +1478,7 @@ export default function InteractionLog() {
                 <input
                   type="file"
                   onChange={(e) => setForwardFile(e.target.files[0])}
-                  className="w-full text-xs text-black file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border file:border-dark-800 file:text-xs file:font-semibold file:bg-dark-700 file:text-black hover:file:bg-dark-800"
+                  className="w-full text-xs text-slate-700 file:mr-3 file:py-2 file:px-4 file:rounded-xl file:border file:border-slate-300 file:text-xs file:font-bold file:bg-slate-100 file:text-slate-800 hover:file:bg-slate-200 file:cursor-pointer cursor-pointer transition-all"
                 />
               </div>
               <div className="flex justify-end pt-2">

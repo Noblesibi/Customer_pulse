@@ -2,9 +2,9 @@ import { db } from '../../config/database.js';
 import { smtpProvider } from './SmtpEmailProvider.js';
 import { NotificationEngine } from './NotificationEngine.js';
 
-const QUEUE_INTERVAL_MS  = 30 * 1000;        // Process queue every 30 seconds
+const QUEUE_INTERVAL_MS = 30 * 1000;        // Process queue every 30 seconds
 const REMINDER_INTERVAL_MS = 5 * 60 * 1000; // Scan for reminders every 5 minutes
-const BATCH_SIZE = 10;                        // Max emails per queue run
+const BATCH_SIZE = 100;                        // Max emails per queue run
 
 let queueTimer = null;
 let reminderTimer = null;
@@ -268,4 +268,8 @@ export function stopEmailScheduler() {
   if (queueTimer) { clearInterval(queueTimer); queueTimer = null; }
   if (reminderTimer) { clearInterval(reminderTimer); reminderTimer = null; }
   console.log('🛑 [EmailScheduler] Stopped.');
+}
+
+export async function triggerQueueProcessing() {
+  processQueue();
 }

@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { db } from '../config/database.js';
 import { authenticateToken } from '../middleware/auth.middleware.js';
+import { getSystemDateString, getSystemTimeString } from '../utils/dateUtils.js';
 
 const router = Router();
 
@@ -244,6 +245,8 @@ router.get('/stats', async (req, res) => {
                     message: `Birthday reminder: ${c.name} (CIO at ${a.companyName}) is celebrating their birthday in 7 days on ${c.birthday.slice(5)}.`,
                     severity: 'Info',
                     read: false,
+                    date: getSystemDateString(),
+                    time: getSystemTimeString(),
                     timestamp: new Date().toISOString()
                   });
                 }
@@ -293,6 +296,8 @@ router.get('/stats', async (req, res) => {
                   message: `Anniversary reminder: ${a.companyName} is completing ${yearsDiff} years as a client in ${diffDays} days on ${targetAnniversary.toLocaleDateString()}.`,
                   severity: 'Info',
                   read: false,
+                  date: getSystemDateString(),
+                  time: getSystemTimeString(),
                   timestamp: new Date().toISOString()
                 });
               }

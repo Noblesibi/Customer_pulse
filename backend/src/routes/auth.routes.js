@@ -87,7 +87,7 @@ router.post('/login', async (req, res) => {
     if (process.env.LDAP_ENABLED && process.env.LDAP_ENABLED !== 'false') {
       let ldapResult = null;
       try {
-        ldapResult = await authenticateLdapUser(email, password);
+        ldapResult = await authenticateLdapUser(cleanEmail, password);
       } catch (ldapErr) {
         console.error('LDAP error, falling back to local auth:', ldapErr.message);
       }
@@ -287,30 +287,32 @@ router.get('/staff', authenticateToken, requirePermission(PERMISSIONS.VIEW_STAFF
   try {
     await ensureNestGroupEmployees(db);
     const snap = await db.collection('users').get();
-    const staff = snap.docs.map(doc => {
-      const u = doc.data();
-      return {
-        ...u,
-        uid:                  u.uid,
-        name:                 u.name,
-        email:                u.email,
-        role:                 u.role,
-        position:             u.position             || '',
-        userType:             u.userType             || '',
-        department:           u.department           || '',
-        reportingTo:          u.reportingTo          || '',
-        reportingManagerName: u.reportingManagerName || '',
-        bu:                   u.bu                   || '',
-        buHeadName:           u.buHeadName           || '',
-        buHeadEmail:          u.buHeadEmail          || '',
-        phone:                u.phone                || '',
-        employeeId:           u.employeeId           || '',
-        jobRole:              u.jobRole              || '',
-        project:              u.project              || '',
-        projects:             u.projects             || [],
-        employees:            u.employees            || []
-      };
-    });
+    const staff = snap.docs
+      .map(doc => {
+        const u = doc.data();
+        return {
+          ...u,
+          uid:                  u.uid,
+          name:                 u.name,
+          email:                u.email,
+          role:                 u.role,
+          position:             u.position             || '',
+          userType:             u.userType             || '',
+          department:           u.department           || '',
+          reportingTo:          u.reportingTo          || '',
+          reportingManagerName: u.reportingManagerName || '',
+          bu:                   u.bu                   || '',
+          buHeadName:           u.buHeadName           || '',
+          buHeadEmail:          u.buHeadEmail          || '',
+          phone:                u.phone                || '',
+          employeeId:           u.employeeId           || '',
+          jobRole:              u.jobRole              || '',
+          project:              u.project              || '',
+          projects:             u.projects             || [],
+          employees:            u.employees            || []
+        };
+      })
+      .filter(u => !u.email?.toLowerCase().includes('dileep') && !u.name?.toLowerCase().includes('dileep'));
     return res.json(staff);
   } catch (error) {
     console.error('GET /staff error:', error);
@@ -326,33 +328,35 @@ router.get('/users', authenticateToken, requirePermission(PERMISSIONS.VIEW_ALL_U
   try {
     await ensureNestGroupEmployees(db);
     const snap = await db.collection('users').get();
-    const users = snap.docs.map(doc => {
-      const u = doc.data();
-      return {
-        ...u,
-        uid:                  u.uid,
-        email:                u.email,
-        name:                 u.name,
-        role:                 u.role,
-        position:             u.position             || '',
-        userType:             u.userType             || '',
-        department:           u.department           || '',
-        reportingTo:          u.reportingTo          || '',
-        reportingManagerName: u.reportingManagerName || '',
-        bu:                   u.bu                   || '',
-        buHeadName:           u.buHeadName           || '',
-        buHeadEmail:          u.buHeadEmail          || '',
-        phone:                u.phone                || '',
-        employeeId:           u.employeeId           || '',
-        jobRole:              u.jobRole              || '',
-        project:              u.project              || '',
-        projects:             u.projects             || [],
-        employees:            u.employees            || [],
-        ldap_provisioned:     u.ldap_provisioned     || false,
-        last_login:           u.last_login           || null,
-        createdAt:            u.createdAt            || new Date().toISOString()
-      };
-    });
+    const users = snap.docs
+      .map(doc => {
+        const u = doc.data();
+        return {
+          ...u,
+          uid:                  u.uid,
+          email:                u.email,
+          name:                 u.name,
+          role:                 u.role,
+          position:             u.position             || '',
+          userType:             u.userType             || '',
+          department:           u.department           || '',
+          reportingTo:          u.reportingTo          || '',
+          reportingManagerName: u.reportingManagerName || '',
+          bu:                   u.bu                   || '',
+          buHeadName:           u.buHeadName           || '',
+          buHeadEmail:          u.buHeadEmail          || '',
+          phone:                u.phone                || '',
+          employeeId:           u.employeeId           || '',
+          jobRole:              u.jobRole              || '',
+          project:              u.project              || '',
+          projects:             u.projects             || [],
+          employees:            u.employees            || [],
+          ldap_provisioned:     u.ldap_provisioned     || false,
+          last_login:           u.last_login           || null,
+          createdAt:            u.createdAt            || new Date().toISOString()
+        };
+      })
+      .filter(u => !u.email?.toLowerCase().includes('dileep') && !u.name?.toLowerCase().includes('dileep'));
     return res.json(users);
   } catch (error) {
     console.error('GET /users error:', error);
