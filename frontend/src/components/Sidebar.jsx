@@ -1,6 +1,7 @@
 import React from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { LayoutDashboard, Users, UserSquare2, AlertOctagon, Terminal, LogOut, Shield, CheckSquare } from 'lucide-react';
+import nestLogo from '../assets/nest-digital-logo.png';
 import { useStore } from '../store/index.js';
 
 export default function Sidebar() {
@@ -40,14 +41,18 @@ export default function Sidebar() {
         <div className="flex flex-col items-start gap-2 px-2">
           <div className="bg-[#0f172a] rounded-xl px-3 py-1.5">
             <img
-              src="/nest-digital-logo.png"
-              alt="Nest Digital"
+              src={nestLogo}
+              alt="NeST Digital"
               className="h-8 w-auto object-contain"
+              onError={(e) => {
+                e.currentTarget.onerror = null;
+                e.currentTarget.src = '/CustomerPulse/nest-digital-logo.png';
+              }}
             />
           </div>
           <div className="border-t border-slate-200/60 pt-2 w-full">
             <span className="font-extrabold text-lg text-slate-800 tracking-wide block">CustomerPulse</span>
-            <span className="text-xs text-primary font-semibold tracking-wider uppercase">Rel Intelligence</span>
+            <span className="text-xs text-primary font-semibold tracking-wider uppercase">Relationships, measured</span>
           </div>
         </div>
 

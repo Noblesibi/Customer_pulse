@@ -1,5 +1,7 @@
 import { db } from '../../config/database.js';
 import { renderTemplate } from './TemplateEngine.js';
+import { triggerQueueProcessing } from './EmailScheduler.js';
+import { getSystemDateString, getSystemTimeString } from '../../utils/dateUtils.js';
 
 // Default notification preferences — used when a user has not configured their own
 const DEFAULT_PREFERENCES = {
@@ -15,30 +17,46 @@ const DEFAULT_PREFERENCES = {
   taskCancelled: true,
   greetingEmails: true,
   companyAnnouncements: true,
-  customerFollowups: true
+  customerFollowups: true,
+  interactionLogged: true
 };
 
 // Maps event types to preference keys so preferences are respected per-event
 const EVENT_PREF_MAP = {
-  task_assigned:    'taskAssigned',
-  task_reassigned:  'taskReassigned',
-  task_updated:     'taskUpdated',
-  task_reminder:    'taskReminders',
-  status_changed:   'taskStatusUpdates',
-  task_comment:     'taskComments',
-  task_attachment:  'taskAttachments',
-  task_overdue:     'taskOverdue',
-  task_completed:   'taskCompleted',
-  task_cancelled:   'taskCancelled',
-  birthday:         'greetingEmails',
-  work_anniversary: 'greetingEmails',
-  festival:         'greetingEmails',
-  welcome:          'greetingEmails',
-  farewell:         'greetingEmails',
-  promotion:        'greetingEmails',
-  achievement:      'greetingEmails',
-  custom_greeting:  'greetingEmails',
-  company_announcement: 'companyAnnouncements'
+  task_assigned:             'taskAssigned',
+  staff_task_assigned:       'taskAssigned',
+  staff_task_accepted:       'taskStatusUpdates',
+  staff_task_forwarded:      'taskReassigned',
+  staff_task_declined:       'taskStatusUpdates',
+  staff_task_completed:      'taskCompleted',
+  staff_task_overdue:        'taskOverdue',
+  staff_task_comment:        'taskComments',
+  associated_task_assigned:  'taskAssigned',
+  associated_task_accepted:  'taskStatusUpdates',
+  associated_task_forwarded: 'taskReassigned',
+  associated_task_declined:  'taskStatusUpdates',
+  associated_task_completed: 'taskCompleted',
+  associated_task_overdue:   'taskOverdue',
+  associated_task_comment:   'taskComments',
+  task_reassigned:           'taskReassigned',
+  task_updated:              'taskUpdated',
+  task_reminder:             'taskReminders',
+  status_changed:            'taskStatusUpdates',
+  task_comment:              'taskComments',
+  task_attachment:           'taskAttachments',
+  task_overdue:              'taskOverdue',
+  task_completed:            'taskCompleted',
+  task_cancelled:            'taskCancelled',
+  birthday:                  'greetingEmails',
+  work_anniversary:          'greetingEmails',
+  festival:                  'greetingEmails',
+  welcome:                   'greetingEmails',
+  farewell:                  'greetingEmails',
+  promotion:                 'greetingEmails',
+  achievement:               'greetingEmails',
+  custom_greeting:           'greetingEmails',
+  company_announcement:      'companyAnnouncements',
+  interaction_logged:        'interactionLogged'
 };
 
 /**
@@ -83,15 +101,74 @@ class NotificationEngineClass {
   }
 
   async _processRecipient(eventType, payload, uid, options) {
-    // 1. Load user profile
-    const userDoc = await db.collection('users').doc(uid).get();
-    if (!userDoc.exists) {
+    // 1. Load user profile with robust multi-tiered fallback
+    let user = null;
+    try {
+      const userDoc = await db.collection('users').doc(uid).get();
+      if (userDoc && userDoc.exists) {
+        user = userDoc.data();
+      }
+    } catch (err) {}
+
+    // Fallback 1: Search users collection by id, uid, email, or name
+    if (!user) {
+      try {
+        const allUsersSnap = await db.collection('users').get();
+        if (allUsersSnap && allUsersSnap.docs) {
+          const targetClean = String(uid).toLowerCase();
+          const targetName = (payload.AssignedTo || payload.EmployeeName) ? String(payload.AssignedTo || payload.EmployeeName).toLowerCase() : null;
+
+          const foundDoc = allUsersSnap.docs.find(d => {
+            const data = d.data();
+            const dId = String(d.id || '').toLowerCase();
+            const dUid = String(data.uid || '').toLowerCase();
+            const dEmail = String(data.email || '').toLowerCase();
+            const dName = String(data.name || '').toLowerCase();
+
+            if (dId === targetClean || dUid === targetClean || dEmail === targetClean) return true;
+            if (targetName && dName === targetName) return true;
+            if (dEmail && dEmail.includes('@') && targetClean.includes(dEmail.split('@')[0])) return true;
+            return false;
+          });
+
+          if (foundDoc) {
+            user = foundDoc.data();
+          }
+        }
+      } catch (err) {}
+    }
+
+    // Fallback 2: Construct virtual recipient for email addresses or sec- IDs
+    if (!user && typeof uid === 'string') {
+      let derivedEmail = null;
+      if (uid.includes('@')) {
+        derivedEmail = uid;
+      } else if (uid.startsWith('sec-')) {
+        const clean = uid.replace('sec-', '');
+        const lastUnderscore = clean.lastIndexOf('_');
+        if (lastUnderscore !== -1) {
+          const userPart = clean.substring(0, lastUnderscore).replace(/_/g, '.');
+          const domainPart = clean.substring(lastUnderscore + 1);
+          derivedEmail = `${userPart}@${domainPart}`;
+        }
+      }
+
+      if (derivedEmail) {
+        user = {
+          uid,
+          email: derivedEmail,
+          name: payload.AssignedTo || payload.EmployeeName || uid
+        };
+      }
+    }
+
+    if (!user) {
       console.warn(`[NotificationEngine] User ${uid} not found — skipping.`);
       return;
     }
-    const user = userDoc.data();
     if (!user.email) {
       console.warn(`[NotificationEngine] User ${user.name || uid} has no email — skipping email queue.`);
+      return;
     }
 
     // 2. Check notification preferences
@@ -137,6 +214,11 @@ class NotificationEngineClass {
         processedAt: null,
         failureReason: null
       });
+
+      // Trigger queue processing asynchronously to send email immediately
+      try {
+        triggerQueueProcessing();
+      } catch (e) {}
     }
 
     // 6. Write in-app bell notification (preserves existing behaviour)
@@ -150,6 +232,8 @@ class NotificationEngineClass {
         message: inAppMessage,
         read: false,
         relatedTaskId: options.relatedTaskId || payload.TaskId || null,
+        date: getSystemDateString(),
+        time: getSystemTimeString(),
         timestamp: new Date().toISOString()
       });
     }

@@ -1,4 +1,5 @@
 import { db } from '../config/database.js';
+import { getSystemDateString, getSystemTimeString } from '../utils/dateUtils.js';
 
 /**
  * Calculates the health score for a specific account.
@@ -56,11 +57,14 @@ export async function calculateAccountHealth(accountId) {
         });
         
         await db.collection('notifications').add({
+          notificationId: 'notif-' + Math.random().toString(36).substring(2, 11),
           accountId,
           type: 'Overdue Task',
           message: 'Alert: Task remains unresolved for 7+ days past its due date. Account health impacted.',
           severity: 'High',
           read: false,
+          date: getSystemDateString(),
+          time: getSystemTimeString(),
           timestamp: new Date().toISOString()
         });
       }
@@ -197,11 +201,14 @@ export async function calculateAccountHealth(accountId) {
       });
       
       await db.collection('notifications').add({
+        notificationId: 'notif-' + Math.random().toString(36).substring(2, 11),
         accountId,
         type: 'Health Score Drop',
         message: `Critical alert: Health score for client has dropped to ${healthScore}%!`,
         severity: 'High',
         read: false,
+        date: getSystemDateString(),
+        time: getSystemTimeString(),
         timestamp: new Date().toISOString()
       });
     }

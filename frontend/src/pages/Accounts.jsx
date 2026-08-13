@@ -1,15 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { 
-  Plus, Search, Edit2, Trash2, Globe, Building2, ShieldAlert, UserPlus, Send, X, 
+import {
+  Plus, Search, Edit2, Trash2, Globe, Building2, ShieldAlert, UserPlus, Send, X,
   MessageSquare, Mail, Calendar, Clock, Users, AtSign, CheckSquare, Square, Mic, Video,
   CheckCheck, Phone, Paperclip, Upload, FileText, Loader2
 } from 'lucide-react';
 import { useStore } from '../store/index.js';
+import { formatDate, formatTime, formatDateTime, getCurrentKolkataDate, getCurrentKolkataTime } from '../utils/dateFormat.js';
 
 export default function Accounts() {
   const navigate = useNavigate();
-  const { 
+  const {
     user,
     accounts,
     totalAccounts,
@@ -58,16 +59,10 @@ export default function Accounts() {
   // Modals state
   const [isLogInteractionOpen, setIsLogInteractionOpen] = useState(false);
 
-  const getLocalDateString = () => {
-    const d = new Date();
-    const offset = d.getTimezoneOffset() * 60000;
-    return new Date(d.getTime() - offset).toISOString().split('T')[0];
-  };
-
   const [interactionSource, setInteractionSource] = useState('Outlook Mail');
   const [interactionText, setInteractionText] = useState('');
-  const [interactionDate, setInteractionDate] = useState(getLocalDateString());
-  const [interactionTime, setInteractionTime] = useState(new Date().toTimeString().slice(0, 5));
+  const [interactionDate, setInteractionDate] = useState(getCurrentKolkataDate());
+  const [interactionTime, setInteractionTime] = useState(getCurrentKolkataTime());
   const [interactionContactId, setInteractionContactId] = useState('');
   const [interactionAccountId, setInteractionAccountId] = useState('');
   const [selectedMentions, setSelectedMentions] = useState([]);
@@ -94,7 +89,7 @@ export default function Accounts() {
           reader.onerror = (error) => reject(error);
         });
 
-        const res = await fetch('http://localhost:5000/api/interactions/upload', {
+        const res = await fetch('/CustomerPulse/api/interactions/upload', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -237,9 +232,9 @@ export default function Accounts() {
       date: interactionDate,
       time: interactionTime,
       attachments: attachmentsList,
-      actionMentions: selectedMentions.map(m => ({ 
-        uid: m.uid, 
-        name: m.name, 
+      actionMentions: selectedMentions.map(m => ({
+        uid: m.uid,
+        name: m.name,
         task: taskText,
         dueDate: taskDueDate || null,
         priority: taskPriority
@@ -291,7 +286,7 @@ export default function Accounts() {
     const beforeAt = mentionSearch.slice(0, lastAtIndex);
     const newText = beforeAt + `@${staffMember.name} `;
     setMentionSearch(newText);
-    
+
     // Recalculate selectedMentions in real-time
     const parsed = [];
     staffList.forEach(s => {
@@ -324,7 +319,7 @@ export default function Accounts() {
       } else {
         updated = [...prev, { uid: staffMember.uid, name: staffMember.name }];
       }
-      
+
       // Update the mentionSearch text to match the selected mentions
       let text = mentionSearch;
       if (exists) {
@@ -359,19 +354,18 @@ export default function Accounts() {
 
   return (
     <div className="p-6 md:p-8 flex flex-col lg:flex-row gap-6 lg:gap-8 relative select-none h-auto lg:h-[calc(100vh-10rem)]">
-      
+
       {/* LEFT PANEL: ACCOUNTS TABLE LIST */}
-      <div className={`w-full lg:flex-1 flex flex-col justify-between glass p-4 md:p-6 rounded-2xl border border-slate-800/80 transition-all duration-300 ${
-        selectedAccount ? 'lg:max-w-[50%]' : 'w-full'
-      }`}>
-        
+      <div className={`w-full lg:flex-1 flex flex-col justify-between glass p-4 md:p-6 rounded-2xl border border-slate-800/80 transition-all duration-300 ${selectedAccount ? 'lg:max-w-[50%]' : 'w-full'
+        }`}>
+
         {/* Header Tools */}
         <div className="space-y-4 mb-6">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-bold text-white tracking-wide">Client Portfolio</h2>
             {(user?.role === 'Admin' || user?.position?.toLowerCase().includes('ceo') || user?.userType === 'CEO' || user?.email === 'nj@gmail.com') && (
-              <button 
-                onClick={() => window.location.href = '/accounts/new'}
+              <button
+                onClick={() => navigate('/accounts/new')}
                 className="bg-primary hover:bg-blue-600 px-4 py-2.5 rounded-xl text-xs font-semibold flex items-center gap-2 text-white active:scale-98 transition-all"
               >
                 <Plus className="w-4 h-4" />
@@ -385,8 +379,8 @@ export default function Accounts() {
             {/* Search Box */}
             <div className="relative col-span-1 md:col-span-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
-              <input 
-                type="text" 
+              <input
+                type="text"
                 placeholder="Search clients..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
@@ -395,7 +389,7 @@ export default function Accounts() {
             </div>
 
             {/* Filter: Industry */}
-            <select 
+            <select
               value={industryFilter}
               onChange={(e) => setIndustryFilter(e.target.value)}
               className="bg-dark-900/60 border border-slate-800 focus:border-primary/50 text-xs rounded-xl p-2.5 text-slate-300 focus:outline-none cursor-pointer"
@@ -405,7 +399,7 @@ export default function Accounts() {
             </select>
 
             {/* Filter: Location */}
-            <select 
+            <select
               value={regionFilter}
               onChange={(e) => setRegionFilter(e.target.value)}
               className="bg-dark-900/60 border border-slate-800 focus:border-primary/50 text-xs rounded-xl p-2.5 text-slate-300 focus:outline-none cursor-pointer"
@@ -415,7 +409,7 @@ export default function Accounts() {
             </select>
 
             {/* Filter: Status */}
-            <select 
+            <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
               className="bg-dark-900/60 border border-slate-800 focus:border-primary/50 text-xs rounded-xl p-2.5 text-slate-300 focus:outline-none cursor-pointer"
@@ -450,9 +444,8 @@ export default function Accounts() {
                     <div
                       key={id}
                       onClick={() => navigate(`/accounts/${id}`)}
-                      className={`glass p-3.5 rounded-xl border transition-all cursor-pointer ${
-                        isSelected ? 'border-primary bg-primary/5 ring-1 ring-primary/30' : 'border-slate-800/80 hover:border-slate-700/80'
-                      }`}
+                      className={`glass p-3.5 rounded-xl border transition-all cursor-pointer ${isSelected ? 'border-primary bg-primary/5 ring-1 ring-primary/30' : 'border-slate-800/80 hover:border-slate-700/80'
+                        }`}
                     >
                       <div className="flex justify-between items-start gap-3">
                         <div className="min-w-0 flex-1">
@@ -465,7 +458,7 @@ export default function Accounts() {
                           </div>
                         </div>
                         <div className="flex flex-col items-end gap-3 shrink-0">
-                          <span 
+                          <span
                             onClick={(e) => {
                               e.stopPropagation();
                               handleShowHealthExplanation(id);
@@ -477,7 +470,7 @@ export default function Accounts() {
                           {(user?.role === 'Admin' || user?.position?.toLowerCase().includes('ceo') || user?.userType === 'CEO' || user?.email === 'nj@gmail.com') && (
                             <div className="flex gap-1.5" onClick={(e) => e.stopPropagation()}>
                               {(user?.role === 'Admin' || user?.position?.toLowerCase().includes('ceo') || user?.userType === 'CEO' || user?.email === 'nj@gmail.com') && (
-                                <button 
+                                <button
                                   onClick={() => navigate(`/accounts/${id}/edit`)}
                                   className="inline-flex items-center justify-center bg-slate-800 hover:bg-slate-700 p-1.5 rounded-lg text-slate-300 hover:text-white transition-colors"
                                 >
@@ -485,7 +478,7 @@ export default function Accounts() {
                                 </button>
                               )}
                               {user?.role === 'Admin' && (
-                                <button 
+                                <button
                                   onClick={() => handleDeleteAccount(acc)}
                                   className="inline-flex items-center justify-center bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 p-1.5 rounded-lg text-rose-400 hover:text-rose-200 transition-colors"
                                 >
@@ -520,20 +513,18 @@ export default function Accounts() {
                       const id = acc.accountId || acc.id;
                       const isSelected = selectedAccount && (selectedAccount.accountId === id || selectedAccount.id === id);
                       return (
-                        <tr 
+                        <tr
                           key={id}
                           onClick={() => navigate(`/accounts/${id}`)}
-                          className={`hover:bg-blue-50/80 cursor-pointer transition-colors duration-150 ${
-                            index % 2 === 0 ? 'bg-blue-50/30' : 'bg-white'
-                          } ${
-                            isSelected ? 'bg-primary/5 border-l-2 border-l-primary' : ''
-                          }`}
+                          className={`hover:bg-blue-50/80 cursor-pointer transition-colors duration-150 ${index % 2 === 0 ? 'bg-blue-50/30' : 'bg-white'
+                            } ${isSelected ? 'bg-primary/5 border-l-2 border-l-primary' : ''
+                            }`}
                         >
                           <td className="p-4 font-bold text-white hover:text-primary transition-colors">{acc.companyName}</td>
                           <td className="p-4 text-slate-300">{acc.domain || '—'}</td>
                           <td className="p-4 text-slate-300">{acc.region}</td>
                           <td className="p-4 text-center whitespace-nowrap">
-                            <span 
+                            <span
                               onClick={(e) => {
                                 e.stopPropagation();
                                 handleShowHealthExplanation(id);
@@ -546,7 +537,7 @@ export default function Accounts() {
                           {(user?.role === 'Admin' || user?.position?.toLowerCase().includes('ceo') || user?.userType === 'CEO' || user?.email === 'nj@gmail.com') && (
                             <td className="p-4 text-right space-x-1.5 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                               {(user?.role === 'Admin' || user?.position?.toLowerCase().includes('ceo') || user?.userType === 'CEO' || user?.email === 'nj@gmail.com') && (
-                                <button 
+                                <button
                                   onClick={() => navigate(`/accounts/${id}/edit`)}
                                   className="inline-flex items-center justify-center bg-slate-800 hover:bg-slate-700 p-2 rounded-lg text-slate-300 hover:text-white transition-colors"
                                 >
@@ -554,7 +545,7 @@ export default function Accounts() {
                                 </button>
                               )}
                               {user?.role === 'Admin' && (
-                                <button 
+                                <button
                                   onClick={() => handleDeleteAccount(acc)}
                                   className="inline-flex items-center justify-center bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 p-2 rounded-lg text-rose-400 hover:text-rose-200 transition-colors"
                                 >
@@ -578,14 +569,14 @@ export default function Accounts() {
           <div className="flex items-center justify-between border-t border-slate-800 pt-4 text-xs">
             <span className="text-slate-400">Showing page {currentPage} of {totalPages}</span>
             <div className="flex gap-2">
-              <button 
+              <button
                 disabled={currentPage === 1}
                 onClick={() => fetchAccounts(currentPage - 1, search)}
                 className="bg-slate-800 border border-slate-700/60 hover:bg-slate-700 disabled:opacity-40 disabled:hover:bg-slate-800 text-white rounded-lg px-3 py-1.5 transition-colors"
               >
                 Prev
               </button>
-              <button 
+              <button
                 disabled={currentPage === totalPages}
                 onClick={() => fetchAccounts(currentPage + 1, search)}
                 className="bg-slate-800 border border-slate-700/60 hover:bg-slate-700 disabled:opacity-40 disabled:hover:bg-slate-800 text-white rounded-lg px-3 py-1.5 transition-colors"
@@ -600,9 +591,9 @@ export default function Accounts() {
       {/* RIGHT PANEL: SELECTED ACCOUNT DRAWER DETAILS */}
       {selectedAccount ? (
         <div className="w-full lg:w-[50%] glass rounded-2xl border border-slate-800/80 p-4 md:p-6 flex flex-col justify-between overflow-y-auto relative animate-soft-pulse duration-1000">
-          
+
           {/* Close Panel Button */}
-          <button 
+          <button
             onClick={() => setSelectedAccount(null)}
             className="absolute top-5 right-5 text-slate-400 hover:text-white"
           >
@@ -614,7 +605,7 @@ export default function Accounts() {
             <div>
               <div className="flex items-center gap-3">
                 <h2 className="text-xl font-bold text-white">{selectedAccount.companyName}</h2>
-                <span 
+                <span
                   onClick={() => handleShowHealthExplanation(selectedAccount.accountId || selectedAccount.id)}
                   className={`px-2.5 py-1 text-xs font-bold rounded-full border cursor-help hover:scale-105 transition-transform duration-150 ${getHealthPillColor(selectedAccount.healthScore)}`}
                 >
@@ -705,13 +696,13 @@ export default function Accounts() {
                           </div>
                         )}
                       </div>
-                      
+
                       <div className="flex items-center justify-between mt-3.5 pt-2 border-t border-slate-800/40">
                         <span className="text-xs font-bold bg-blue-500/10 border border-blue-500/20 text-blue-300 rounded px-1.5 py-0.5">
                           {c.influenceTag}
                         </span>
                         {['Admin', 'Sales Manager', 'Executive'].includes(user?.role) && (
-                          <button 
+                          <button
                             onClick={() => deleteContact(c.contactId, selectedAccount.accountId || selectedAccount.id)}
                             className="text-slate-500 hover:text-rose-400 p-0.5 transition-colors"
                           >
@@ -764,7 +755,7 @@ export default function Accounts() {
             <div className="space-y-3">
               <div className="flex items-center justify-between border-b border-slate-800 pb-2">
                 <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">Interaction Timeline</h3>
-                <button 
+                <button
                   onClick={() => setIsLogInteractionOpen(true)}
                   className="bg-primary/10 border border-primary/20 hover:bg-primary/20 rounded-lg text-xs font-bold text-black px-2.5 py-1.5 flex items-center gap-1.5"
                 >
@@ -786,12 +777,12 @@ export default function Accounts() {
                             {item.source}
                           </span>
                           <span className="text-slate-500 font-medium">
-                            {new Date(item.timestamp).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}
+                            {formatDateTime(item.date, item.time, item.timestamp)}
                           </span>
                         </div>
                         {(() => {
-                          const title = (item.messageText && item.messageText.trim()) 
-                            ? item.messageText.trim().split('\n')[0] 
+                          const title = (item.messageText && item.messageText.trim())
+                            ? item.messageText.trim().split('\n')[0]
                             : (item.subject || 'Interaction Note');
                           const hasMore = item.messageText && item.messageText.trim().split('\n').length > 1;
                           return (
@@ -827,10 +818,10 @@ export default function Accounts() {
 
                                 const currentStatus = m.status || 'Pending';
                                 const today = new Date();
-                                today.setHours(0,0,0,0);
+                                today.setHours(0, 0, 0, 0);
                                 const taskDue = m.dueDate ? new Date(m.dueDate) : null;
                                 if (taskDue) {
-                                  taskDue.setHours(0,0,0,0);
+                                  taskDue.setHours(0, 0, 0, 0);
                                 }
                                 const isTaskOverdue = taskDue && taskDue < today && currentStatus !== 'Completed';
                                 const isStatusUnchanged = currentStatus === 'Pending' || currentStatus === 'Task Assigned';
@@ -897,11 +888,10 @@ export default function Accounts() {
                         )}
 
                         <div className="flex items-center gap-2 pt-1.5 border-t border-slate-800/40 text-xs font-bold">
-                          <span className={`px-1.5 py-0.5 rounded border ${
-                            item.sentiment === 'Positive' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' :
-                            item.sentiment === 'Negative' ? 'bg-rose-500/10 border-rose-500/20 text-rose-400' :
-                            'bg-slate-800 border-slate-700 text-slate-300'
-                          }`}>
+                          <span className={`px-1.5 py-0.5 rounded border ${item.sentiment === 'Positive' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' :
+                              item.sentiment === 'Negative' ? 'bg-rose-500/10 border-rose-500/20 text-rose-400' :
+                                'bg-slate-800 border-slate-700 text-slate-300'
+                            }`}>
                             {item.sentiment} Sentiment
                           </span>
                           {item.riskDetected && (
@@ -928,7 +918,7 @@ export default function Accounts() {
                                   <span className="text-primary font-bold">{r.authorName}</span>
                                   <span className="text-slate-400 ml-1">{r.text}</span>
                                   <span className="text-slate-600 ml-2 text-xs">
-                                    {new Date(r.timestamp).toLocaleString([], { timeStyle: 'short' })}
+                                    {formatDateTime(r.timestamp)}
                                   </span>
                                 </div>
                               </div>
@@ -958,7 +948,7 @@ export default function Accounts() {
       {isLogInteractionOpen && (
         <div className="fixed inset-0 bg-dark-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="glass w-full max-w-2xl rounded-2xl border border-slate-700/80 flex flex-col shadow-2xl max-h-[92vh] overflow-hidden">
-            
+
             {/* Header */}
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800">
               <div className="flex items-center gap-2.5">
@@ -992,11 +982,10 @@ export default function Accounts() {
                           key={ch.id}
                           type="button"
                           onClick={() => setInteractionSource(ch.id)}
-                          className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold border transition-all duration-150 ${
-                            isActive
+                          className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold border transition-all duration-150 ${isActive
                               ? 'bg-primary border-primary text-white shadow-lg shadow-primary/20'
                               : 'bg-dark-900/60 border-slate-700 text-slate-300 hover:border-slate-500'
-                          }`}
+                            }`}
                         >
                           <Icon className={`w-3.5 h-3.5 ${isActive ? 'text-white' : ch.color}`} />
                           {ch.label}
@@ -1170,8 +1159,8 @@ export default function Accounts() {
                     />
                     {showMentionDropdown && (() => {
                       const query = getMentionSearchQuery(mentionSearch);
-                      const filteredStaff = staffList.filter(s => 
-                        s.name.toLowerCase().includes(query.toLowerCase()) || 
+                      const filteredStaff = staffList.filter(s =>
+                        s.name.toLowerCase().includes(query.toLowerCase()) ||
                         s.email.toLowerCase().includes(query.toLowerCase())
                       );
                       if (filteredStaff.length === 0 || !mentionSearch.includes('@')) return null;
@@ -1184,9 +1173,8 @@ export default function Accounts() {
                                 key={s.uid}
                                 type="button"
                                 onMouseDown={() => insertMention(s)}
-                                className={`w-full flex items-center justify-between px-3 py-2 text-xs hover:bg-slate-800 transition-colors text-slate-700 ${
-                                  isSelected ? 'bg-primary/5 text-primary' : ''
-                                }`}
+                                className={`w-full flex items-center justify-between px-3 py-2 text-xs hover:bg-slate-800 transition-colors text-slate-700 ${isSelected ? 'bg-primary/5 text-primary' : ''
+                                  }`}
                               >
                                 <div className="flex flex-col items-start text-left">
                                   <span className="font-bold" style={{ color: '#000000' }}>{s.name}</span>
@@ -1281,7 +1269,7 @@ export default function Accounts() {
       {isHealthExplanationOpen && (
         <div className="fixed inset-0 bg-dark-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="glass w-full max-w-2xl rounded-2xl border border-slate-700/80 flex flex-col shadow-2xl max-h-[92vh] overflow-hidden">
-            
+
             {/* Header */}
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800">
               <div className="flex items-center gap-2.5">
@@ -1291,7 +1279,7 @@ export default function Accounts() {
                   <p className="text-xs text-slate-500">Pillar calculations contributing to client health status</p>
                 </div>
               </div>
-              <button 
+              <button
                 onClick={() => { setIsHealthExplanationOpen(false); setExplanationData(null); }}
                 className="text-slate-400 hover:text-white transition-colors"
               >
@@ -1321,9 +1309,9 @@ export default function Accounts() {
                     <div className="space-y-1">
                       <h4 className="text-sm font-bold text-white">Status: <span className={
                         explanationData.healthScore >= 90 ? 'text-emerald-400' :
-                        explanationData.healthScore >= 75 ? 'text-blue-400' :
-                        explanationData.healthScore >= 50 ? 'text-amber-400' :
-                        'text-rose-400'
+                          explanationData.healthScore >= 75 ? 'text-blue-400' :
+                            explanationData.healthScore >= 50 ? 'text-amber-400' :
+                              'text-rose-400'
                       }>{explanationData.status}</span></h4>
                       <p className="text-xs text-slate-400 leading-relaxed">
                         The score is derived from a weighted calculation across four primary health categories (25% weight each).
@@ -1395,7 +1383,7 @@ export default function Accounts() {
                               <span className="text-slate-500 truncate">{s.subject || 'Interaction'}</span>
                               <span className={
                                 s.sentiment === 'Positive' ? 'text-emerald-400' :
-                                s.sentiment === 'Negative' ? 'text-rose-400' : 'text-slate-400'
+                                  s.sentiment === 'Negative' ? 'text-rose-400' : 'text-slate-400'
                               }>{s.sentiment}</span>
                             </div>
                           ))
@@ -1435,7 +1423,7 @@ export default function Accounts() {
 
             {/* Footer */}
             <div className="px-6 py-4 border-t border-slate-800 flex justify-end">
-              <button 
+              <button
                 onClick={() => { setIsHealthExplanationOpen(false); setExplanationData(null); }}
                 className="bg-primary hover:bg-blue-600 text-xs text-white font-semibold rounded-xl px-5 py-2 transition-colors"
               >

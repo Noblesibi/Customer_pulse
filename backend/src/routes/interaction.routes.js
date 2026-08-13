@@ -3,7 +3,9 @@ import { db, logActivity } from '../config/database.js';
 import { authenticateToken } from '../middleware/auth.middleware.js';
 import { analyzeCommunication, generateTaskHeader } from '../services/ai.service.js';
 import { calculateAccountHealth } from '../services/health.service.js';
-import { sendTaskAssignmentEmail } from '../services/email.service.js';
+import { sendTaskAssignmentEmail, sendInteractionLoggedEmail } from '../services/email.service.js';
+import { NotificationEngine } from '../services/notification/NotificationEngine.js';
+import { getSystemDateString, getSystemTimeString } from '../utils/dateUtils.js';
 import fs from 'fs';
 import path from 'path';
 
@@ -176,6 +178,8 @@ router.put('/:id/task-status', async (req, res) => {
     let actionMentions = interaction.actionMentions || [];
 
     let updated = false;
+    let isStatusFinal = false;
+    let finalStatusName = '';
     let targetMentionTask = '';
     let originalDueDate = null;
     let originalPriority = 'Medium';
@@ -187,6 +191,19 @@ router.put('/:id/task-status', async (req, res) => {
         originalDueDate = m.dueDate || null;
         originalPriority = m.priority || 'Medium';
         
+        const existingStatusClean = String(m.status || '').trim().toLowerCase();
+        if (
+          existingStatusClean === 'completed' ||
+          existingStatusClean === 'complete' ||
+          existingStatusClean === 'declined' ||
+          existingStatusClean === 'decline' ||
+          existingStatusClean === 'accepted & completed'
+        ) {
+          isStatusFinal = true;
+          finalStatusName = m.status;
+          return m;
+        }
+
         const updatedMention = { ...m, status };
         if (completionNote !== undefined) {
           updatedMention.completionNote = completionNote;
@@ -204,6 +221,10 @@ router.put('/:id/task-status', async (req, res) => {
       return m;
     });
 
+    if (isStatusFinal) {
+      return res.status(400).json({ error: `Task status is final (${finalStatusName}) and cannot be changed.` });
+    }
+
     if (!updated) {
       return res.status(404).json({ error: 'Task mention not found for this user in this interaction.' });
     }
@@ -220,6 +241,8 @@ router.put('/:id/task-status', async (req, res) => {
           task: targetMentionTask,
           taskHeader: header,
           status: 'Task Assigned',
+          forwardedFromUid: req.user.uid,
+          forwardedFromName: req.user.name || req.user.email,
           dueDate: originalDueDate,
           priority: originalPriority,
           comments: '',
@@ -239,6 +262,8 @@ router.put('/:id/task-status', async (req, res) => {
         type: 'Task Assigned',
         message: `${req.user.name} forwarded a task to you: "${targetMentionTask}"`,
         read: false,
+        date: getSystemDateString(),
+        time: getSystemTimeString(),
         timestamp: new Date().toISOString()
       });
 
@@ -254,6 +279,78 @@ router.put('/:id/task-status', async (req, res) => {
     }
 
     await db.collection('interactions').doc(id).update({ actionMentions });
+
+    // Notify relevant users about task status update (Accepted, Declined, Completed, Forwarded)
+    const displayStatus = (status === 'Accept' || status === 'accept' || status === 'in progress') ? 'Accepted' :
+                          (status === 'Decline' || status === 'decline') ? 'Declined' :
+                          (status === 'Complete' || status === 'completed') ? 'Completed' :
+                          (status === 'Forward' || status === 'forwarded') ? 'Forwarded' :
+                          status;
+
+    const recipients = new Set();
+    if (interaction.loggedByUid && interaction.loggedByUid !== req.user.uid) {
+      recipients.add(interaction.loggedByUid);
+    }
+    if (mentionUid && mentionUid !== req.user.uid) {
+      recipients.add(mentionUid);
+    }
+    if (status === 'Forwarded' && forwardToUid && forwardToUid !== req.user.uid) {
+      recipients.add(forwardToUid);
+    }
+    // Fallback: If no other recipients, ensure loggedByUid receives notification
+    if (recipients.size === 0 && interaction.loggedByUid) {
+      recipients.add(interaction.loggedByUid);
+    }
+
+    const recipientList = Array.from(recipients);
+
+    if (recipientList.length > 0) {
+      for (const targetUserId of recipientList) {
+        const notifId = 'notif-' + Math.random().toString(36).substring(2, 11);
+        try {
+          await db.collection('notifications').doc(notifId).set({
+            notificationId: notifId,
+            toUserId: targetUserId,
+            interactionId: id,
+            type: 'Task Status Updated',
+            message: `${req.user.name || req.user.email} updated task "${targetMentionTask}" status to: ${displayStatus}`,
+            read: false,
+            date: getSystemDateString(),
+            time: getSystemTimeString(),
+            timestamp: new Date().toISOString()
+          });
+        } catch (err) {
+          console.error('[InteractionRoutes] Notification set error:', err.message);
+        }
+      }
+
+      const emailEvent = displayStatus === 'Completed' ? 'associated_task_completed' :
+                         displayStatus === 'Declined' ? 'associated_task_declined' :
+                         displayStatus === 'Accepted' ? 'associated_task_accepted' :
+                         displayStatus === 'Forwarded' ? 'associated_task_forwarded' :
+                         'status_changed';
+
+      const noteText = completionNote || '';
+
+      try {
+        await NotificationEngine.publishEvent(emailEvent, {
+          TaskTitle: targetMentionTask || 'Associated Task',
+          Status: displayStatus,
+          PreviousStatus: 'Task Assigned',
+          UpdatedBy: req.user.name || req.user.email,
+          CompanyName: interaction.companyName || 'External Account',
+          CompletedBy: req.user.name || req.user.email,
+          CompletionDate: new Date().toISOString(),
+          Note: noteText,
+          StatusNote: noteText,
+          CompletionNote: noteText,
+          ForwardReason: noteText,
+          InAppMessage: `${req.user.name || req.user.email} updated task "${targetMentionTask}" status to: ${displayStatus}`
+        }, recipientList, { relatedAccountId: interaction.accountId, skipInAppNotification: true });
+      } catch (err) {
+        console.error('[InteractionRoutes] NotificationEngine status event error:', err.message);
+      }
+    }
 
     // Recalculate account health upon task status change
     await calculateAccountHealth(interaction.accountId);
@@ -333,6 +430,8 @@ router.post('/:id/reply', async (req, res) => {
         message: `${reply.authorName} replied to the task for ${interaction.subject || 'an interaction'}: "${text.slice(0, 80)}"`,
         read: false,
         readAt: null,
+        date: getSystemDateString(),
+        time: getSystemTimeString(),
         timestamp: new Date().toISOString()
       });
     });
@@ -491,16 +590,22 @@ router.post('/', async (req, res) => {
       }
     }
 
-    const getLocalDateString = () => {
-      const d = new Date();
-      const offset = d.getTimezoneOffset() * 60000;
-      return new Date(d.getTime() - offset).toISOString().split('T')[0];
+    const getKolkataDateString = (d = new Date()) => {
+      try {
+        const formatter = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' });
+        return formatter.format(d);
+      } catch (e) {
+        return d.toISOString().split('T')[0];
+      }
     };
-    
-    const getLocalTimeString = () => {
-      const d = new Date();
-      const offset = d.getTimezoneOffset() * 60000;
-      return new Date(d.getTime() - offset).toISOString().split('T')[1].slice(0, 5);
+
+    const getKolkataTimeString = (d = new Date()) => {
+      try {
+        const formatter = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: false });
+        return formatter.format(d);
+      } catch (e) {
+        return d.toTimeString().slice(0, 5);
+      }
     };
 
     const interactionId = 'int-' + Math.random().toString(36).substring(2, 11);
@@ -511,8 +616,8 @@ router.post('/', async (req, res) => {
       source,
       subject: cleanSubject,
       messageText,
-      date: date || getLocalDateString(),
-      time: time || getLocalTimeString(),
+      date: date || getKolkataDateString(),
+      time: time || getKolkataTimeString(),
       actionMentions: enrichedActionMentions,
       loggedByUid: req.user.uid,
       loggedByName,
@@ -520,14 +625,7 @@ router.post('/', async (req, res) => {
       riskDetected: analysis.riskLevel === 'High' || analysis.riskLevel === 'Medium',
       riskCategory: analysis.riskCategory || '',
       attachments: attachments || [],
-      timestamp: timestamp || (date && time ? (() => {
-        try {
-          const d = new Date(`${date}T${time}:00`);
-          return isNaN(d.getTime()) ? new Date().toISOString() : d.toISOString();
-        } catch (e) {
-          return new Date().toISOString();
-        }
-      })() : new Date().toISOString())
+      timestamp: new Date().toISOString()
     };
 
     await db.collection('interactions').doc(interactionId).set(newInteraction);
@@ -550,11 +648,14 @@ router.post('/', async (req, res) => {
       await db.collection('notifications').doc(riskNotifId).set({
         notificationId: riskNotifId,
         accountId,
+        riskId,
         type: 'New Risk',
         message: `New risk alert detected: [${analysis.riskCategory}] - ${analysis.summary}`,
         severity: analysis.riskLevel,
         read: false,
         readAt: null,
+        date: getSystemDateString(),
+        time: getSystemTimeString(),
         timestamp: new Date().toISOString()
       });
     }
@@ -569,6 +670,8 @@ router.post('/', async (req, res) => {
       severity: 'Low',
       read: false,
       readAt: null,
+      date: getSystemDateString(),
+      time: getSystemTimeString(),
       timestamp: new Date().toISOString()
     });
 
@@ -589,6 +692,8 @@ router.post('/', async (req, res) => {
           message,
           read: false,
           readAt: null,
+          date: getSystemDateString(),
+          time: getSystemTimeString(),
           timestamp: new Date().toISOString()
         };
         await db.collection('notifications').doc(taskNotifId).set(notifDoc);
@@ -610,6 +715,36 @@ router.post('/', async (req, res) => {
 
     // Recalculate health
     const updatedHealth = await calculateAccountHealth(accountId);
+
+    // ── INTERACTION LOG EMAILS ──
+    // Notify the account owner + all stakeholders (contact owners for this account)
+    // asynchronously so it never blocks the response.
+    (async () => {
+      try {
+        const ownerId = accountDoc.data().ownerId;
+        const contactsSnap = await db.collection('contacts').where('accountId', '==', accountId).get();
+        const stakeholderUids = contactsSnap.docs.map(d => d.data().ownerId).filter(Boolean);
+
+        const notifySet = new Set([ownerId, ...stakeholderUids].filter(uid => uid && uid !== req.user.uid));
+        const notifyUids = [...notifySet];
+
+        if (notifyUids.length > 0) {
+          await sendInteractionLoggedEmail(notifyUids, {
+            companyName,
+            source,
+            subject: cleanSubject,
+            date: newInteraction.date,
+            time: newInteraction.time,
+            loggedBy: loggedByName,
+            messageSummary: messageText.length > 200 ? messageText.slice(0, 200) + '...' : messageText,
+            sentiment: analysis.sentiment,
+            accountId
+          });
+        }
+      } catch (emailErr) {
+        console.error('[interaction.routes] sendInteractionLoggedEmail error:', emailErr.message);
+      }
+    })();
 
     const assigneeNames = Array.isArray(actionMentions) && actionMentions.length > 0
       ? actionMentions.map(m => m.name).join(', ')

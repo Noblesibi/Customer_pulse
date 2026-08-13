@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { ChevronLeft, ShieldAlert, Check, CheckSquare, Building2, Users } from 'lucide-react';
 import { useStore } from '../store/index.js';
 
@@ -30,14 +30,23 @@ export default function AssignStaffTask() {
   const [formSuccess, setFormSuccess] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
+  const location = useLocation();
+
   useEffect(() => {
     fetchStaff();
     fetchAccounts();
-  }, []);
+    fetchContacts();
+    if (location.state?.preselectUid) {
+      setAssignedTo(location.state.preselectUid);
+      setAssignedToSearch(location.state.preselectName || '');
+    }
+  }, [location.state]);
 
   useEffect(() => {
     if (accountId) {
       fetchContacts(accountId);
+    } else {
+      fetchContacts();
     }
   }, [accountId]);
 
@@ -81,40 +90,42 @@ export default function AssignStaffTask() {
       }
     }
 
-    // Ensure we actually selected a staff member, account, and contact
     const selectedAccountObj = (accounts || []).find(a => (a.accountId || a.id) === accountId);
     const selectedContactObj = (contacts || []).find(c => c.contactId === contactId);
 
-    if (!accountId) {
-      setFormError('Please select a company account.');
-      return;
-    }
-    if (!contactId) {
-      setFormError('Please select a client contact.');
-      return;
-    }
     if (!description.trim() || !targetAssigneeUid) {
       setFormError('Please fill in task description and search/select a valid staff member using @name.');
       return;
     }
 
-    const generatedTitle = title.trim() || `${selectedAccountObj?.companyName || 'Unknown Account'} - ${selectedContactObj?.name || 'Unknown Contact'}`;
+    let defaultTitle = 'Task Assignment';
+    if (selectedAccountObj?.companyName && selectedContactObj?.name) {
+      defaultTitle = `${selectedAccountObj.companyName} - ${selectedContactObj.name}`;
+    } else if (selectedAccountObj?.companyName) {
+      defaultTitle = selectedAccountObj.companyName;
+    } else if (selectedContactObj?.name) {
+      defaultTitle = selectedContactObj.name;
+    }
+
+    const generatedTitle = title.trim() || defaultTitle;
 
     setSubmitting(true);
+    const selectedStaffObj = (staffList || []).find(s => s.uid === targetAssigneeUid);
     const payload = {
       title: generatedTitle,
       description: description.trim(),
       assignedToUid: targetAssigneeUid,
+      assignedToName: selectedStaffObj?.name || (assignedToSearch.startsWith('@') ? assignedToSearch.slice(1).trim() : assignedToSearch.trim()) || 'Staff Member',
       priority,
       dueDate: dueDate || null,
-      accountId,
-      contactId
+      accountId: accountId || null,
+      contactId: contactId || null
     };
 
-    const created = await createStaffTask(payload);
+    const result = await createStaffTask(payload);
     setSubmitting(false);
 
-    if (created) {
+    if (result && (result.success || result.taskId || result.id)) {
       setFormSuccess('Task assigned successfully!');
       // Reset form
       setAccountId('');
@@ -129,7 +140,7 @@ export default function AssignStaffTask() {
         navigate('/staff-tasks');
       }, 1200);
     } else {
-      setFormError('Failed to create and assign task.');
+      setFormError(result?.error || 'Failed to create and assign task.');
     }
   };
 
@@ -179,7 +190,7 @@ export default function AssignStaffTask() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full">
             <div className="space-y-2">
               <label className="text-slate-500 block uppercase tracking-wider text-[10px] flex items-center gap-1.5">
-                <Building2 className="w-3 h-3 text-slate-400" /> Account
+                <Building2 className="w-3 h-3 text-slate-400" /> Account <span className="text-slate-400 font-normal lowercase">(optional)</span>
               </label>
               <select
                 value={accountId}
@@ -189,7 +200,7 @@ export default function AssignStaffTask() {
                 }}
                 className="w-full bg-dark-700/50 border border-slate-350 text-xs rounded-xl p-3 focus:outline-none focus:border-primary/50 text-black font-semibold cursor-pointer"
               >
-                <option value="">Select Company</option>
+                <option value="">Select Company (Optional)</option>
                 {(accounts || []).map(acc => (
                   <option key={acc.accountId || acc.id} value={acc.accountId || acc.id}>
                     {acc.companyName}
@@ -199,14 +210,14 @@ export default function AssignStaffTask() {
             </div>
             <div className="space-y-2">
               <label className="text-slate-500 block uppercase tracking-wider text-[10px] flex items-center gap-1.5">
-                <Users className="w-3 h-3 text-slate-400" /> Client Contact
+                <Users className="w-3 h-3 text-slate-400" /> Client Contact <span className="text-slate-400 font-normal lowercase">(optional)</span>
               </label>
               <select
                 value={contactId}
                 onChange={(e) => setContactId(e.target.value)}
                 className="w-full bg-dark-700/50 border border-slate-350 text-xs rounded-xl p-3 focus:outline-none focus:border-primary/50 text-black font-semibold cursor-pointer"
               >
-                <option value="">{(!contacts || contacts.length === 0) ? 'No contacts found' : 'Select Contact'}</option>
+                <option value="">{(!contacts || contacts.length === 0) ? 'No contacts found' : 'Select Contact (Optional)'}</option>
                 {(contacts || [])
                   .filter(c => !accountId || c.accountId === accountId)
                   .map(c => (

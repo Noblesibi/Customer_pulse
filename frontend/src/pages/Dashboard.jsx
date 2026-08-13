@@ -4,7 +4,7 @@ import {
   Users, CheckCircle2, AlertTriangle, AlertOctagon, Activity,
   ArrowUpRight, ArrowDownRight, Sparkles, Send, Clock, CheckCheck,
   MessageSquare, Building2, CheckSquare, CalendarClock, X, ThumbsUp, ShieldAlert,
-  Plus, TrendingUp, Target, BarChart3, ChevronRight, Calendar, Flag
+  Plus, TrendingUp, Target, BarChart3, ChevronRight, ChevronLeft, Calendar, Flag
 } from 'lucide-react';
 
 import {
@@ -12,6 +12,8 @@ import {
   PieChart, Pie, Cell, BarChart, Bar
 } from 'recharts';
 import { useStore } from '../store/index.js';
+import { formatDate, formatDateTime } from '../utils/dateFormat.js';
+import TeamMemberSelect from '../components/TeamMemberSelect.jsx';
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -41,6 +43,7 @@ export default function Dashboard() {
 
   const [acceptModalState, setAcceptModalState] = useState({ isOpen: false, task: null });
   const [acceptNote, setAcceptNote] = useState('');
+  const [taskPage, setTaskPage] = useState(1);
 
   const uploadFile = async (file) => {
     if (!file) return null;
@@ -52,7 +55,7 @@ export default function Dashboard() {
         reader.onerror = (error) => reject(error);
       });
       const token = useStore.getState().token;
-      const res = await fetch('http://localhost:5000/api/interactions/upload', {
+      const res = await fetch('/CustomerPulse/api/interactions/upload', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({ name: file.name, type: file.type, base64 })
@@ -155,12 +158,17 @@ export default function Dashboard() {
     return 'Good evening';
   };
 
+  const canViewAllTasks = user?.role === 'Admin' || user?.userType === 'Admin' || user?.name?.toLowerCase().includes('nazneen') || user?.email?.toLowerCase().includes('nazneen') || user?.email === 'nj@gmail.com';
+
   // Task processing
   const realMyTasks = [];
   interactions.forEach(item => {
     if (Array.isArray(item.actionMentions)) {
       item.actionMentions.forEach(mention => {
-        if (mention.uid === user?.uid) {
+        const forwardedToName = taskStatuses[`${item.interactionId}-${mention.uid}-forwardedToName`] || mention.forwardedToName;
+        const forwardedToUid = mention.forwardedToUid || null;
+        const isForMe = mention.uid === user?.uid || forwardedToUid === user?.uid || (forwardedToName && user?.name && forwardedToName.toLowerCase() === user?.name.toLowerCase());
+        if (isForMe) {
           const taskDesc = mention.task || item.messageText || item.subject || 'Task Assignment';
           const fallbackHeader = taskDesc.split(/[.!?\n]/)[0].trim();
           const cleanHeader = fallbackHeader.length <= 50 ? fallbackHeader : (fallbackHeader.slice(0, 47) + '...');
@@ -174,6 +182,8 @@ export default function Dashboard() {
             assignedToName: mention.name,
             assignedByUid: item.loggedByUid,
             assignedByName: item.loggedByName || 'System Admin',
+            forwardedToUid: forwardedToUid,
+            forwardedToName: forwardedToName,
             priority: mention.priority || 'Medium',
             dueDate: mention.dueDate || null,
             status: mention.status || 'Pending',
@@ -191,17 +201,56 @@ export default function Dashboard() {
   });
 
   const myStaffTasks = (staffTasks || [])
-    .filter(t => t.assignedToUid === user?.uid)
+    .filter(t => t.assignedToUid === user?.uid || t.forwardedToUid === user?.uid || (t.forwardedToName && user?.name && t.forwardedToName.toLowerCase() === user?.name.toLowerCase()))
     .map(t => ({ ...t, taskHeader: t.title, task: t.description, isInteractionTask: false }));
 
+  const parseDateToTime = (raw) => {
+    if (!raw) return 0;
+    if (raw instanceof Date) return isNaN(raw.getTime()) ? 0 : raw.getTime();
+    if (typeof raw === 'number') return raw;
+
+    const str = String(raw).trim();
+    if (!str) return 0;
+
+    const direct = Date.parse(str);
+    if (!isNaN(direct)) return direct;
+
+    const match = str.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})(?:[,\s]+(\d{1,2}):(\d{2})(?::(\d{2}))?\s*(am|pm)?)?/i);
+    if (match) {
+      const day = parseInt(match[1], 10);
+      const month = parseInt(match[2], 10) - 1;
+      const year = parseInt(match[3], 10);
+      let hours = match[4] ? parseInt(match[4], 10) : 0;
+      const minutes = match[5] ? parseInt(match[5], 10) : 0;
+      const seconds = match[6] ? parseInt(match[6], 10) : 0;
+      const ampm = match[7] ? match[7].toLowerCase() : null;
+
+      if (ampm === 'pm' && hours < 12) hours += 12;
+      if (ampm === 'am' && hours === 12) hours = 0;
+
+      const d = new Date(year, month, day, hours, minutes, seconds);
+      if (!isNaN(d.getTime())) return d.getTime();
+    }
+    return 0;
+  };
+
   const getTaskTime = (task) => {
-    if (task.timestamp) return new Date(task.timestamp);
-    if (task.createdAt) return new Date(task.createdAt);
-    if (task.date && task.time) return new Date(`${task.date}T${task.time}:00`);
-    return new Date(0);
+    if (!task) return 0;
+    let t = 0;
+    if (task.timestamp) t = parseDateToTime(task.timestamp);
+    if (!t && task.createdAt) t = parseDateToTime(task.createdAt);
+    if (!t && task.date) {
+      const combined = task.time ? `${task.date} ${task.time}` : task.date;
+      t = parseDateToTime(combined);
+    }
+    if (!t && task.dueDate) t = parseDateToTime(task.dueDate);
+    return t;
   };
 
   const displayTasks = [...realMyTasks, ...myStaffTasks].sort((a, b) => getTaskTime(b) - getTaskTime(a));
+  const taskPageSize = 3;
+  const totalTaskPages = Math.max(1, Math.ceil(displayTasks.length / taskPageSize));
+  const paginatedTasks = displayTasks.slice((taskPage - 1) * taskPageSize, taskPage * taskPageSize);
 
   const resolveTaskTitle = (task) => {
     const raw = task.taskHeader || task.task || task.title || task.originalInteraction?.messageText || task.originalInteraction?.subject || 'Task Assignment';
@@ -297,16 +346,10 @@ export default function Dashboard() {
         <div style={{ position: 'absolute', bottom: -70, right: 140, width: 180, height: 180, borderRadius: '50%', background: 'rgba(255,255,255,0.04)', pointerEvents: 'none' }} />
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'relative', zIndex: 1 }}>
           <div>
-            <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 4 }}>{getGreeting()}</p>
             <h1 style={{ color: '#ffffff', fontSize: 26, fontWeight: 800, margin: '0 0 6px', lineHeight: 1.2 }}>{user?.name || 'User'}</h1>
-            {user?.userType === 'BU Head' ? (
-              <p style={{ color: 'rgba(255,255,255,0.65)', fontSize: 12, maxWidth: 440, margin: 0 }}>Monitoring signals for the <strong style={{ color: '#fff' }}>{user.bu}</strong> division.</p>
-            ) : ['Project Manager', 'Delivery Manager', 'Sales Manager', 'Account Manager', 'Delivery Head'].includes(user?.userType) ? (
-              <p style={{ color: 'rgba(255,255,255,0.65)', fontSize: 12, maxWidth: 440, margin: 0 }}>Monitoring client engagement and health scores for your managed projects.</p>
-            ) : null}
-            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 7, background: 'rgba(255,255,255,0.12)', border: '1px solid rgba(255,255,255,0.2)', borderRadius: 999, padding: '5px 13px', color: 'rgba(255,255,255,0.9)', fontSize: 11, fontWeight: 700, marginTop: 14 }}>
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 7, background: 'rgba(255,255,255,0.12)', border: '1px solid rgba(255,255,255,0.2)', borderRadius: 999, padding: '5px 13px', color: 'rgba(255,255,255,0.9)', fontSize: 11, fontWeight: 700, marginTop: 8 }}>
               <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#4ade80', display: 'inline-block' }} />
-              {user?.userType || 'Employee'} · REL Intelligence
+              {user?.position || user?.userType || user?.role || 'Employee'}
             </div>
           </div>
           <div style={{ display: 'flex', gap: 10 }}>
@@ -356,9 +399,11 @@ export default function Dashboard() {
                 <p style={{ fontSize: 10, color: '#94a3b8', fontWeight: 500, margin: 0 }}>{displayTasks.length} task{displayTasks.length !== 1 ? 's' : ''}</p>
               </div>
             </div>
-            <button style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 700, color: '#223670', cursor: 'pointer', border: 'none', background: 'none', padding: 0 }} onClick={() => navigate('/interaction-log')}>
-              View All <ChevronRight size={12} />
-            </button>
+            {canViewAllTasks && (
+              <button style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 700, color: '#223670', cursor: 'pointer', border: 'none', background: 'none', padding: 0 }} onClick={() => navigate('/staff-tasks')}>
+                View All <ChevronRight size={12} />
+              </button>
+            )}
           </div>
           <div style={{ padding: '14px 16px' }}>
             {displayTasks.length === 0 ? (
@@ -366,7 +411,7 @@ export default function Dashboard() {
                 <CheckCheck size={32} style={{ margin: '0 auto 10px', opacity: 0.35 }} />
                 <p style={{ fontSize: 13, fontWeight: 600 }}>No tasks assigned to you yet.</p>
               </div>
-            ) : displayTasks.slice(0, 5).map((task, idx) => {
+            ) : paginatedTasks.map((task, idx) => {
               const taskKey = task.isInteractionTask ? `${task.interactionId}-${task.uid}` : task.taskId;
               const currentStatus = taskStatuses[taskKey] || task.status || 'Pending';
               const forwardedTo = taskStatuses[`${taskKey}-forwardedToName`] || task.forwardedToName;
@@ -425,7 +470,7 @@ export default function Dashboard() {
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
                     <span style={{ fontSize: 11, color: '#94a3b8', fontWeight: 500 }}>By <strong style={{ color: '#374151' }}>{task.assignedByName || task.loggedByName}</strong></span>
                     <span style={{ fontSize: 10, color: '#e2e8f0' }}>·</span>
-                    <span style={{ fontSize: 11, color: '#94a3b8' }}>{new Date(task.timestamp).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}</span>
+                    <span style={{ fontSize: 11, color: '#94a3b8' }}>{formatDateTime(task.timestamp)}</span>
                     {task.priority && (
                       <>
                         <span style={{ fontSize: 10, color: '#e2e8f0' }}>·</span>
@@ -436,39 +481,80 @@ export default function Dashboard() {
                       <>
                         <span style={{ fontSize: 10, color: '#e2e8f0' }}>·</span>
                         <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 999, display: 'inline-flex', alignItems: 'center', gap: 4, background: isTaskOverdue ? '#fef2f2' : '#f8fafc', color: isTaskOverdue ? '#dc2626' : '#64748b', border: `1px solid ${isTaskOverdue ? '#fecaca' : '#e2e8f0'}` }}>
-                          <Calendar size={9} /> Due: {new Date(task.dueDate).toLocaleDateString()}{isTaskOverdue && ' · OVERDUE'}
+                          <Calendar size={9} /> Due: {formatDate(task.dueDate)}{isTaskOverdue && ' · OVERDUE'}
                         </span>
                       </>
                     )}
-                  </div>
+                    {(() => {
+                      const isTaskFinal = (currentStatus || '').toLowerCase() === 'completed' ||
+                                          (currentStatus || '').toLowerCase() === 'complete' ||
+                                          (currentStatus || '').toLowerCase() === 'declined' ||
+                                          (currentStatus || '').toLowerCase() === 'decline' ||
+                                          (currentStatus || '').toLowerCase() === 'accepted & completed';
 
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingTop: 10, borderTop: '1px solid #f1f5f9' }} onClick={e => e.stopPropagation()}>
-                    <span style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Status:</span>
-                    <select
-                      value={selectValue}
-                      style={{ padding: '5px 10px', borderRadius: 8, border: '1px solid #e2e8f0', background: '#f8fafc', fontSize: 11, fontWeight: 700, color: '#374151', outline: 'none', cursor: 'pointer' }}
-                      onChange={async (e) => {
-                        e.stopPropagation();
-                        const st = e.target.value;
-                        if (st === 'Completed') setCompletionModalState({ isOpen: true, task, newStatus: st });
-                        else if (st === 'Forwarded') setForwardModalState({ isOpen: true, task, newStatus: st });
-                        else if (st === 'Decline') setDeclineModalState({ isOpen: true, task });
-                        else if (st === 'Accept') setAcceptModalState({ isOpen: true, task });
-                        else {
-                          if (task.isInteractionTask) { const ok = await updateTaskStatus(task.interactionId, task.uid, st); if (ok) fetchInteractions(); }
-                          else { const ok = await updateStaffTaskStatus(task.taskId, st); if (ok) fetchStaffTasks('assigned-to-me'); }
-                          setTaskStatuses(prev => ({ ...prev, [taskKey]: st }));
-                        }
-                      }}
-                      onClick={e => e.stopPropagation()}
-                    >
-                      {selectValue === 'Overdued' && <option value="Overdued">Overdued</option>}
-                      <option value="Task Assigned">Task Assigned</option>
-                      <option value="Accept">Accepted</option>
-                      <option value="Decline">Declined</option>
-                      <option value="Completed">Completed</option>
-                      <option value="Forwarded">Forwarded</option>
-                    </select>
+                      return (
+                        <div style={{ display: 'flex', itemsAlign: 'center', gap: 8, paddingTop: 10, borderTop: '1px solid #f1f5f9', width: '100%' }} onClick={e => e.stopPropagation()}>
+                          <span style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Status:</span>
+                          {isTaskFinal ? (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                              <span style={{
+                                padding: '3px 8px',
+                                borderRadius: 6,
+                                border: (currentStatus || '').toLowerCase().includes('decline') ? '1px solid rgba(244,63,94,0.3)' : (currentStatus || '').toLowerCase().includes('overdue') ? '1px solid rgba(147,51,234,0.3)' : '1px solid rgba(16,185,129,0.3)',
+                                background: (currentStatus || '').toLowerCase().includes('decline') ? 'rgba(244,63,94,0.1)' : (currentStatus || '').toLowerCase().includes('overdue') ? 'rgba(147,51,234,0.1)' : 'rgba(16,185,129,0.1)',
+                                fontSize: 11,
+                                fontWeight: 800,
+                                textTransform: 'uppercase',
+                                color: (currentStatus || '').toLowerCase().includes('decline') ? '#e11d48' : (currentStatus || '').toLowerCase().includes('overdue') ? '#7e22ce' : '#059669'
+                              }}>
+                                {selectValue === 'Decline' || selectValue === 'Declined' ? 'Declined' : selectValue === 'Accept' ? 'Accepted' : selectValue}
+                              </span>
+                              <span style={{ fontSize: 10, fontWeight: 700, color: '#64748b', fontStyle: 'italic' }}>
+                                (Status Fixed)
+                              </span>
+                            </div>
+                          ) : (
+                            <select
+                              disabled={showAsOverdued}
+                              value={selectValue}
+                              style={{
+                                padding: '5px 10px',
+                                borderRadius: 8,
+                                border: '1px solid #e2e8f0',
+                                background: '#ffffff',
+                                fontSize: 11,
+                                fontWeight: 700,
+                                color: '#0f172a',
+                                outline: 'none',
+                                cursor: 'pointer'
+                              }}
+                              onChange={async (e) => {
+                                e.stopPropagation();
+                                if (isTaskFinal) return;
+                                const st = e.target.value;
+                                if (st === 'Completed') setCompletionModalState({ isOpen: true, task, newStatus: st });
+                                else if (st === 'Forwarded') setForwardModalState({ isOpen: true, task, newStatus: st });
+                                else if (st === 'Decline') setDeclineModalState({ isOpen: true, task });
+                                else if (st === 'Accept') setAcceptModalState({ isOpen: true, task });
+                                else {
+                                  if (task.isInteractionTask) { const ok = await updateTaskStatus(task.interactionId, task.uid, st); if (ok) fetchInteractions(); }
+                                  else { const ok = await updateStaffTaskStatus(task.taskId, st); if (ok) fetchStaffTasks('assigned-to-me'); }
+                                  setTaskStatuses(prev => ({ ...prev, [taskKey]: st }));
+                                }
+                              }}
+                              onClick={e => e.stopPropagation()}
+                            >
+                              {showAsOverdued && <option value="Overdued">Overdued</option>}
+                              <option value="Task Assigned">Task Assigned</option>
+                              <option value="Accept">Accepted</option>
+                              <option value="Decline">Declined</option>
+                              <option value="Completed">Completed</option>
+                              <option value="Forwarded">Forwarded</option>
+                            </select>
+                          )}
+                        </div>
+                      );
+                    })()}
                     {currentStatus === 'Forwarded' && forwardedTo && (
                       <span style={{ fontSize: 11, color: '#223670', fontWeight: 700 }}>→ @{forwardedTo}</span>
                     )}
@@ -476,6 +562,58 @@ export default function Dashboard() {
                 </div>
               );
             })}
+
+            {/* Pagination Controls */}
+            {displayTasks.length > 3 && (
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: 12, borderTop: '1px solid #e8edf5', marginTop: 10 }}>
+                <span style={{ fontSize: 11, fontWeight: 600, color: '#64748b' }}>
+                  Showing {Math.min((taskPage - 1) * taskPageSize + 1, displayTasks.length)}–{Math.min(taskPage * taskPageSize, displayTasks.length)} of {displayTasks.length} tasks
+                </span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <button
+                    disabled={taskPage === 1}
+                    onClick={() => setTaskPage(p => Math.max(1, p - 1))}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 4,
+                      padding: '5px 12px',
+                      borderRadius: 8,
+                      border: '1px solid #cbd5e1',
+                      background: taskPage === 1 ? '#f1f5f9' : '#ffffff',
+                      color: taskPage === 1 ? '#94a3b8' : '#0f172a',
+                      fontSize: 11,
+                      fontWeight: 700,
+                      cursor: taskPage === 1 ? 'not-allowed' : 'pointer'
+                    }}
+                  >
+                    <ChevronLeft size={12} /> Prev
+                  </button>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: '#0f172a', padding: '0 4px' }}>
+                    {taskPage} / {totalTaskPages}
+                  </span>
+                  <button
+                    disabled={taskPage === totalTaskPages}
+                    onClick={() => setTaskPage(p => Math.min(totalTaskPages, p + 1))}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 4,
+                      padding: '5px 12px',
+                      borderRadius: 8,
+                      border: '1px solid #cbd5e1',
+                      background: taskPage === totalTaskPages ? '#f1f5f9' : '#ffffff',
+                      color: taskPage === totalTaskPages ? '#94a3b8' : '#0f172a',
+                      fontSize: 11,
+                      fontWeight: 700,
+                      cursor: taskPage === totalTaskPages ? 'not-allowed' : 'pointer'
+                    }}
+                  >
+                    Next <ChevronRight size={12} />
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
@@ -882,12 +1020,13 @@ export default function Dashboard() {
             <form onSubmit={handleForwardSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
               <div>
                 <label style={FL}>Forward To</label>
-                <select value={forwardToUid} onChange={e => setForwardToUid(e.target.value)} style={FS} required>
-                  <option value="">Select Team Member</option>
-                  {(staffList || []).filter(s => s.uid !== user?.uid).map(s => (
-                    <option key={s.uid} value={s.uid}>{s.name} ({s.role || s.position || 'Team Member'})</option>
-                  ))}
-                </select>
+                <TeamMemberSelect
+                  value={forwardToUid}
+                  onChange={(uid) => setForwardToUid(uid)}
+                  staffList={staffList}
+                  currentUserId={user?.uid}
+                  required
+                />
               </div>
               <div>
                 <label style={FL}>Forwarding Note / Reason</label>
@@ -895,7 +1034,11 @@ export default function Dashboard() {
               </div>
               <div>
                 <label style={FL}>Attachments (Optional)</label>
-                <input type="file" onChange={e => setForwardFile(e.target.files[0])} style={{ fontSize: 12, color: '#374151' }} />
+                <input
+                  type="file"
+                  onChange={(e) => setForwardFile(e.target.files[0])}
+                  className="w-full text-xs text-slate-700 file:mr-3 file:py-2 file:px-4 file:rounded-xl file:border file:border-slate-300 file:text-xs file:font-bold file:bg-slate-100 file:text-slate-800 hover:file:bg-slate-200 file:cursor-pointer cursor-pointer transition-all"
+                />
               </div>
               <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
                 <button type="submit" disabled={!forwardToUid} style={{ ...SB('linear-gradient(135deg,#1a2d5a,#2b4590)'), opacity: !forwardToUid ? 0.5 : 1 }}>Forward Task</button>
