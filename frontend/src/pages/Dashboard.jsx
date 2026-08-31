@@ -192,6 +192,8 @@ export default function Dashboard() {
             loggedByName: item.loggedByName || 'System Admin',
             subject: item.subject,
             timestamp: item.timestamp,
+            date: item.date,
+            time: item.time,
             originalInteraction: item,
             isInteractionTask: true
           });
@@ -470,7 +472,7 @@ export default function Dashboard() {
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
                     <span style={{ fontSize: 11, color: '#94a3b8', fontWeight: 500 }}>By <strong style={{ color: '#374151' }}>{task.assignedByName || task.loggedByName}</strong></span>
                     <span style={{ fontSize: 10, color: '#e2e8f0' }}>·</span>
-                    <span style={{ fontSize: 11, color: '#94a3b8' }}>{formatDateTime(task.timestamp)}</span>
+                    <span style={{ fontSize: 11, color: '#94a3b8' }}>{formatDateTime(task.date, task.time, task.timestamp || task.createdAt)}</span>
                     {task.priority && (
                       <>
                         <span style={{ fontSize: 10, color: '#e2e8f0' }}>·</span>
