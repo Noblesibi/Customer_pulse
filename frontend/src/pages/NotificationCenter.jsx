@@ -340,7 +340,7 @@ export default function NotificationCenter() {
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
               <StatCard label="Total Sent (All Time)" value={s?.totalSentAllTime ?? '—'} icon={CheckCircle2} color="bg-emerald-500/10 text-emerald-600" />
               <StatCard label="Active Background Worker" value="Every 30s" icon={RefreshCw} color="bg-sky-500/10 text-sky-600" sub="processes queue automatically" />
-              <StatCard label="SMTP Relay Server" value="10.45.0.12:25" icon={Server} color="bg-slate-200 text-black" sub={s?.smtpMode === 'SmtpMock' ? 'No SMTP_HOST — console mode' : 'Active (Office + WFH VPN)'} />
+              <StatCard label="SMTP Relay Server" value={s?.smtpMode === 'SmtpMock' ? 'Mock Mode' : 'Configured'} icon={Server} color="bg-slate-200 text-black" sub={s?.smtpMode === 'SmtpMock' ? 'Emails logged to console' : 'Email relay configured'} />
             </div>
 
             {/* Monthly Bar Chart */}
@@ -667,11 +667,11 @@ export default function NotificationCenter() {
               <div className="space-y-3 text-sm">
                 <div className="flex items-center gap-3">
                   <span className="text-[10px] font-black uppercase tracking-widest text-black w-28 shrink-0">SMTP Host</span>
-                  <span className="font-extrabold text-black font-mono">10.45.0.12</span>
+                  <span className="font-extrabold text-black font-mono">Configured</span>
                 </div>
                 <div className="flex items-center gap-3">
                   <span className="text-[10px] font-black uppercase tracking-widest text-black w-28 shrink-0">Port</span>
-                  <span className="font-extrabold text-black font-mono">25</span>
+                  <span className="font-extrabold text-black font-mono">Not displayed</span>
                 </div>
                 <div className="flex items-center gap-3">
                   <span className="text-[10px] font-black uppercase tracking-widest text-black w-28 shrink-0">Authentication</span>
