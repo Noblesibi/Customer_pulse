@@ -16,14 +16,7 @@ const LEGACY_HARDCODED_UIDS = [
   'nest-pradeep-uid',
   'nest-roshine-uid',
   'nest-rahul-uid',
-  'nest-reshmi-uid',
-  'mock-nazneen-ceo-uid',
-  'mock-finance-head-uid',
-  'mock-global-hr-head-uid',
-  'mock-itg-head-uid',
-  'mock-nda-head-uid',
-  'mock-tc-head-uid',
-  'mock-quality-head-uid'
+  'nest-reshmi-uid'
 ];
 
 /**
