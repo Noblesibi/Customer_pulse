@@ -101,8 +101,8 @@ router.post('/sync', async (req, res) => {
     
     // First, sync users from secondary database (MySQL)
     try {
-      console.log('[Sync] Initializing secondary database sync (Sentrifugo)...');
-      await syncEmployees();
+      const { syncEmployees: runSync } = await import(`../services/userSync.service.js?v=${Date.now()}`);
+      await runSync();
     } catch (secErr) {
       console.error('[Sync] Secondary sync error before crawl:', secErr.message);
     }
@@ -144,7 +144,12 @@ router.post('/sync', async (req, res) => {
     let successCount = 0;
 
     // 2. BFS Traversal Loop
+    let consecutiveErrors = 0;
     while (emailQueue.size > 0) {
+      if (consecutiveErrors >= 3) {
+        console.warn('⚠️ [HR Crawl] External HR REST API appears unreachable (multiple 404s/errors). Relying on primary Sentrifugo database sync.');
+        break;
+      }
       const email = Array.from(emailQueue)[0];
       emailQueue.delete(email);
       processedEmails.add(email);
@@ -154,6 +159,7 @@ router.post('/sync', async (req, res) => {
         const result = await fetchEmployeeFromHR({ username: email });
         
         if (result && result.success && result.data) {
+          consecutiveErrors = 0;
           const hr = result.data;
           
           const name = typeof hr["Employee Name"] === 'string' ? hr["Employee Name"] : '';
@@ -213,6 +219,7 @@ router.post('/sync', async (req, res) => {
           successCount++;
         }
       } catch (err) {
+        consecutiveErrors++;
         console.error(`[HR Crawl] Failed to process ${email}:`, err.message);
       }
     }
