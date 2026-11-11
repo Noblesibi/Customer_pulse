@@ -8,6 +8,7 @@ import {
 import { useStore } from '../store/index.js';
 import { formatDate, formatTime, formatDateTime } from '../utils/dateFormat.js';
 import TeamMemberSelect from '../components/TeamMemberSelect.jsx';
+import LoadingSpinner from '../components/LoadingSpinner.jsx';
 
 const parseLogDetails = (details) => {
   if (!details) return { mainText: 'No additional parameters logged.', assignee: null };
@@ -63,6 +64,8 @@ export default function InteractionLog() {
   const [hoveredTaskTooltip, setHoveredTaskTooltip] = useState(null);
   const [cardReplyText, setCardReplyText] = useState({});
   const [submittingReply, setSubmittingReply] = useState({});
+  const [syncing, setSyncing] = useState(false);
+  const [toastMessage, setToastMessage] = useState(null);
   const itemsPerPage = 10;
 
   useEffect(() => {
@@ -215,6 +218,33 @@ export default function InteractionLog() {
 
   const handleRefresh = () => {
     fetchActivityLogs();
+  };
+
+  const handleMicrosoftSync = async () => {
+    setSyncing(true);
+    setToastMessage('Starting Microsoft 365 Sync...');
+    try {
+      const token = useStore.getState().token;
+      const res = await fetch('/CustomerPulse/api/integrations/microsoft/sync', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setToastMessage(`Sync Complete! Added: ${data.syncRecord.results.synced}, Skipped: ${data.syncRecord.results.duplicatesSkipped} (Duplicates), ${data.syncRecord.results.internalSkipped} (Internal), ${data.syncRecord.results.unmatchedSkipped} (Unmatched)`);
+        fetchInteractions();
+      } else {
+        setToastMessage(`Sync failed: ${data.error || 'Unknown error'}`);
+      }
+    } catch (err) {
+      console.error(err);
+      setToastMessage('An error occurred during sync.');
+    } finally {
+      setSyncing(false);
+      setTimeout(() => setToastMessage(null), 8000);
+    }
   };
 
   const handleCloseDetails = () => {
@@ -401,6 +431,12 @@ export default function InteractionLog() {
 
   const filterInteractions = (itemsArray) => {
     return itemsArray.filter(item => {
+      // Show manually entered logs only (exclude auto-synced emails like MS 365, webhook imports, and automated system activities)
+      const isManual = item.isManual !== undefined
+        ? Boolean(item.isManual)
+        : (!item.internetMessageId && item.source !== 'System Activity' && item.source !== 'System');
+      if (!isManual) return false;
+
       // Admin and CEO see all interactions across all users
       if (!isTrueAdmin && !isTrueCeo) {
         const isLoggedByMe = item.loggedByUid === user?.uid;
@@ -460,24 +496,35 @@ export default function InteractionLog() {
   };
 
   return (
-    <div className="p-4 md:p-5 space-y-3.5 flex flex-col h-auto md:h-[calc(100vh-7rem)] min-h-0 relative select-none">
+    <div className="p-4 md:p-5 space-y-3.5 flex flex-col flex-1 min-h-[calc(100vh-64px)] relative select-none">
       {/* Header Block */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <div className="flex items-center gap-2 text-white">
+        <div className="flex items-center gap-2 text-black">
           <ClipboardList className="w-5 h-5 text-primary" />
-          <h1 className="text-xl font-bold text-white">Interaction Log</h1>
+          <h1 className="text-xl font-bold text-black">Interaction Log</h1>
         </div>
-        <button
-          onClick={() => navigate('/log-interaction')}
-          className="bg-primary hover:bg-blue-600 px-4 py-2.5 rounded-xl text-xs font-semibold flex items-center gap-2 text-white transition-all cursor-pointer shadow-lg shadow-primary/25"
-        >
-          <Plus className="w-4 h-4 text-white" />
-          Log Interaction
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={() => navigate('/log-interaction', { state: { from: '/interaction-log' } })}
+            className="bg-primary hover:bg-blue-600 px-4 py-2.5 rounded-xl text-xs font-semibold flex items-center gap-2 text-white transition-all cursor-pointer shadow-lg shadow-primary/25"
+          >
+            <Plus className="w-4 h-4 text-white" />
+            Log Interaction
+          </button>
+        </div>
       </div>
 
+      {toastMessage && (
+        <div className="fixed bottom-6 right-6 z-50 bg-dark-800 border border-slate-700 text-white px-4 py-3 rounded-xl shadow-2xl flex items-center gap-3 animate-fade-in max-w-sm">
+          <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center shrink-0">
+            {syncing ? <LoadingSpinner size="xs" /> : <RefreshCw className="w-4 h-4 text-primary" />}
+          </div>
+          <p className="text-xs font-semibold leading-relaxed">{toastMessage}</p>
+        </div>
+      )}
+
       {/* Filters and Search Panel */}
-      <div className="glass p-4 rounded-xl border border-slate-800/80 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 items-center">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 items-center">
         {/* Search */}
         <div className="relative md:col-span-2 sm:col-span-2">
           <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
@@ -489,7 +536,7 @@ export default function InteractionLog() {
               setSearch(e.target.value);
               setCurrentPage(1);
             }}
-            className="w-full bg-dark-700/50 border border-slate-350 focus:border-primary/50 outline-none text-xs rounded-xl pl-10 pr-4 py-2.5 text-black placeholder-slate-400"
+            className="w-full bg-dark-700/50 border border-slate-350 focus:border-primary/50 outline-none text-xs rounded-xl pl-10 pr-4 py-2.5 text-black placeholder-slate-400 font-semibold"
           />
         </div>
 
@@ -519,8 +566,12 @@ export default function InteractionLog() {
       </div>
 
       {/* Logs Table Area */}
-      <div className="glass rounded-xl border border-slate-800/80 flex-1 flex flex-col min-h-0 overflow-hidden">
-        {paginatedItems.length === 0 ? (
+      <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+        {activityLogsLoading ? (
+          <div className="h-64 flex items-center justify-center">
+            <LoadingSpinner size="lg" text="Loading interaction logs..." />
+          </div>
+        ) : paginatedItems.length === 0 ? (
           <div className="p-12 text-center text-xs text-slate-500 flex flex-col items-center justify-center gap-2">
             <User className="w-8 h-8 text-slate-400" />
             <span className="font-semibold">No records found matching the filter criteria.</span>
@@ -533,15 +584,15 @@ export default function InteractionLog() {
                   <div 
                     key={`${item.interactionId}-${idx}`} 
                     onClick={() => setSelectedLog(item)}
-                    className="p-4 bg-dark-900/20 hover:bg-slate-800/10 cursor-pointer transition-all space-y-3"
+                    className="p-4 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl cursor-pointer transition-all space-y-3 shadow-xs"
                   >
                     <div className="flex justify-between items-start gap-2">
                       <div 
                         onClick={(e) => {
                           e.stopPropagation();
-                          if (item.accountId) navigate(`/accounts/${item.accountId}`);
+                          if (item.accountId) navigate(`/accounts/${item.accountId}`, { state: { from: location.pathname + location.search } });
                         }}
-                        className="font-bold text-xs text-slate-200 hover:text-primary cursor-pointer transition-colors"
+                        className="font-bold text-xs text-slate-900 hover:text-primary cursor-pointer transition-colors"
                       >
                         {item.companyName}
                       </div>
@@ -551,13 +602,13 @@ export default function InteractionLog() {
                     </div>
 
                     <div className="text-xs leading-relaxed font-semibold space-y-1">
-                      <div className="text-slate-200">
+                      <div className="text-slate-800 font-bold">
                         {deriveLogTitle(item)}
                       </div>
                       {/* Log Message Section */}
-                      <div className="bg-slate-900/40 p-2.5 rounded-lg border border-slate-800/60 space-y-1">
+                      <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-200/80 space-y-1">
                         <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">Interaction Log Description</span>
-                        <p className="text-[11px] text-slate-350 font-normal leading-normal whitespace-pre-wrap">
+                        <p className="text-[11px] text-slate-700 font-medium leading-normal whitespace-pre-wrap">
                           {item.messageText || item.subject || 'No log description available.'}
                         </p>
                       </div>
@@ -566,7 +617,7 @@ export default function InteractionLog() {
                     <div className="flex items-center justify-between pt-1 text-[11px]">
                       <div className="flex flex-col gap-1 text-slate-450">
                         {item.contactName && (
-                          <span className="truncate max-w-[150px]">Contact: <strong className="text-slate-300 font-semibold">{item.contactName}</strong></span>
+                          <span className="truncate max-w-[150px]">Contact: <strong className="text-slate-800 font-semibold">{item.contactName}</strong></span>
                         )}
                       </div>
 
@@ -580,17 +631,17 @@ export default function InteractionLog() {
             </div>
 
             {/* Table for Desktop */}
-            <div className="hidden md:block overflow-y-auto flex-1 min-h-0">
+            <div className="hidden md:block overflow-auto flex-1 min-h-0">
               <table className="w-full text-left border-collapse text-xs">
                 <thead>
-                  <tr className="bg-dark-900 border-b border-slate-800/60 text-slate-400 font-bold uppercase tracking-wider">
-                    <th className="py-2.5 px-4 w-40 sticky top-0 bg-dark-900 z-10 text-left">Account</th>
-                    <th className="py-2.5 px-4 w-36 sticky top-0 bg-dark-900 z-10 text-left">Interaction Type</th>
-                    <th className="py-2.5 px-4 w-36 sticky top-0 bg-dark-900 z-10 text-left">Client Contact</th>
-                    <th className="py-2.5 px-4 sticky top-0 bg-dark-900 z-10 text-left">Log Title</th>
-                    <th className="py-2.5 px-4 w-44 sticky top-0 bg-dark-900 z-10 text-left">Logged Date & Time</th>
-                    <th className="py-2.5 px-4 w-44 sticky top-0 bg-dark-900 z-10 text-left">Associated Task</th>
-                    <th className="py-2.5 px-4 w-44 sticky top-0 bg-dark-900 z-10 text-left">Status</th>
+                  <tr className="bg-transparent border-b border-slate-800/60 text-slate-400 font-bold uppercase tracking-wider">
+                    <th className="py-2.5 px-4 w-40 sticky top-0 bg-transparent z-10 text-left">Account</th>
+                    <th className="py-2.5 px-4 w-36 sticky top-0 bg-transparent z-10 text-left">Interaction Type</th>
+                    <th className="py-2.5 px-4 w-36 sticky top-0 bg-transparent z-10 text-left">Client Contact</th>
+                    <th className="py-2.5 px-4 sticky top-0 bg-transparent z-10 text-left">Log Title</th>
+                    <th className="py-2.5 px-4 w-44 sticky top-0 bg-transparent z-10 text-left">Logged Date & Time</th>
+                    <th className="py-2.5 px-4 w-44 sticky top-0 bg-transparent z-10 text-left">Associated Task</th>
+                    <th className="py-2.5 px-4 w-44 sticky top-0 bg-transparent z-10 text-left">Status</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800/40">
@@ -599,7 +650,7 @@ export default function InteractionLog() {
                       <tr 
                         key={`${item.interactionId}-${idx}`} 
                         onClick={() => setSelectedLog(item)}
-                        className={`hover:bg-blue-50/80 cursor-pointer transition-colors duration-150 border-b border-dark-800/40 ${
+                        className={`hover:bg-blue-50/80 cursor-pointer transition-colors duration-150 border-b border-slate-200/40 ${
                           idx % 2 === 0 ? 'bg-blue-50/30' : 'bg-white'
                         }`}
                       >
@@ -607,7 +658,7 @@ export default function InteractionLog() {
                           <div 
                             onClick={(e) => {
                               e.stopPropagation();
-                              if (item.accountId) navigate(`/accounts/${item.accountId}`);
+                              if (item.accountId) navigate(`/accounts/${item.accountId}`, { state: { from: location.pathname + location.search } });
                             }}
                             className="font-bold text-slate-200 hover:text-primary cursor-pointer transition-colors"
                           >
@@ -705,7 +756,7 @@ export default function InteractionLog() {
 
         {/* Pagination Panel */}
         {totalPages > 1 && (
-          <div className="p-4 border-t border-slate-800/60 flex items-center justify-between bg-dark-900/40">
+          <div className="p-4 border-t border-slate-800/60 flex items-center justify-between bg-transparent/40">
             <span className="text-xs text-slate-500">
               Page <span className="font-bold text-slate-300">{currentPage}</span> of <span className="font-bold text-slate-300">{totalPages}</span>
             </span>
@@ -730,7 +781,7 @@ export default function InteractionLog() {
       </div>
 
       {selectedLog && (
-        <div className="absolute inset-0 bg-dark-950 z-30 flex flex-col animate-fade-in overflow-hidden rounded-2xl border border-dark-800 shadow-2xl" style={{fontFamily: 'Montserrat, sans-serif'}}>
+        <div className="absolute inset-0 bg-white z-30 flex flex-col animate-fade-in overflow-hidden rounded-2xl border border-slate-200 shadow-2xl" style={{fontFamily: 'Montserrat, sans-serif'}}>
           <div className="flex-1 flex flex-col overflow-hidden">
             {(() => {
               const isInteraction = !!selectedLog.interactionId;
@@ -773,16 +824,17 @@ export default function InteractionLog() {
               return (
                 <>
                   {/* Content Container */}
-                  <div className="p-6 overflow-y-auto space-y-6 bg-dark-950 flex-1 w-full">
+                  <div className="p-6 overflow-y-auto space-y-6 bg-white flex-1 w-full">
                     
                     {/* Header Card */}
-                    <div className="bg-dark-900 border border-dark-800 rounded-xl p-5 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                    <div className="bg-transparent border border-slate-200 rounded-xl p-5 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                       <div className="flex items-center gap-4 flex-wrap">
                         <button
+                          type="button"
                           onClick={handleCloseDetails}
-                          className="flex items-center gap-1.5 cursor-pointer text-black hover:bg-dark-700 transition-colors font-bold text-base px-3.5 py-1.5 rounded-full"
+                          className="back-btn"
                         >
-                          <ChevronLeft className="w-5 h-5" />
+                          <ChevronLeft className="w-5 h-5" strokeWidth={2.5} />
                           <span>Back</span>
                         </button>
                         <div className="w-px h-5 bg-dark-800 hidden sm:block" />
@@ -795,7 +847,7 @@ export default function InteractionLog() {
                       </div>
                       <button
                         onClick={handleCloseDetails}
-                        className="p-2 hover:bg-dark-700 rounded-full text-slate-500 hover:text-black cursor-pointer transition-colors"
+                        className="p-2 hover:bg-slate-50 rounded-full text-slate-500 hover:text-black cursor-pointer transition-colors"
                         title="Close"
                       >
                         <X className="w-5 h-5" />
@@ -809,8 +861,8 @@ export default function InteractionLog() {
                       <div className="lg:col-span-5 space-y-6 flex flex-col">
                         
                         {/* Log Message Card */}
-                        <div className="bg-dark-900 border border-dark-800 rounded-xl p-5 shadow-sm">
-                          <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest border-b border-dark-800 pb-2">Interaction Log Description</h4>
+                        <div className="bg-transparent border border-slate-200 rounded-xl p-5 shadow-sm">
+                          <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest border-b border-slate-200 pb-2">Interaction Log Description</h4>
                           <p className="text-sm font-semibold text-black leading-relaxed whitespace-pre-wrap mt-3">
                             {mainText}
                           </p>
@@ -818,8 +870,8 @@ export default function InteractionLog() {
 
                         {/* Associated Client & Interaction Details Card */}
                         {isInteraction && (
-                          <div className="bg-dark-900 border border-dark-800 p-5 rounded-xl shadow-sm space-y-4">
-                            <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest border-b border-dark-800 pb-2 block">Interaction Details</h4>
+                          <div className="bg-transparent border border-slate-200 p-5 rounded-xl shadow-sm space-y-4">
+                            <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest border-b border-slate-200 pb-2 block">Interaction Details</h4>
                             <div className="grid grid-cols-2 gap-y-4 gap-x-6">
                               <div>
                                 <span className="text-[10px] text-slate-500 block uppercase font-bold tracking-wider mb-1">Account</span>
@@ -829,13 +881,13 @@ export default function InteractionLog() {
                                 <span className="text-[10px] text-slate-500 block uppercase font-bold tracking-wider mb-1">Client Contact</span>
                                 <span className="text-xs font-extrabold text-black block truncate" title={selectedLog.contactName}>{selectedLog.contactName || 'System/Unknown'}</span>
                               </div>
-                              <div className="pt-2 border-t border-dark-800/40">
+                              <div className="pt-2 border-t border-slate-200/40">
                                 <span className="text-[10px] text-slate-500 block uppercase font-bold tracking-wider mb-1">Interaction Type</span>
                                 <span className={`inline-block px-3 py-1 rounded-lg border text-xs font-black uppercase tracking-wider w-fit mt-1.5 ${getCategoryBadgeClass(action)}`}>
                                   {action}
                                 </span>
                               </div>
-                              <div className="pt-2 border-t border-dark-800/40">
+                              <div className="pt-2 border-t border-slate-200/40">
                                 <span className="text-[10px] text-slate-500 block uppercase font-bold tracking-wider mb-1">Logged Date & Time</span>
                                 <div className="text-xs text-black font-bold flex items-center gap-1.5 mt-2">
                                   <Calendar className="w-4 h-4 text-slate-400 shrink-0" />
@@ -848,14 +900,14 @@ export default function InteractionLog() {
 
                         {/* Attachments Section */}
                         {selectedLog && selectedLog.attachments && selectedLog.attachments.length > 0 && (
-                          <div className="bg-dark-900 border border-dark-800 rounded-xl p-5 shadow-sm space-y-3">
-                            <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1.5 border-b border-dark-800 pb-2">
+                          <div className="bg-transparent border border-slate-200 rounded-xl p-5 shadow-sm space-y-3">
+                            <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1.5 border-b border-slate-200 pb-2">
                               <Paperclip className="w-4 h-4 text-slate-400" /> Attachments ({selectedLog.attachments.length})
                             </h4>
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-2">
                               {selectedLog.attachments.map((file, idx) => (
-                                <div key={idx} className="relative group bg-dark-700 border border-dark-800 rounded-xl p-3 flex items-center gap-3 overflow-hidden hover:border-primary/50">
-                                  <div className="shrink-0 w-12 h-12 rounded-lg bg-dark-800 border border-dark-800 flex items-center justify-center overflow-hidden">
+                                <div key={idx} className="relative group bg-slate-50 border border-slate-200 rounded-xl p-3 flex items-center gap-3 overflow-hidden hover:border-primary/50">
+                                  <div className="shrink-0 w-12 h-12 rounded-lg bg-dark-800 border border-slate-200 flex items-center justify-center overflow-hidden">
                                     {file.type && file.type.startsWith('image/') ? (
                                       <img src={file.url} alt={file.name} className="w-full h-full object-cover" />
                                     ) : file.type && file.type.startsWith('video/') ? (
@@ -874,7 +926,7 @@ export default function InteractionLog() {
                                     href={file.url}
                                     target="_blank"
                                     rel="noopener noreferrer"
-                                    className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 bg-dark-900 hover:bg-dark-800 border border-dark-800 rounded-lg text-slate-400 cursor-pointer"
+                                    className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 bg-transparent hover:bg-dark-800 border border-slate-200 rounded-lg text-slate-400 cursor-pointer"
                                     title="Open or Download file"
                                   >
                                     <Download className="w-4 h-4" />
@@ -887,13 +939,13 @@ export default function InteractionLog() {
 
                         {/* Event Metadata / Category Card */}
                         {!isInteraction && (
-                          <div className="bg-dark-900 border border-dark-800 p-5 rounded-xl shadow-sm flex flex-col justify-between gap-3">
-                            <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest border-b border-dark-800 pb-2 block">Activity Category</h4>
+                          <div className="bg-transparent border border-slate-200 p-5 rounded-xl shadow-sm flex flex-col justify-between gap-3">
+                            <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest border-b border-slate-200 pb-2 block">Activity Category</h4>
                             <div>
                               <span className={`inline-block px-3 py-1 rounded-lg border text-xs font-black uppercase tracking-wider ${getCategoryBadgeClass(action)}`}>
                                 {action}
                               </span>
-                              <div className="text-xs text-black font-bold flex items-center gap-1.5 border-t border-dark-800 pt-3 mt-3">
+                              <div className="text-xs text-black font-bold flex items-center gap-1.5 border-t border-slate-200 pt-3 mt-3">
                                 <Calendar className="w-4 h-4 text-slate-400 shrink-0" />
                                 <span>{formatLoggedDateTime(selectedLog?.date, selectedLog?.time, selectedLog?.timestamp || timestamp)}</span>
                               </div>
@@ -907,8 +959,8 @@ export default function InteractionLog() {
                       <div className="lg:col-span-7 space-y-6 flex flex-col">
                         
                         {/* Task Assignees List Card */}
-                        <div className="bg-dark-900 border border-dark-800 rounded-xl p-5 shadow-sm flex-1 flex flex-col">
-                          <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest border-b border-dark-800 pb-2 mb-4">
+                        <div className="bg-transparent border border-slate-200 rounded-xl p-5 shadow-sm flex-1 flex flex-col">
+                          <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest border-b border-slate-200 pb-2 mb-4">
                             Task Assignment
                           </h4>
                           
@@ -940,7 +992,7 @@ export default function InteractionLog() {
                                 return (
                                   <div 
                                     key={`${mention.uid}-${idx}`} 
-                                    className="bg-dark-700 border border-dark-800 p-4 rounded-xl shadow-sm space-y-3"
+                                    className="bg-slate-50 border border-slate-200 p-4 rounded-xl shadow-sm space-y-3"
                                   >
                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                       {/* Assigned By */}
@@ -957,7 +1009,7 @@ export default function InteractionLog() {
                                       </div>
 
                                       {/* Assigned To */}
-                                      <div className="flex flex-col gap-1.5 border-t sm:border-t-0 sm:border-l border-dark-800 pt-3 sm:pt-0 sm:pl-4">
+                                      <div className="flex flex-col gap-1.5 border-t sm:border-t-0 sm:border-l border-slate-200 pt-3 sm:pt-0 sm:pl-4">
                                         <div className="flex items-center justify-between">
                                           <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Assigned To</span>
                                           <span className={`inline-block px-2.5 py-0.5 rounded-lg border text-[9px] font-black uppercase tracking-wider ${getStatusColorClass(displayStatus)}`}>
@@ -976,7 +1028,7 @@ export default function InteractionLog() {
                                     </div>
                                     
                                     {mention.task && (
-                                      <p className="text-sm text-black leading-relaxed font-semibold pl-1 border-t border-dark-800 pt-2.5 mt-2.5">
+                                      <p className="text-sm text-black leading-relaxed font-semibold pl-1 border-t border-slate-200 pt-2.5 mt-2.5">
                                         {mention.task}
                                       </p>
                                     )}
@@ -986,7 +1038,7 @@ export default function InteractionLog() {
                                           <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${
                                             mention.priority === 'High' ? 'bg-rose-500/10 border-rose-500/20 text-rose-500' :
                                             mention.priority === 'Medium' ? 'bg-amber-500/10 border-amber-500/20 text-amber-500' :
-                                            'bg-dark-700 border-dark-800 text-black'
+                                            'bg-slate-50 border-slate-200 text-black'
                                           }`}>
                                             {mention.priority === 'High' ? 'High' : mention.priority === 'Medium' ? 'Medium' : 'Low'}
                                           </span>
@@ -997,7 +1049,7 @@ export default function InteractionLog() {
                                             <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${
                                               isOverdueObj 
                                                 ? 'bg-rose-600 border-rose-500 text-white' 
-                                                : 'bg-dark-700 border-dark-800 text-black'
+                                                : 'bg-slate-50 border-slate-200 text-black'
                                             }`}>
                                               Due: {formatDate(mention.dueDate)} {isOverdueObj && ' (OVERDUE)'}
                                             </span>
@@ -1014,7 +1066,7 @@ export default function InteractionLog() {
                                                            (currentStatus || '').toLowerCase() === 'accepted & completed';
 
                                        return (
-                                          <div className="pt-2 border-t border-dark-800 border-dashed space-y-1.5 flex items-center justify-between gap-2">
+                                          <div className="pt-2 border-t border-slate-200 border-dashed space-y-1.5 flex items-center justify-between gap-2">
                                             <div className="flex items-center gap-2">
                                               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Change Status:</span>
                                               {isTaskFinal ? (
@@ -1116,8 +1168,8 @@ export default function InteractionLog() {
                         )}
 
                         {/* Conversation Replies & Notes Update Band */}
-                        <div className="bg-dark-900 border border-dark-800 rounded-xl p-5 shadow-sm space-y-4 flex flex-col">
-                          <div className="flex items-center justify-between border-b border-dark-800 pb-3">
+                        <div className="bg-transparent border border-slate-200 rounded-xl p-5 shadow-sm space-y-4 flex flex-col">
+                          <div className="flex items-center justify-between border-b border-slate-200 pb-3">
                             <div className="flex items-center gap-2">
                               <MessageSquare className="w-4 h-4 text-primary" />
                               <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest">
@@ -1175,7 +1227,7 @@ export default function InteractionLog() {
                                     className={`p-3.5 rounded-xl border flex flex-col gap-1.5 transition-all ${
                                       isMe
                                         ? 'bg-primary/10 border-primary/20 ml-6 text-right items-end'
-                                        : 'bg-dark-700/60 border-dark-800 mr-6 text-left items-start'
+                                        : 'bg-slate-50/60 border-slate-200 mr-6 text-left items-start'
                                     }`}
                                   >
                                     <div className="flex items-center gap-2">
@@ -1197,7 +1249,7 @@ export default function InteractionLog() {
                           </div>
 
                           {/* Upcoming Replying Band / Notes Update */}
-                          <div className="pt-3 border-t border-dark-800">
+                          <div className="pt-3 border-t border-slate-200">
                             <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">
                               Add Reply / Notes Update
                             </label>
@@ -1222,7 +1274,7 @@ export default function InteractionLog() {
                                     });
                                   }
                                 }}
-                                className="flex-1 bg-dark-750 border border-dark-800 rounded-xl p-3 text-xs text-black font-semibold outline-none focus:border-primary placeholder-slate-400 resize-none transition-colors"
+                                className="flex-1 bg-dark-750 border border-slate-200 rounded-xl p-3 text-xs text-black font-semibold outline-none focus:border-primary placeholder-slate-400 resize-none transition-colors"
                               />
                               <button
                                 type="button"
@@ -1242,7 +1294,7 @@ export default function InteractionLog() {
                               >
                                 {submittingReply[selectedLog.interactionId] ? (
                                   <>
-                                    <RefreshCw className="w-4 h-4 animate-spin" />
+                                    <LoadingSpinner size="xs" color="white" />
                                     <span>Sending...</span>
                                   </>
                                 ) : (
@@ -1275,13 +1327,13 @@ export default function InteractionLog() {
       {/* Accept Task Modal */}
       {acceptModalState.isOpen && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
-          <div className="bg-white border border-dark-800 w-full max-w-md rounded-2xl p-6 shadow-2xl relative">
+          <div className="bg-white border border-slate-200 w-full max-w-md rounded-2xl p-6 shadow-2xl relative">
             <button
               onClick={() => {
                 setAcceptModalState({ isOpen: false, task: null });
                 setAcceptNote('');
               }}
-              className="absolute top-4 right-4 p-1.5 rounded-lg bg-dark-700 hover:bg-dark-800 text-slate-500 hover:text-black transition-colors cursor-pointer"
+              className="absolute top-4 right-4 p-1.5 rounded-lg bg-slate-50 hover:bg-dark-800 text-slate-500 hover:text-black transition-colors cursor-pointer"
             >
               <X className="w-4 h-4" />
             </button>
@@ -1325,7 +1377,7 @@ export default function InteractionLog() {
                 <textarea
                   value={acceptNote}
                   onChange={(e) => setAcceptNote(e.target.value)}
-                  className="w-full bg-dark-700 border border-dark-800 rounded-xl p-3 text-xs text-black focus:outline-none focus:border-amber-550/50 min-h-[100px]"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs text-black focus:outline-none focus:border-amber-550/50 min-h-[100px]"
                   placeholder="E.g., I will begin working on this task immediately."
                 />
               </div>
@@ -1345,14 +1397,14 @@ export default function InteractionLog() {
       {/* Completion Note Modal */}
       {completionModalState.isOpen && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
-          <div className="bg-white border border-dark-800 w-full max-w-md rounded-2xl p-6 shadow-2xl relative">
+          <div className="bg-white border border-slate-200 w-full max-w-md rounded-2xl p-6 shadow-2xl relative">
             <button 
               onClick={() => {
                 setCompletionModalState({ isOpen: false, task: null, newStatus: '' });
                 setCompletionNote('');
                 setCompletionFile(null);
               }}
-              className="absolute top-4 right-4 p-1.5 rounded-lg bg-dark-700 hover:bg-dark-800 text-slate-500 hover:text-black transition-colors cursor-pointer"
+              className="absolute top-4 right-4 p-1.5 rounded-lg bg-slate-50 hover:bg-dark-800 text-slate-500 hover:text-black transition-colors cursor-pointer"
             >
               <X className="w-4 h-4" />
             </button>
@@ -1402,7 +1454,7 @@ export default function InteractionLog() {
                 <textarea
                   value={completionNote}
                   onChange={(e) => setCompletionNote(e.target.value)}
-                  className="w-full bg-dark-700 border border-dark-800 rounded-xl p-3 text-xs text-black focus:outline-none focus:border-emerald-500/50 min-h-[100px]"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs text-black focus:outline-none focus:border-emerald-500/50 min-h-[100px]"
                   placeholder="E.g., Task completed successfully. Attached the required files."
                   required
                 />
@@ -1412,7 +1464,7 @@ export default function InteractionLog() {
                 <input
                   type="file"
                   onChange={(e) => setCompletionFile(e.target.files[0])}
-                  className="w-full text-xs text-black file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border file:border-dark-800 file:text-xs file:font-semibold file:bg-dark-700 file:text-black hover:file:bg-dark-800"
+                  className="w-full text-xs text-black file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border file:border-slate-200 file:text-xs file:font-semibold file:bg-slate-50 file:text-black hover:file:bg-dark-800"
                 />
               </div>
               <div className="flex justify-end pt-2">
@@ -1431,7 +1483,7 @@ export default function InteractionLog() {
       {/* Forward Task Modal */}
       {forwardModalState.isOpen && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
-          <div className="bg-white border border-dark-800 w-full max-w-md rounded-2xl p-6 shadow-2xl relative">
+          <div className="bg-white border border-slate-200 w-full max-w-md rounded-2xl p-6 shadow-2xl relative">
             <button 
               onClick={() => {
                 setForwardModalState({ isOpen: false, task: null, newStatus: 'Forwarded' });
@@ -1439,7 +1491,7 @@ export default function InteractionLog() {
                 setForwardReason('');
                 setForwardFile(null);
               }}
-              className="absolute top-4 right-4 p-1.5 rounded-lg bg-dark-700 hover:bg-dark-800 text-slate-500 hover:text-black transition-colors cursor-pointer"
+              className="absolute top-4 right-4 p-1.5 rounded-lg bg-slate-50 hover:bg-dark-800 text-slate-500 hover:text-black transition-colors cursor-pointer"
             >
               <X className="w-4 h-4" />
             </button>
@@ -1469,7 +1521,7 @@ export default function InteractionLog() {
                 <textarea
                   value={forwardReason}
                   onChange={(e) => setForwardReason(e.target.value)}
-                  className="w-full bg-dark-700 border border-dark-800 rounded-xl p-3 text-xs text-black outline-none focus:border-blue-500/50 min-h-[100px]"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs text-black outline-none focus:border-blue-500/50 min-h-[100px]"
                   placeholder="E.g., Forwarding to you as you are leading the deployment module."
                 />
               </div>
@@ -1498,13 +1550,13 @@ export default function InteractionLog() {
       {/* Decline Task Modal */}
       {declineModalState.isOpen && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
-          <div className="bg-white border border-dark-800 w-full max-w-md rounded-2xl p-6 shadow-2xl relative">
+          <div className="bg-white border border-slate-200 w-full max-w-md rounded-2xl p-6 shadow-2xl relative">
             <button
               onClick={() => {
                 setDeclineModalState({ isOpen: false, task: null });
                 setDeclineReason('');
               }}
-              className="absolute top-4 right-4 p-1.5 rounded-lg bg-dark-700 hover:bg-dark-800 text-slate-500 hover:text-black transition-colors cursor-pointer"
+              className="absolute top-4 right-4 p-1.5 rounded-lg bg-slate-50 hover:bg-dark-800 text-slate-500 hover:text-black transition-colors cursor-pointer"
             >
               <X className="w-4 h-4" />
             </button>
@@ -1548,7 +1600,7 @@ export default function InteractionLog() {
                 <textarea
                   value={declineReason}
                   onChange={(e) => setDeclineReason(e.target.value)}
-                  className="w-full bg-dark-700 border border-dark-800 rounded-xl p-3 text-xs text-black focus:outline-none focus:border-rose-550/50 min-h-[100px]"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs text-black focus:outline-none focus:border-rose-550/50 min-h-[100px]"
                   placeholder="E.g., Unable to complete due to conflicting priorities or missing resources."
                   required
                 />

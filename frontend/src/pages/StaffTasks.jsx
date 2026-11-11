@@ -1,12 +1,13 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { 
-  ClipboardList, Search, RefreshCw, X, Eye, Plus, CheckSquare, 
+import {
+  ClipboardList, Search, RefreshCw, X, Eye, Plus, CheckSquare,
   Send, ShieldAlert, Check, Ban, HelpCircle, ChevronLeft, Calendar, ThumbsUp, MessageSquare, ExternalLink, FileText
 } from 'lucide-react';
 import { useStore } from '../store/index.js';
 import { formatDate, formatTime, formatDateTime } from '../utils/dateFormat.js';
 import TeamMemberSelect from '../components/TeamMemberSelect.jsx';
+import LoadingSpinner from '../components/LoadingSpinner.jsx';
 
 const formatLoggedDateTime = (dateStr, timeStr, timestampStr) => {
   return formatDateTime(dateStr, timeStr, timestampStr);
@@ -63,12 +64,47 @@ export default function StaffTasks() {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [replies, setReplies] = useState([]);
 
-  const isSelectedTaskOverdue = selectedTask && 
-                                selectedTask.dueDate && 
-                                new Date(selectedTask.dueDate).setHours(0,0,0,0) < new Date().setHours(0,0,0,0) && 
-                                selectedTask.status?.toLowerCase() !== 'completed' && 
-                                selectedTask.status?.toLowerCase() !== 'decline' && 
-                                selectedTask.status?.toLowerCase() !== 'declined';
+  const cleanFrom = (path) => {
+    if (!path) return path;
+    return path.startsWith('/CustomerPulse') ? path.replace('/CustomerPulse', '') : path;
+  };
+
+  const originFromRef = useRef(cleanFrom(location.state?.from) || null);
+  const originTabRef = useRef(location.state?.tab || location.state?.fromTab || null);
+  const isExternalNavRef = useRef(Boolean(location.state?.from || location.state?.selectedTaskId));
+
+  useEffect(() => {
+    if (location.state?.from) {
+      originFromRef.current = cleanFrom(location.state.from);
+      isExternalNavRef.current = true;
+    }
+    if (location.state?.tab || location.state?.fromTab) {
+      originTabRef.current = location.state.tab || location.state.fromTab;
+    }
+    if (location.state?.selectedTaskId) {
+      isExternalNavRef.current = true;
+    }
+  }, [location.state?.from, location.state?.tab, location.state?.fromTab, location.state?.selectedTaskId]);
+
+  const handleDrawerBack = () => {
+    setIsDrawerOpen(false);
+    setSelectedTask(null);
+    const rawFrom = originFromRef.current || location.state?.from;
+    const targetFrom = cleanFrom(rawFrom);
+    const targetTab = originTabRef.current || location.state?.tab || location.state?.fromTab;
+    if (targetFrom) {
+      navigate(targetFrom, targetTab ? { state: { tab: targetTab } } : undefined);
+    } else if (isExternalNavRef.current && window.history.length > 1) {
+      navigate(-1);
+    }
+  };
+
+  const isSelectedTaskOverdue = selectedTask &&
+    selectedTask.dueDate &&
+    new Date(selectedTask.dueDate).setHours(0, 0, 0, 0) < new Date().setHours(0, 0, 0, 0) &&
+    selectedTask.status?.toLowerCase() !== 'completed' &&
+    selectedTask.status?.toLowerCase() !== 'decline' &&
+    selectedTask.status?.toLowerCase() !== 'declined';
   const [replyText, setReplyText] = useState('');
   const [repliesLoading, setRepliesLoading] = useState(false);
 
@@ -143,8 +179,14 @@ export default function StaffTasks() {
       const match = allTasksCombined.find(t => t.taskId === location.state.selectedTaskId);
       if (match) {
         handleOpenDrawer(match);
-        // Clear state to prevent reopening on re-renders
-        navigate(location.pathname, { replace: true, state: {} });
+        // Clear state to prevent reopening on re-renders, while preserving navigation provenance
+        navigate(location.pathname, { 
+          replace: true, 
+          state: { 
+            from: originFromRef.current, 
+            tab: originTabRef.current 
+          } 
+        });
       }
     }
   }, [location.state?.selectedTaskId, staffTasks, interactions]);
@@ -161,7 +203,7 @@ export default function StaffTasks() {
     // Interaction-linked tasks → go to Interaction Log page with that log pre-selected
     if (task.isInteractionTask) {
       navigate('/interaction-log', {
-        state: { 
+        state: {
           selectedInteractionId: task.originalInteraction.interactionId,
           from: '/staff-tasks'
         }
@@ -332,9 +374,9 @@ export default function StaffTasks() {
       }
     } else {
       const ok = await updateStaffTaskStatus(
-        task.taskId, 
-        'Accept', 
-        '', 
+        task.taskId,
+        'Accept',
+        '',
         acceptNote.trim() ? `Acceptance Note: ${acceptNote.trim()}` : 'Accepted Task'
       );
       if (ok) {
@@ -374,9 +416,9 @@ export default function StaffTasks() {
       }
     } else {
       const ok = await updateStaffTaskStatus(
-        task.taskId, 
-        'Decline', 
-        '', 
+        task.taskId,
+        'Decline',
+        '',
         `Decline Reason: ${declineReason.trim()}`
       );
       if (ok) {
@@ -398,7 +440,7 @@ export default function StaffTasks() {
     if (!task || !forwardToUid) return;
     const targetUser = (staffList || []).find(s => s.uid === forwardToUid);
     if (!targetUser) return;
-    
+
     let finalNote = `Forwarded Task Note: ${forwardReason.trim() || 'No note provided'}`;
     if (forwardFile) {
       const uploaded = await uploadFile(forwardFile);
@@ -432,11 +474,11 @@ export default function StaffTasks() {
       }
     } else {
       const ok = await updateStaffTaskStatus(
-        task.taskId, 
-        'Forwarded', 
-        '', 
-        finalNote, 
-        targetUser.uid, 
+        task.taskId,
+        'Forwarded',
+        '',
+        finalNote,
+        targetUser.uid,
         targetUser.name
       );
       if (ok) {
@@ -469,7 +511,7 @@ export default function StaffTasks() {
         // Lookup forwarded recipient's live mention & status
         let recipientStatus = null;
         if (forwardedToUid || mention.status === 'Forwarded') {
-          const recipientMention = item.actionMentions.find(m => 
+          const recipientMention = item.actionMentions.find(m =>
             (m.uid === forwardedToUid || m.forwardedFromUid === mention.uid || (forwardedToName && m.name && m.name.toLowerCase() === forwardedToName.toLowerCase())) &&
             m.uid !== mention.uid
           );
@@ -512,14 +554,14 @@ export default function StaffTasks() {
 
   // Filter the combined list based on activeTab
   const tabFilteredTasks = allTasksCombined.filter(t => {
-    const isAssignedToMe = t.assignedToUid === user?.uid || 
-                           t.forwardedToUid === user?.uid || 
-                           (t.forwardedToName && user?.name && t.forwardedToName.toLowerCase() === user?.name.toLowerCase());
-    const isCreatedByMe = t.assignedByUid === user?.uid || 
-                          t.forwardedByUid === user?.uid || 
-                          t.forwardedFromUid === user?.uid || 
-                          (t.forwardedByName && user?.name && t.forwardedByName.toLowerCase() === user?.name.toLowerCase()) || 
-                          (t.forwardedFromName && user?.name && t.forwardedFromName.toLowerCase() === user?.name.toLowerCase());
+    const isAssignedToMe = t.assignedToUid === user?.uid ||
+      t.forwardedToUid === user?.uid ||
+      (t.forwardedToName && user?.name && t.forwardedToName.toLowerCase() === user?.name.toLowerCase());
+    const isCreatedByMe = t.assignedByUid === user?.uid ||
+      t.forwardedByUid === user?.uid ||
+      t.forwardedFromUid === user?.uid ||
+      (t.forwardedByName && user?.name && t.forwardedByName.toLowerCase() === user?.name.toLowerCase()) ||
+      (t.forwardedFromName && user?.name && t.forwardedFromName.toLowerCase() === user?.name.toLowerCase());
 
     if (activeTab === 'assigned-to-me') {
       return isAssignedToMe;
@@ -532,7 +574,7 @@ export default function StaffTasks() {
 
   // Filter tasks in memory for search, priority, status
   const filteredTasks = tabFilteredTasks.filter(task => {
-    const matchesSearch = 
+    const matchesSearch =
       (task.title || '').toLowerCase().includes(search.toLowerCase()) ||
       (task.description || '').toLowerCase().includes(search.toLowerCase()) ||
       (task.companyName || '').toLowerCase().includes(search.toLowerCase()) ||
@@ -559,10 +601,10 @@ export default function StaffTasks() {
       }
       if (f === 'overdue' || f === 'overdued') {
         const lowerStatus = (task.status || 'Pending').toLowerCase();
-        const isTaskOverdue = task.dueDate && 
-                              new Date(task.dueDate).setHours(0,0,0,0) < new Date().setHours(0,0,0,0) && 
-                              !lowerStatus.includes('complete') && 
-                              !lowerStatus.includes('decline');
+        const isTaskOverdue = task.dueDate &&
+          new Date(task.dueDate).setHours(0, 0, 0, 0) < new Date().setHours(0, 0, 0, 0) &&
+          !lowerStatus.includes('complete') &&
+          !lowerStatus.includes('decline');
         return isTaskOverdue || s.includes('overdue');
       }
       return s === f;
@@ -617,8 +659,8 @@ export default function StaffTasks() {
   const sortedTasks = [...filteredTasks].sort((a, b) => getTaskTime(b) - getTaskTime(a));
 
   return (
-    <div className="p-4 md:p-5 space-y-3.5 flex flex-col h-auto md:h-[calc(100vh-7rem)] min-h-0 relative select-none">
-      
+    <div className="p-4 md:p-5 space-y-3.5 flex flex-col flex-1 min-h-[calc(100vh-64px)] relative select-none">
+
       {/* Header Block */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div className="flex items-center gap-2">
@@ -627,7 +669,7 @@ export default function StaffTasks() {
         </div>
         <div className="flex items-center gap-3">
           <button
-            onClick={() => navigate('/staff-tasks/new')}
+            onClick={() => navigate('/staff-tasks/new', { state: { from: '/staff-tasks' } })}
             className="bg-primary hover:bg-blue-600 px-4 py-2.5 rounded-xl text-xs font-semibold flex items-center gap-2 text-white transition-all cursor-pointer shadow-lg shadow-primary/25"
           >
             <Plus className="w-4 h-4 text-white" />
@@ -641,39 +683,36 @@ export default function StaffTasks() {
         {showAllTasks && (
           <button
             onClick={() => setActiveTab('all-tasks')}
-            className={`px-5 py-3 text-xs font-bold transition-colors border-b-2 cursor-pointer ${
-              activeTab === 'all-tasks'
+            className={`px-5 py-3 text-xs font-bold transition-colors border-b-2 cursor-pointer ${activeTab === 'all-tasks'
                 ? 'border-primary text-primary'
                 : 'border-transparent text-slate-500 hover:text-primary'
-            }`}
+              }`}
           >
             All Tasks
           </button>
         )}
         <button
           onClick={() => setActiveTab('created-by-me')}
-          className={`px-5 py-3 text-xs font-bold transition-colors border-b-2 cursor-pointer ${
-            activeTab === 'created-by-me'
+          className={`px-5 py-3 text-xs font-bold transition-colors border-b-2 cursor-pointer ${activeTab === 'created-by-me'
               ? 'border-primary text-primary'
               : 'border-transparent text-slate-500 hover:text-primary'
-          }`}
+            }`}
         >
           Tasks Assigned by Me
         </button>
         <button
           onClick={() => setActiveTab('assigned-to-me')}
-          className={`px-5 py-3 text-xs font-bold transition-colors border-b-2 cursor-pointer ${
-            activeTab === 'assigned-to-me'
+          className={`px-5 py-3 text-xs font-bold transition-colors border-b-2 cursor-pointer ${activeTab === 'assigned-to-me'
               ? 'border-primary text-primary'
               : 'border-transparent text-slate-500 hover:text-primary'
-          }`}
+            }`}
         >
           Tasks Assigned to Me
         </button>
       </div>
 
       {/* Filters Panel */}
-      <div className="glass p-4 rounded-xl border border-slate-800/80 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 items-center">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 items-center">
         {/* Search */}
         <div className="relative md:col-span-2">
           <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
@@ -718,11 +757,10 @@ export default function StaffTasks() {
       </div>
 
       {/* Main Task List Table View */}
-      <div className="glass rounded-xl border border-slate-800/80 flex-1 flex flex-col min-h-0 overflow-hidden">
+      <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
         {staffTasksLoading ? (
           <div className="flex flex-col items-center justify-center h-64 gap-3">
-            <RefreshCw className="w-8 h-8 text-primary animate-spin" />
-            <p className="text-sm font-semibold text-slate-400">Loading staff duties directory...</p>
+            <LoadingSpinner size="lg" text="Loading staff duties directory..." />
           </div>
         ) : sortedTasks.length === 0 ? (
           <div className="p-12 text-center text-xs text-slate-500 flex flex-col items-center justify-center gap-2">
@@ -730,7 +768,7 @@ export default function StaffTasks() {
             <span className="font-semibold">No records found matching the filter criteria.</span>
           </div>
         ) : (
-          <div className="overflow-y-auto flex-1 min-h-0">
+          <div className="overflow-auto flex-1 min-h-0">
             <table className="w-full text-left border-collapse text-xs">
               <thead>
                 <tr className="bg-dark-900 border-b border-slate-800/60 text-slate-400 font-bold uppercase tracking-wider">
@@ -747,32 +785,31 @@ export default function StaffTasks() {
               <tbody className="divide-y divide-slate-800/40">
                 {sortedTasks.map((task, index) => {
                   const isAssignedToMe = task.assignedToUid === user?.uid;
-                  
+
                   const lowerStatus = (task.status || 'Pending').toLowerCase();
-                  const isOverdue = task.dueDate && 
-                                    new Date(task.dueDate).setHours(0,0,0,0) < new Date().setHours(0,0,0,0) && 
-                                    lowerStatus !== 'completed' && 
-                                    lowerStatus !== 'decline' && 
-                                    lowerStatus !== 'declined';
+                  const isOverdue = task.dueDate &&
+                    new Date(task.dueDate).setHours(0, 0, 0, 0) < new Date().setHours(0, 0, 0, 0) &&
+                    lowerStatus !== 'completed' &&
+                    lowerStatus !== 'decline' &&
+                    lowerStatus !== 'declined';
                   const displayStatus = isOverdue
                     ? 'Overdue'
                     : (task.status === 'Pending' ? 'Task Assigned' : task.status === 'In Progress' ? 'Accept' : task.status === 'Declined' ? 'Decline' : task.status);
 
                   return (
-                    <tr 
+                    <tr
                       key={task.taskId}
                       onClick={() => handleOpenDrawer(task)}
-                      className={`hover:bg-blue-50/80 cursor-pointer transition-colors duration-150 border-b border-dark-800/40 ${
-                        index % 2 === 0 ? 'bg-blue-50/30' : 'bg-white'
-                      }`}
+                      className={`hover:bg-blue-50/80 cursor-pointer transition-colors duration-150 border-b border-dark-800/40 ${index % 2 === 0 ? 'bg-blue-50/30' : 'bg-white'
+                        }`}
                     >
                       {/* Account */}
                       <td className="py-2.5 px-4">
-                        <div 
+                        <div
                           onClick={(e) => {
                             e.stopPropagation();
                             if (task.accountId) {
-                              navigate(`/accounts/${task.accountId}`);
+                              navigate(`/accounts/${task.accountId}`, { state: { from: location.pathname + location.search } });
                             }
                           }}
                           className="font-bold text-black hover:text-primary cursor-pointer transition-colors text-xs"
@@ -785,7 +822,6 @@ export default function StaffTasks() {
                       <td className="py-2.5 px-4 max-w-xs break-words">
                         <div className="flex flex-col gap-0.5">
                           <div
-                            title={task.description || task.title}
                             className="cursor-help hover:text-primary transition-colors inline-block"
                             onMouseEnter={(e) => {
                               const rect = e.currentTarget.getBoundingClientRect();
@@ -815,11 +851,10 @@ export default function StaffTasks() {
                       {/* Priority */}
                       <td className="py-2.5 px-4">
                         {task.priority ? (
-                          <span className={`text-xs font-bold px-1.5 py-0.5 rounded border ${
-                            task.priority === 'High' ? 'bg-rose-500/10 border-rose-500/20 text-rose-600' :
-                            task.priority === 'Medium' ? 'bg-amber-500/10 border-amber-500/20 text-amber-600' :
-                            'bg-slate-400/10 border-slate-400/20 text-slate-500'
-                          }`}>
+                          <span className={`text-xs font-bold px-1.5 py-0.5 rounded border ${task.priority === 'High' ? 'bg-rose-500/10 border-rose-500/20 text-rose-600' :
+                              task.priority === 'Medium' ? 'bg-amber-500/10 border-amber-500/20 text-amber-600' :
+                                'bg-slate-400/10 border-slate-400/20 text-slate-500'
+                            }`}>
                             {task.priority === 'High' ? 'High' : task.priority === 'Medium' ? 'Medium' : 'Low'}
                           </span>
                         ) : (
@@ -867,11 +902,10 @@ export default function StaffTasks() {
                           <select
                             value={displayStatus}
                             onChange={(e) => handleStatusChange(task, e.target.value)}
-                            className={`px-2 py-1 rounded-lg border text-xs outline-none w-fit cursor-pointer focus:border-primary/50 ${
-                              displayStatus === 'Accept' || displayStatus === 'Accepted' || displayStatus === 'In Progress' ? 'border-amber-500/30 bg-amber-50/80 text-amber-700 font-extrabold' :
-                              displayStatus === 'Forwarded' ? 'border-sky-500/30 bg-sky-50/80 text-sky-700 font-extrabold' :
-                              'border-slate-300 bg-white text-slate-800 font-bold'
-                            }`}
+                            className={`px-2 py-1 rounded-lg border text-xs outline-none w-fit cursor-pointer focus:border-primary/50 ${displayStatus === 'Accept' || displayStatus === 'Accepted' || displayStatus === 'In Progress' ? 'border-amber-500/30 bg-amber-50/80 text-amber-700 font-extrabold' :
+                                displayStatus === 'Forwarded' ? 'border-sky-500/30 bg-sky-50/80 text-sky-700 font-extrabold' :
+                                  'border-slate-300 bg-white text-slate-800 font-bold'
+                              }`}
                           >
                             <option value="Task Assigned">Task Assigned</option>
                             <option value="Accept">Accepted</option>
@@ -892,12 +926,12 @@ export default function StaffTasks() {
                             }
 
                             const lowerEffective = effectiveStatus.toLowerCase();
-                            const isTaskOverdue = task.dueDate && 
-                                                  new Date(task.dueDate).setHours(0,0,0,0) < new Date().setHours(0,0,0,0) && 
-                                                  !lowerEffective.includes('completed') && 
-                                                  !lowerEffective.includes('complete') && 
-                                                  !lowerEffective.includes('decline') && 
-                                                  !lowerEffective.includes('declined');
+                            const isTaskOverdue = task.dueDate &&
+                              new Date(task.dueDate).setHours(0, 0, 0, 0) < new Date().setHours(0, 0, 0, 0) &&
+                              !lowerEffective.includes('completed') &&
+                              !lowerEffective.includes('complete') &&
+                              !lowerEffective.includes('decline') &&
+                              !lowerEffective.includes('declined');
 
                             let badgeText = 'Task Assigned';
                             let badgeClass = 'bg-slate-400/10 border-slate-400/20 text-slate-500';
@@ -938,7 +972,7 @@ export default function StaffTasks() {
 
       {/* Full-page Task Details overlay — matches ActivityLog details design */}
       {isDrawerOpen && selectedTask && (
-        <div className="absolute inset-0 z-30 flex flex-col bg-dark-950 overflow-hidden" style={{fontFamily: 'Montserrat, sans-serif'}}>
+        <div className="absolute inset-0 z-30 flex flex-col bg-dark-950 overflow-hidden" style={{ fontFamily: 'Montserrat, sans-serif' }}>
           <div className="flex-1 flex flex-col overflow-hidden">
 
             {/* Scrollable content area */}
@@ -948,10 +982,11 @@ export default function StaffTasks() {
               <div className="bg-dark-900 border border-dark-800 rounded-xl p-5 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                 <div className="flex items-center gap-4 flex-wrap">
                   <button
-                    onClick={() => setIsDrawerOpen(false)}
-                    className="flex items-center gap-1.5 cursor-pointer text-black hover:bg-dark-700 transition-colors font-bold text-base px-3.5 py-1.5 rounded-full"
+                    type="button"
+                    onClick={handleDrawerBack}
+                    className="back-btn"
                   >
-                    <ChevronLeft className="w-5 h-5" />
+                    <ChevronLeft className="w-5 h-5" strokeWidth={2.5} />
                     <span>Back</span>
                   </button>
                   <div className="w-px h-5 bg-dark-800 hidden sm:block" />
@@ -1013,7 +1048,7 @@ export default function StaffTasks() {
 
                 {/* Right Column */}
                 <div className="lg:col-span-7 space-y-6 flex flex-col">
-                  
+
                   {/* Task Assignment details Card */}
                   <div className="bg-dark-900 border border-dark-800 rounded-xl p-5 shadow-sm space-y-4">
                     <div className="flex items-center justify-between border-b border-dark-800 pb-2">
@@ -1038,19 +1073,18 @@ export default function StaffTasks() {
                         <div className="flex flex-col gap-1.5 border-t sm:border-t-0 sm:border-l border-dark-800 pt-3 sm:pt-0 sm:pl-4">
                           <div className="flex items-center justify-between">
                             <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Assigned To</span>
-                            <span className={`inline-block px-2.5 py-0.5 rounded-lg border text-[9px] font-black uppercase tracking-wider ${
-                              isSelectedTaskOverdue ? 'bg-purple-500/10 border-purple-500/20 text-purple-600' :
-                              (selectedTask.status || '').toLowerCase().includes('complete') ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600' :
-                              (selectedTask.status || '').toLowerCase().includes('forward') ? 'bg-sky-500/10 border-sky-500/20 text-sky-600' :
-                              (selectedTask.status || '').toLowerCase().includes('accept') || (selectedTask.status || '').toLowerCase().includes('progress') ? 'bg-amber-500/10 border-amber-500/20 text-amber-600' :
-                              (selectedTask.status || '').toLowerCase().includes('decline') ? 'bg-rose-500/10 border-rose-500/20 text-rose-600' :
-                              'bg-slate-400/10 border-slate-400/20 text-slate-500'
-                            }`}>
+                            <span className={`inline-block px-2.5 py-0.5 rounded-lg border text-[9px] font-black uppercase tracking-wider ${isSelectedTaskOverdue ? 'bg-purple-500/10 border-purple-500/20 text-purple-600' :
+                                (selectedTask.status || '').toLowerCase().includes('complete') ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600' :
+                                  (selectedTask.status || '').toLowerCase().includes('forward') ? 'bg-sky-500/10 border-sky-500/20 text-sky-600' :
+                                    (selectedTask.status || '').toLowerCase().includes('accept') || (selectedTask.status || '').toLowerCase().includes('progress') ? 'bg-amber-500/10 border-amber-500/20 text-amber-600' :
+                                      (selectedTask.status || '').toLowerCase().includes('decline') ? 'bg-rose-500/10 border-rose-500/20 text-rose-600' :
+                                        'bg-slate-400/10 border-slate-400/20 text-slate-500'
+                              }`}>
                               {isSelectedTaskOverdue ? 'Overdue' :
-                               selectedTask.status === 'Pending' ? 'Task Assigned' : 
-                               (selectedTask.status === 'Accept' || selectedTask.status === 'In Progress') ? 'Accepted' :
-                               (selectedTask.status === 'Decline' || selectedTask.status === 'Declined') ? 'Declined' :
-                               selectedTask.status || 'Task Assigned'}
+                                selectedTask.status === 'Pending' ? 'Task Assigned' :
+                                  (selectedTask.status === 'Accept' || selectedTask.status === 'In Progress') ? 'Accepted' :
+                                    (selectedTask.status === 'Decline' || selectedTask.status === 'Declined') ? 'Declined' :
+                                      selectedTask.status || 'Task Assigned'}
                             </span>
                           </div>
                           <div className="flex items-center gap-2 mt-1">
@@ -1068,11 +1102,10 @@ export default function StaffTasks() {
                       {(selectedTask.priority || selectedTask.dueDate) && (
                         <div className="flex items-center gap-2 mt-1.5 flex-wrap pt-2 border-t border-dark-800">
                           {selectedTask.priority && (
-                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${
-                              selectedTask.priority === 'High' ? 'bg-rose-500/10 border-rose-500/20 text-rose-600' :
-                              selectedTask.priority === 'Medium' ? 'bg-amber-500/10 border-amber-500/20 text-amber-600' :
-                              'bg-slate-400/10 border-slate-400/20 text-slate-500'
-                            }`}>
+                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${selectedTask.priority === 'High' ? 'bg-rose-500/10 border-rose-500/20 text-rose-600' :
+                                selectedTask.priority === 'Medium' ? 'bg-amber-500/10 border-amber-500/20 text-amber-600' :
+                                  'bg-slate-400/10 border-slate-400/20 text-slate-500'
+                              }`}>
                               Priority: {selectedTask.priority}
                             </span>
                           )}
@@ -1086,11 +1119,11 @@ export default function StaffTasks() {
 
                       {selectedTask.assignedToUid === user?.uid && (() => {
                         const isTaskFinal = (selectedTask.status || '').toLowerCase() === 'completed' ||
-                                            (selectedTask.status || '').toLowerCase() === 'complete' ||
-                                            (selectedTask.status || '').toLowerCase() === 'declined' ||
-                                            (selectedTask.status || '').toLowerCase() === 'decline' ||
-                                            (selectedTask.status || '').toLowerCase().includes('forward') ||
-                                            (selectedTask.status || '').toLowerCase() === 'accepted & completed';
+                          (selectedTask.status || '').toLowerCase() === 'complete' ||
+                          (selectedTask.status || '').toLowerCase() === 'declined' ||
+                          (selectedTask.status || '').toLowerCase() === 'decline' ||
+                          (selectedTask.status || '').toLowerCase().includes('forward') ||
+                          (selectedTask.status || '').toLowerCase() === 'accepted & completed';
 
                         return (
                           <div className="pt-2 border-t border-dark-800 border-dashed space-y-1.5 flex items-center justify-between gap-2">
@@ -1098,13 +1131,12 @@ export default function StaffTasks() {
                               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Change Status:</span>
                               {isTaskFinal ? (
                                 <div className="flex items-center gap-2">
-                                  <span className={`px-2.5 py-1 rounded-lg border text-xs font-black uppercase tracking-wider ${
-                                    (selectedTask.status || '').toLowerCase().includes('decline')
+                                  <span className={`px-2.5 py-1 rounded-lg border text-xs font-black uppercase tracking-wider ${(selectedTask.status || '').toLowerCase().includes('decline')
                                       ? 'bg-rose-500/10 border-rose-500/20 text-rose-600'
                                       : (selectedTask.status || '').toLowerCase().includes('forward')
-                                      ? 'bg-sky-500/10 border-sky-500/20 text-sky-600'
-                                      : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600'
-                                  }`}>
+                                        ? 'bg-sky-500/10 border-sky-500/20 text-sky-600'
+                                        : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600'
+                                    }`}>
                                     {(selectedTask.status || '').toLowerCase().includes('forward')
                                       ? (selectedTask.forwardedToName ? `Forwarded to @${selectedTask.forwardedToName}` : 'Forwarded')
                                       : selectedTask.status === 'Decline' || selectedTask.status === 'Declined' ? 'Declined' : selectedTask.status === 'Accept' ? 'Accepted' : selectedTask.status}
@@ -1123,11 +1155,10 @@ export default function StaffTasks() {
                                     const newStatus = e.target.value;
                                     await handleStatusChange(selectedTask, newStatus);
                                   }}
-                                  className={`px-2 py-1 rounded-lg border text-[11px] font-bold outline-none w-fit ${
-                                    isSelectedTaskOverdue
+                                  className={`px-2 py-1 rounded-lg border text-[11px] font-bold outline-none w-fit ${isSelectedTaskOverdue
                                       ? 'border-slate-300 bg-slate-100 text-slate-500 cursor-not-allowed opacity-80'
                                       : 'border-slate-300 bg-white text-black cursor-pointer focus:border-primary'
-                                  }`}
+                                    }`}
                                 >
                                   {isSelectedTaskOverdue && <option value="Overdue">Overdue</option>}
                                   <option value="Task Assigned">Task Assigned</option>
@@ -1197,7 +1228,7 @@ export default function StaffTasks() {
                         if (repliesLoading) {
                           return (
                             <div className="flex items-center justify-center py-8">
-                              <RefreshCw className="w-6 h-6 text-slate-400 animate-spin" />
+                              <LoadingSpinner size="md" />
                             </div>
                           );
                         }
@@ -1214,11 +1245,10 @@ export default function StaffTasks() {
                           return (
                             <div
                               key={reply.replyId || idx}
-                              className={`p-3.5 rounded-xl border flex flex-col gap-1.5 transition-all ${
-                                isMe
+                              className={`p-3.5 rounded-xl border flex flex-col gap-1.5 transition-all ${isMe
                                   ? 'bg-primary/10 border-primary/20 ml-6 text-right items-end'
                                   : 'bg-dark-700/60 border-dark-800 mr-6 text-left items-start'
-                              }`}
+                                }`}
                             >
                               <div className="flex items-center gap-2">
                                 <div className="w-6 h-6 rounded-full bg-amber-500/20 border border-amber-500/30 text-amber-500 flex items-center justify-center font-bold text-[10px]">
@@ -1259,7 +1289,7 @@ export default function StaffTasks() {
                         >
                           {repliesLoading ? (
                             <>
-                              <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                              <LoadingSpinner size="xs" color="white" />
                               <span>Sending...</span>
                             </>
                           ) : (
@@ -1378,7 +1408,7 @@ export default function StaffTasks() {
       {isCompletionDialogOpen && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white border border-dark-800 w-full max-w-md rounded-2xl p-6 shadow-2xl relative">
-            <button 
+            <button
               onClick={() => {
                 setIsCompletionDialogOpen(false);
                 setCompletionTask(null);
@@ -1398,7 +1428,7 @@ export default function StaffTasks() {
                 <p className="text-xs text-black font-semibold">Send a note back to {completionTask?.assignedByName || completionTask?.loggedByName || 'Admin User'}</p>
               </div>
             </div>
-            
+
             <form onSubmit={submitCompletion} className="space-y-4 text-xs font-semibold">
               <div className="space-y-1.5">
                 <label className="block text-xs font-bold text-black">Completion Note</label>
@@ -1435,7 +1465,7 @@ export default function StaffTasks() {
       {forwardModalState.isOpen && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white border border-dark-800 w-full max-w-md rounded-2xl p-6 shadow-2xl relative">
-            <button 
+            <button
               onClick={() => {
                 setForwardModalState({ isOpen: false, task: null });
                 setForwardToUid('');
@@ -1455,7 +1485,7 @@ export default function StaffTasks() {
                 <p className="text-xs text-black font-semibold">Select a team member to forward this task to</p>
               </div>
             </div>
-            
+
             <form onSubmit={submitForward} className="space-y-4 text-xs font-semibold">
               <div className="space-y-1.5">
                 <label className="block text-xs font-bold text-black">Forward To</label>
@@ -1500,7 +1530,7 @@ export default function StaffTasks() {
 
       {/* Floating Task Description Tooltip */}
       {hoveredTaskTooltip && (
-        <div 
+        <div
           style={{
             position: 'fixed',
             left: `${hoveredTaskTooltip.x}px`,

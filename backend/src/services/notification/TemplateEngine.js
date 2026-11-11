@@ -16,7 +16,8 @@ const BASE_CSS = `<style>
     supported-color-schemes: light dark;
   }
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f1f5f9; color: #1e293b; }
+  @import url('https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&display=swap');
+  body { font-family: 'Montserrat', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f1f5f9; color: #1e293b; }
   .wrapper { max-width: 620px; margin: 32px auto; background: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 24px rgba(0,0,0,0.09); border: 1px solid #e2e8f0; }
   .header { background-color: #1a3a8f; padding: 24px 32px 20px; text-align: center; color: #ffffff !important; }
   .header-logo { display: inline-flex; align-items: center; justify-content: center; gap: 12px; margin-bottom: 12px; }
@@ -126,6 +127,14 @@ function baseLayout(headerColor, headerTitle, headerIcon, bodyHtml) {
     + '</div></body></html>';
 }
 
+function formatKolkataDate(d = new Date()) {
+  const dateObj = d instanceof Date ? d : new Date(d);
+  const dd = String(dateObj.getDate()).padStart(2, '0');
+  const mm = String(dateObj.getMonth() + 1).padStart(2, '0');
+  const yyyy = dateObj.getFullYear();
+  return `${dd}-${mm}-${yyyy}`;
+}
+
 function formatKolkataDateTime(input) {
   if (!input) return '—';
   const str = String(input).trim();
@@ -146,12 +155,13 @@ function formatKolkataDateTime(input) {
 
   try {
     const formatter = new Intl.DateTimeFormat('en-GB', {
+      timeZone: 'Asia/Kolkata',
       year: 'numeric',
       month: '2-digit',
       day: '2-digit',
       hour: '2-digit',
       minute: '2-digit',
-      hour12: true
+      hour12: false
     });
     const parts = formatter.formatToParts(d);
     const map = {};
@@ -159,13 +169,13 @@ function formatKolkataDateTime(input) {
     const dd = String(map.day).padStart(2, '0');
     const mm = String(map.month).padStart(2, '0');
     const yyyy = map.year;
-    const hh = String(map.hour).padStart(2, '0');
+    let hh = map.hour || '00';
+    if (hh === '24') hh = '00';
     const min = String(map.minute).padStart(2, '0');
-    const ampm = (map.dayPeriod || (d.getHours() >= 12 ? 'pm' : 'am')).toLowerCase();
 
     // Include time component only if input specified time/timestamp
     if (str.includes('T') || str.includes(':') || str.includes(' ')) {
-      return `${dd}-${mm}-${yyyy}, ${hh}:${min} ${ampm}`;
+      return `${dd}-${mm}-${yyyy}, ${hh}:${min}`;
     }
     return `${dd}-${mm}-${yyyy}`;
   } catch (err) {
@@ -358,7 +368,7 @@ const TEMPLATES = {
       + '<div class="card">'
       + '<div class="card-title">Completion Details</div>'
       + row('Task Title', v.TaskTitle, 'Completed By', v.CompletedBy || v.UpdatedBy || '-')
-      + row('Completion Date', v.CompletionDate || new Date().toLocaleDateString(), 'Status', statusBadge('Completed'))
+      + row('Completion Date', v.CompletionDate || formatKolkataDate(), 'Status', statusBadge('Completed'))
       + '</div>'
       + (v.Note || v.StatusNote || v.CompletionNote ? noteBox('<strong>Completion Note:</strong> ' + (v.Note || v.StatusNote || v.CompletionNote)) : '')
       + btn('View Staff Task', TASKS_URL)
@@ -410,7 +420,7 @@ const TEMPLATES = {
       + '<div class="card">'
       + '<div class="card-title">Interaction Details</div>'
       + row('Account', v.CompanyName || '-', 'Channel', v.InteractionType || 'Meeting')
-      + row('Logged By', v.LoggedBy || v.AuthorName || 'Team Member', 'Logged Date', v.Date || new Date().toLocaleDateString())
+      + row('Logged By', v.LoggedBy || v.AuthorName || 'Team Member', 'Logged Date', v.Date || formatKolkataDate())
       + (v.Summary || v.Description ? '<div class="divider"></div><div class="field-label">Summary</div><p style="font-size:13px;color:#475569;margin-top:6px;line-height:1.7">' + (v.Summary || v.Description) + '</p>' : '')
       + '</div>'
       + (v.Note || v.StatusNote ? noteBox(v.Note || v.StatusNote) : '')
@@ -587,7 +597,7 @@ const TEMPLATES = {
       + '<div class="card">'
       + '<div class="card-title">Completion Summary</div>'
       + row('Task', v.TaskTitle, 'Completed By', v.CompletedBy || '-')
-      + row('Account', v.CompanyName || 'Internal', 'Completion Date', v.CompletionDate || new Date().toLocaleDateString())
+      + row('Account', v.CompanyName || 'Internal', 'Completion Date', v.CompletionDate || formatKolkataDate())
       + '</div>'
       + (v.CompletionNote ? noteBox('<strong>Completion Note:</strong> ' + v.CompletionNote) : '')
       + btn('View Task', TASKS_URL)
@@ -725,7 +735,7 @@ const TEMPLATES = {
       + '<div class="card">'
       + '<div class="card-title">Your Details</div>'
       + row('Role / Position', v.Position || '-', 'Department', v.Department || '-')
-      + row('Start Date', v.StartDate || new Date().toLocaleDateString(), 'Reporting To', v.Manager || '-')
+      + row('Start Date', v.StartDate || formatKolkataDate(), 'Reporting To', v.Manager || '-')
       + '</div>'
       + btn('Access', DASHBOARD_URL)
       + '<p style="text-align:center;font-size:13px;color:#64748b;margin-top:16px">We are excited to have you!<br><strong>' + COMPANY_NAME + ' HR Team</strong></p>'
@@ -815,8 +825,74 @@ const TEMPLATES = {
       + (v.MessageSummary ? '<div class="note-box"><strong>Interaction Summary:</strong><br>' + v.MessageSummary + '</div>' : '')
       + btn('View in CustomerPulse', DASHBOARD_URL)
     )
-  })
+  }),
+
+  // ── Risk & Health Notifications ───────────────────────────────────────────
+
+  account_risk_level_changed: (v) => {
+    const reasons = Array.isArray(v.Reasons) ? v.Reasons.filter(Boolean) : [];
+    const accountUrl = v.AccountId ? FRONTEND_URL + '/accounts/' + v.AccountId : DASHBOARD_URL;
+    return {
+      subject: (v.CompanyName || 'Account') + ' is now at ' + (v.NewRiskLevel || 'Critical') + ' risk',
+      html: baseLayout(
+        'linear-gradient(135deg, #b91c1c 0%, #ef4444 100%)',
+        'Risk Alert', '&#x26A0;&#xFE0F;',
+        '<p class="greeting">Hello ' + v.EmployeeName + ',</p>'
+        + '<p class="subtitle">The overall risk level for <strong>' + (v.CompanyName || 'your account') + '</strong> changed from <strong>' + (v.PreviousRiskLevel || 'None') + '</strong> to <strong>' + (v.NewRiskLevel || 'Critical') + '</strong>.</p>'
+        + (reasons.length
+          ? '<div class="card"><div class="card-title">Active risk signals</div><ul style="margin-left:18px; color:#1e293b; font-size:14px; line-height:1.7;">'
+            + reasons.map(r => '<li>' + r + '</li>').join('') + '</ul></div>'
+          : '')
+        + (v.RecommendedAction ? noteBox('<strong>Suggested:</strong> ' + v.RecommendedAction) : '')
+        + btn('Open account', accountUrl)
+      )
+    };
+  },
+
+  // ── Stakeholder Risk Alert (Notify button) ──────────────────────────────
+  // Sent by Admin / Account Owner / Key Contact Owner to the other stakeholders.
+  risk_stakeholder_alert: (v) => {
+    const accountUrl = FRONTEND_URL + (v.AccountPath || '/dashboard');
+    const myContacts = Array.isArray(v.RecipientContacts) ? v.RecipientContacts : [];
+    const alsoNotified = Array.isArray(v.AlsoNotified) ? v.AlsoNotified : [];
+    const kcoNames = Array.isArray(v.KeyContactOwnerNames) ? v.KeyContactOwnerNames : [];
+    const health = (v.HealthScore !== null && v.HealthScore !== undefined) ? v.HealthScore + '%' : '—';
+    return {
+      subject: '[Risk Alert] ' + (v.RiskSeverity || 'Medium') + ' · ' + (v.RiskTitle || 'Account risk') + ' — ' + (v.CompanyName || 'Account'),
+      html: baseLayout(
+        'linear-gradient(135deg, #223670 0%, #E31C25 100%)',
+        'Risk Needs Your Attention', '&#x1F514;',
+        '<p class="greeting">Hello ' + v.EmployeeName + ',</p>'
+        + '<p class="subtitle"><strong>' + (v.SenderName || 'A team member') + '</strong> (' + (v.SenderRole || 'Stakeholder') + ') has flagged a risk on <strong>'
+        + (v.CompanyName || 'an account') + '</strong>. You are receiving this as the <strong>' + (v.RecipientRoles || 'Stakeholder') + '</strong> for this account.</p>'
+        + '<div class="card">'
+        + '<div class="card-title">Risk Details</div>'
+        + row('Risk', v.RiskTitle || '-', 'Severity', priorityBadge(v.RiskSeverity))
+        + row('Category', v.RiskCategory || '-', 'Notified On', v.SentAt || '-')
+        + row('Notified By', (v.SenderName || '-') + ' · ' + (v.SenderRole || ''), 'Your Role', v.RecipientRoles || '-')
+        + '</div>'
+        + (v.RiskDescription ? noteBox('<strong>Details:</strong><br>' + v.RiskDescription) : '')
+        + (v.SuggestedAction ? noteBox('<strong>Suggested action:</strong> ' + v.SuggestedAction) : '')
+        + '<div class="card">'
+        + '<div class="card-title">Account Snapshot</div>'
+        + row('Account', v.CompanyName || '-', 'Account Owner', v.AccountOwnerName || 'Unassigned')
+        + row('Health Score', health, 'Risk Level', v.RiskLevel || '—')
+        + row('Open Risks', String(v.OpenRiskCount ?? 0), 'Key Contact Owners', kcoNames.length ? kcoNames.join(', ') : '—')
+        + '</div>'
+        + (myContacts.length
+          ? '<div class="card"><div class="card-title">Your Key Contacts on this Account</div><ul style="margin-left:18px; color:#1e293b; font-size:14px; line-height:1.7;">'
+            + myContacts.map(c => '<li><strong>' + c.name + '</strong>' + (c.designation ? ' — ' + c.designation : '') + '</li>').join('')
+            + '</ul></div>'
+          : '')
+        + (alsoNotified.length
+          ? '<p style="font-size:13px; color:#64748b; margin-bottom:8px;"><strong>Also notified:</strong> ' + alsoNotified.join(', ') + '</p>'
+          : '')
+        + btn('Open ' + (v.CompanyName || 'account'), accountUrl)
+      )
+    };
+  }
 };
+
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Public API

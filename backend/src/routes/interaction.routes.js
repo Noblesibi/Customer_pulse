@@ -6,6 +6,7 @@ import { calculateAccountHealth } from '../services/health.service.js';
 import { sendTaskAssignmentEmail, sendInteractionLoggedEmail } from '../services/email.service.js';
 import { NotificationEngine } from '../services/notification/NotificationEngine.js';
 import { getSystemDateString, getSystemTimeString } from '../utils/dateUtils.js';
+import { createInteraction } from '../services/interaction.service.js';
 import fs from 'fs';
 import path from 'path';
 
@@ -20,7 +21,7 @@ router.use(authenticateToken);
  */
 router.get('/', async (req, res) => {
   try {
-    const { accountId, source, beforeTimestamp, limit = 500 } = req.query;
+    const { accountId, source, beforeTimestamp, limit = 500, manualOnly } = req.query;
 
     let snapshot;
     if (accountId) {
@@ -41,12 +42,22 @@ router.get('/', async (req, res) => {
                   (req.user && (req.user.userType === 'CEO' || req.user.position === 'CEO'));
 
     if (!isTrueAdmin && !isCeo) {
+      const userEmail = req.user.email?.toLowerCase();
+      const userName = req.user.name?.toLowerCase();
+
+      const isMatch = (entity) => {
+        if (entity.ownerId === req.user.uid) return true;
+        if (userEmail && entity.ownerEmail?.toLowerCase() === userEmail) return true;
+        if (userName && entity.ownerName?.toLowerCase().includes(userName.split(' ')[0])) return true;
+        return false;
+      };
+
       const accountsSnap = await db.collection('accounts').get();
       const accounts = accountsSnap.docs.map(doc => doc.data());
 
       const ownedAccountIds = new Set(
         accounts
-          .filter(a => a.ownerId === req.user.uid)
+          .filter(a => isMatch(a))
           .map(a => a.accountId || a.id)
       );
 
@@ -54,7 +65,7 @@ router.get('/', async (req, res) => {
       const stakeholderAccountIds = new Set(
         contactsSnap.docs
           .map(d => d.data())
-          .filter(c => c.ownerId === req.user.uid)
+          .filter(c => isMatch(c))
           .map(c => c.accountId)
       );
 
@@ -68,6 +79,15 @@ router.get('/', async (req, res) => {
     // Filter by source
     if (source) {
       interactions = interactions.filter(i => i.source === source);
+    }
+
+    // Filter by manual entries only if requested
+    if (manualOnly === 'true') {
+      interactions = interactions.filter(i => {
+        return i.isManual !== undefined
+          ? Boolean(i.isManual)
+          : (!i.internetMessageId && i.source !== 'System Activity' && i.source !== 'System');
+      });
     }
 
     // Filter by timestamp for infinite scroll
@@ -102,8 +122,13 @@ router.get('/', async (req, res) => {
         console.error('Error fetching replies for interaction:', err);
       }
 
+      const isManual = i.isManual !== undefined
+        ? Boolean(i.isManual)
+        : (!i.internetMessageId && i.source !== 'System Activity' && i.source !== 'System');
+
       return {
         ...i,
+        isManual,
         contactName: contactDoc.exists ? contactDoc.data().name : 'System/Unknown',
         companyName: accountDoc.exists ? accountDoc.data().companyName : 'External Account',
         notifications,
@@ -529,238 +554,16 @@ router.post('/upload', async (req, res) => {
  * Create manual interaction. Triggers AI Engine, saves risks/notifications, updates health.
  */
 router.post('/', async (req, res) => {
-  const { accountId, contactId, source, messageText, timestamp, subject, date, time, actionMentions, attachments } = req.body;
-
-  const validSources = ['Outlook Mail', 'Teams Chat', 'Phone', 'Face to Face', 'Teams Meeting', 'Other'];
-
-  if (!accountId || typeof accountId !== 'string' || !accountId.trim()) {
-    return res.status(400).json({ error: 'Account selection is required.' });
-  }
-  if (!contactId || typeof contactId !== 'string' || !contactId.trim()) {
-    return res.status(400).json({ error: 'Contact selection is required.' });
-  }
-  if (!source || typeof source !== 'string' || !source.trim()) {
-    return res.status(400).json({ error: 'Interaction channel/source is required.' });
-  }
-  if (!messageText || typeof messageText !== 'string' || !messageText.trim()) {
-    return res.status(400).json({ error: 'Interaction notes / message text is required.' });
-  }
-  if (messageText.trim().length < 5) {
-    return res.status(400).json({ error: 'Interaction notes must be at least 5 characters long.' });
-  }
-
   try {
-    // Verify account and contact exist
-    const accountDoc = await db.collection('accounts').doc(accountId).get();
-    if (!accountDoc.exists) return res.status(404).json({ error: 'Account not found' });
-
-    const contactDoc = await db.collection('contacts').doc(contactId).get();
-    if (!contactDoc.exists) return res.status(404).json({ error: 'Contact not found' });
-
-    const companyName = accountDoc.data().companyName;
-    const loggedByName = req.user.name || req.user.email;
-
-    // Run AI Engine Analysis
-    const analysis = await analyzeCommunication(messageText);
-
-    const enrichedActionMentions = await Promise.all(
-      (actionMentions || []).map(async (m) => {
-        const header = await generateTaskHeader(m.task || messageText);
-        return {
-          ...m,
-          taskHeader: header,
-          status: m.status || 'Task Assigned',
-          dueDate: m.dueDate || null,
-          priority: m.priority || 'Medium',
-          comments: m.comments || '',
-          completionDate: m.completionDate || null
-        };
-      })
-    );
-
-    let cleanSubject = subject || '';
-    if (!cleanSubject || cleanSubject === 'Interaction Note' || cleanSubject.split(/\s+/).length > 4 || cleanSubject.length > 30) {
-      try {
-        const generated = await generateTaskHeader(messageText);
-        if (generated && generated !== 'Task Assignment') {
-          cleanSubject = generated;
-        }
-      } catch (e) {
-        console.error('Error generating clean subject:', e);
-      }
-    }
-
-    const getKolkataDateString = (d = new Date()) => {
-      try {
-        const formatter = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' });
-        return formatter.format(d);
-      } catch (e) {
-        return d.toISOString().split('T')[0];
-      }
-    };
-
-    const getKolkataTimeString = (d = new Date()) => {
-      try {
-        const formatter = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: false });
-        return formatter.format(d);
-      } catch (e) {
-        return d.toTimeString().slice(0, 5);
-      }
-    };
-
-    const interactionId = 'int-' + Math.random().toString(36).substring(2, 11);
-    const newInteraction = {
-      interactionId,
-      accountId,
-      contactId,
-      source,
-      subject: cleanSubject,
-      messageText,
-      date: date || getKolkataDateString(),
-      time: time || getKolkataTimeString(),
-      actionMentions: enrichedActionMentions,
-      loggedByUid: req.user.uid,
-      loggedByName,
-      sentiment: analysis.sentiment,
-      riskDetected: analysis.riskLevel === 'High' || analysis.riskLevel === 'Medium',
-      riskCategory: analysis.riskCategory || '',
-      attachments: attachments || [],
-      timestamp: new Date().toISOString()
-    };
-
-    await db.collection('interactions').doc(interactionId).set(newInteraction);
-
-    // Handle risk detection
-    if (newInteraction.riskDetected) {
-      const riskId = 'risk-' + Math.random().toString(36).substring(2, 11);
-      await db.collection('risks').doc(riskId).set({
-        riskId,
-        accountId,
-        category: analysis.riskCategory,
-        severity: analysis.riskLevel,
-        description: analysis.summary,
-        status: 'Open',
-        createdAt: new Date().toISOString()
-      });
-
-      // Add risk notification (system-wide, no toUserId = visible to all admins)
-      const riskNotifId = 'notif-' + Math.random().toString(36).substring(2, 11);
-      await db.collection('notifications').doc(riskNotifId).set({
-        notificationId: riskNotifId,
-        accountId,
-        riskId,
-        type: 'New Risk',
-        message: `New risk alert detected: [${analysis.riskCategory}] - ${analysis.summary}`,
-        severity: analysis.riskLevel,
-        read: false,
-        readAt: null,
-        date: getSystemDateString(),
-        time: getSystemTimeString(),
-        timestamp: new Date().toISOString()
-      });
-    }
-
-    // Add generic activity feed notification (system-wide)
-    const activityNotifId = 'notif-' + Math.random().toString(36).substring(2, 11);
-    await db.collection('notifications').doc(activityNotifId).set({
-      notificationId: activityNotifId,
-      accountId,
-      type: 'New Interaction',
-      message: `New interaction (${source}) logged for ${companyName}`,
-      severity: 'Low',
-      read: false,
-      readAt: null,
-      date: getSystemDateString(),
-      time: getSystemTimeString(),
-      timestamp: new Date().toISOString()
-    });
-
-    // ── MENTION TASK NOTIFICATIONS ──
-    // Create a personal task notification for each @mentioned staff member
-    let mentionNotifications = [];
-    if (actionMentions && actionMentions.length > 0) {
-      const mentionNotifPromises = actionMentions.map(async (mention) => {
-        const taskNotifId = 'notif-' + Math.random().toString(36).substring(2, 11);
-        const taskText = mention.task || (messageText.slice(0, 100) + (messageText.length > 100 ? '...' : ''));
-        const message = `${loggedByName} assigned you a task for ${companyName}: "${taskText}"`;
-        const notifDoc = {
-          notificationId: taskNotifId,
-          toUserId: mention.uid,           // Personal — only Melbin sees this
-          type: 'Task Assigned',
-          accountId,
-          interactionId,
-          message,
-          read: false,
-          readAt: null,
-          date: getSystemDateString(),
-          time: getSystemTimeString(),
-          timestamp: new Date().toISOString()
-        };
-        await db.collection('notifications').doc(taskNotifId).set(notifDoc);
-
-        // Send email alert asynchronously
-        sendTaskAssignmentEmail(mention.uid, {
-          task: taskText,
-          taskHeader: mention.taskHeader,
-          accountName: companyName,
-          priority: mention.priority || 'Medium',
-          dueDate: mention.dueDate,
-          assignerName: loggedByName
-        });
-
-        return notifDoc;
-      });
-      mentionNotifications = await Promise.all(mentionNotifPromises);
-    }
-
-    // Recalculate health
-    const updatedHealth = await calculateAccountHealth(accountId);
-
-    // ── INTERACTION LOG EMAILS ──
-    // Notify the account owner + all stakeholders (contact owners for this account)
-    // asynchronously so it never blocks the response.
-    (async () => {
-      try {
-        const ownerId = accountDoc.data().ownerId;
-        const contactsSnap = await db.collection('contacts').where('accountId', '==', accountId).get();
-        const stakeholderUids = contactsSnap.docs.map(d => d.data().ownerId).filter(Boolean);
-
-        const notifySet = new Set([ownerId, ...stakeholderUids].filter(uid => uid && uid !== req.user.uid));
-        const notifyUids = [...notifySet];
-
-        if (notifyUids.length > 0) {
-          await sendInteractionLoggedEmail(notifyUids, {
-            companyName,
-            source,
-            subject: cleanSubject,
-            date: newInteraction.date,
-            time: newInteraction.time,
-            loggedBy: loggedByName,
-            messageSummary: messageText.length > 200 ? messageText.slice(0, 200) + '...' : messageText,
-            sentiment: analysis.sentiment,
-            accountId
-          });
-        }
-      } catch (emailErr) {
-        console.error('[interaction.routes] sendInteractionLoggedEmail error:', emailErr.message);
-      }
-    })();
-
-    const assigneeNames = Array.isArray(actionMentions) && actionMentions.length > 0
-      ? actionMentions.map(m => m.name).join(', ')
-      : '';
-    const detailsSuffix = assigneeNames ? ` (Assigned to: ${assigneeNames})` : '';
-
-    await logActivity(req.user.uid, req.user.name, 'Create Interaction', `Logged ${source} interaction "${subject || 'No Subject'}" for account ${companyName}${detailsSuffix}`);
-    return res.status(201).json({
-      interaction: {
-        ...newInteraction,
-        notifications: mentionNotifications
-      },
-      analysis,
-      health: updatedHealth
-    });
+    const result = await createInteraction({
+      ...req.body,
+      isManual: true
+    }, { uid: req.user.uid, name: req.user.name, email: req.user.email });
+    return res.status(201).json(result);
   } catch (error) {
+    if (error.message.includes('required') || error.message.includes('not found')) {
+      return res.status(400).json({ error: error.message });
+    }
     console.error('Error logging interaction:', error);
     return res.status(500).json({ error: error.message });
   }

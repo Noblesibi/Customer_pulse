@@ -31,7 +31,8 @@ async function getPool() {
           database: config.database,
           waitForConnections: true,
           connectionLimit: 5,
-          queueLimit: 0
+          queueLimit: 0,
+          connectTimeout: 4000
         });
       }
       return { type: 'mysql', client: mysqlPool };

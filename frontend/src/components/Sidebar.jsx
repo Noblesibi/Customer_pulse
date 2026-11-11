@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Users, UserSquare2, AlertOctagon, Terminal, LogOut, Shield, CheckSquare } from 'lucide-react';
+import { LayoutDashboard, Users, UserSquare2, AlertOctagon, Terminal, LogOut, Shield, CheckSquare, Settings } from 'lucide-react';
 import nestLogo from '../assets/nest-digital-logo.png';
 import { useStore } from '../store/index.js';
 
@@ -26,9 +26,10 @@ export default function Sidebar() {
       { path: '/accounts', label: 'Accounts CRM', icon: <Users className="w-5 h-5" />, roles: ['Admin', 'Executive', 'Sales Manager', 'Employee'] },
       { path: '/contacts', label: 'Contact Relationship Mapping', icon: <UserSquare2 className="w-5 h-5" />, roles: ['Admin', 'Executive', 'Sales Manager', 'Employee'] },
       { path: '/staff-tasks', label: 'Tasks', icon: <CheckSquare className="w-5 h-5" />, roles: ['Admin', 'Executive', 'Sales Manager', 'Employee'] },
-      { path: '/risks', label: 'Risk Center', icon: <AlertOctagon className="w-5 h-5" />, roles: ['Admin', 'Executive', 'Sales Manager'] },
-      { path: '/webhooks-demo', label: 'Email Ingestion', icon: <Terminal className="w-5 h-5" />, roles: ['Admin', 'Executive', 'Sales Manager'] },
-      { path: '/users', label: 'User Directory', icon: <Shield className="w-5 h-5" />, roles: ['Admin', 'Executive', 'Sales Manager', 'Employee'] }
+      { path: '/risks', label: 'Account Health', icon: <AlertOctagon className="w-5 h-5" />, roles: ['Admin', 'Executive', 'Sales Manager'] },
+      { path: '/webhooks-demo', label: 'Greetings Sender', icon: <Terminal className="w-5 h-5" />, roles: ['Admin', 'Executive', 'Sales Manager'] },
+      { path: '/users', label: 'User Directory', icon: <Shield className="w-5 h-5" />, roles: ['Admin', 'Executive', 'Sales Manager', 'Employee'] },
+      { path: '/admin/scoring', label: 'Scoring Config', icon: <Settings className="w-5 h-5" />, roles: ['Admin'] }
     ];
 
     return links.filter(link => link.roles.includes(role));

@@ -1,10 +1,22 @@
 import React, { useState } from 'react';
 import { Building2, UserPlus, ArrowRight, ArrowLeft, Plus, X, Briefcase, ChevronLeft } from 'lucide-react';
 import { useStore } from '../store/index.js';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
+import LoadingSpinner from '../components/LoadingSpinner.jsx';
 
 export default function NewAccount() {
   const navigate = useNavigate();
+  const location = useLocation();
+
+  const handleBack = () => {
+    if (location.state?.from) {
+      navigate(location.state.from);
+    } else if (window.history.length > 1) {
+      navigate(-1);
+    } else {
+      navigate('/accounts');
+    }
+  };
   const { addAccount } = useStore();
 
   // Company Information
@@ -198,7 +210,7 @@ export default function NewAccount() {
     setIsSubmitting(false);
 
     if (success) {
-      navigate('/accounts');
+      handleBack();
     } else {
       const errorMsg = useStore.getState().accountsError || "Failed to create account. Please try again.";
       alert(errorMsg);
@@ -211,10 +223,11 @@ export default function NewAccount() {
       {/* Header */}
       <div className="flex items-center gap-4 mb-8">
         <button 
-          onClick={() => navigate('/accounts')}
-          className="flex items-center gap-1.5 cursor-pointer text-black hover:bg-dark-700 transition-colors font-bold text-base px-3.5 py-1.5 rounded-full"
+          type="button"
+          onClick={handleBack}
+          className="back-btn"
         >
-          <ChevronLeft className="w-5 h-5" />
+          <ChevronLeft className="w-5 h-5" strokeWidth={2.5} />
           <span>Back</span>
         </button>
         <div>
@@ -557,7 +570,7 @@ export default function NewAccount() {
         <div className="flex items-center justify-end gap-4 pt-4 pb-12">
           <button 
             type="button"
-            onClick={() => navigate('/accounts')}
+            onClick={handleBack}
             className="px-6 py-3 rounded-xl text-sm font-bold text-slate-400 hover:text-white hover:bg-slate-800/50 transition-all"
           >
             Cancel
@@ -568,7 +581,7 @@ export default function NewAccount() {
             className="px-8 py-3 bg-primary hover:bg-blue-600 text-white text-sm font-bold rounded-xl shadow-lg shadow-primary/20 active:scale-98 transition-all flex items-center gap-2 disabled:opacity-70"
           >
             {isSubmitting ? (
-              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+              <LoadingSpinner size="xs" color="white" />
             ) : (
               <>
                 Save Client Profile

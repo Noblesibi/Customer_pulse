@@ -7,6 +7,7 @@ import {
   Activity, Send, Eye, MessageSquare, CheckCheck, ChevronLeft
 } from 'lucide-react';
 import { useStore } from '../store/index.js';
+import LoadingSpinner from '../components/LoadingSpinner.jsx';
 
 export default function Users() {
   const navigate = useNavigate();
@@ -32,7 +33,6 @@ export default function Users() {
   }, [usersList, staffList]);
 
   const [activeTab, setActiveTab] = useState('clients'); // 'clients' or 'directory'
-  const [syncing, setSyncing] = useState(false);
   const [clientSearch, setClientSearch] = useState('');
   const [expandedAccounts, setExpandedAccounts] = useState({});
   const [isAddUserOpen, setIsAddUserOpen] = useState(false);
@@ -148,7 +148,7 @@ export default function Users() {
     });
 
     const bgClass = colorClasses.bg || 'glass';
-    const borderClass = colorClasses.border || 'border-slate-700/60';
+    const borderClass = colorClasses.border || 'border-slate-200/60';
     const textClass = colorClasses.text || 'text-white';
     const accentBg = colorClasses.accentBg || 'bg-primary/10 border-primary/20 text-primary';
 
@@ -164,7 +164,7 @@ export default function Users() {
               <div 
                 key={u.uid || u.id} 
                 onClick={() => { setSelectedDirUser(u); fetchHREmployeeData(u.email); }}
-                className={`${bgClass} border ${isCurrentUser ? 'border-primary ring-2 ring-primary/45 shadow-primary/20' : borderClass} p-3 rounded-xl shadow-lg flex flex-col items-center justify-between w-56 text-center hover:border-primary/50 cursor-pointer transition-all shrink-0 relative overflow-hidden`}
+                className={`${bgClass} border ${isCurrentUser ? 'border-primary ring-2 ring-primary/45 shadow-primary/20' : borderClass} p-3 rounded-xl shadow-lg flex flex-col items-center justify-between w-56 text-center hover:bg-[#eef2f9]/80 hover:border-primary/50 cursor-pointer transition-all shrink-0 relative overflow-hidden`}
               >
                 {isCurrentUser && (
                   <div className="absolute top-0 left-0 bg-primary text-white text-xs font-black uppercase tracking-wider px-1.5 py-0.5 rounded-br-lg z-10">
@@ -178,7 +178,7 @@ export default function Users() {
                       e.stopPropagation();
                       handleDeleteUser(u.uid || u.id, u.name);
                     }}
-                    className="absolute top-1 right-2 text-slate-500 hover:text-rose-500 transition-colors p-1 rounded hover:bg-slate-800 z-10 cursor-pointer"
+                    className="absolute top-1 right-2 text-slate-500 hover:text-rose-600 transition-colors p-1 rounded hover:bg-rose-50 z-10 cursor-pointer"
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>
@@ -206,11 +206,11 @@ export default function Users() {
                   )}
                   
                   {isExpanded && connectedAccs.length > 0 && (
-                    <div className="mt-3 pt-3 border-t border-slate-700/60 w-full text-left space-y-2.5 select-text">
+                    <div className="mt-3 pt-3 border-t border-slate-200/60 w-full text-left space-y-2.5 select-text">
                       {connectedAccs.map(acc => {
                         const accContacts = getAccountContacts(acc.accountId || acc.id);
                         return (
-                          <div key={acc.accountId || acc.id} className="bg-slate-900/80 border border-slate-800 p-2 rounded-lg space-y-1.5">
+                          <div key={acc.accountId || acc.id} className="bg-slate-900/80 border border-slate-200 p-2 rounded-lg space-y-1.5">
                             <div className="flex items-center justify-between gap-1">
                               <span className="text-xs font-extrabold text-white truncate max-w-[150px]">{acc.companyName}</span>
                               <span className={`text-xs font-black uppercase px-1.5 py-0.5 rounded shrink-0 ${
@@ -224,7 +224,7 @@ export default function Users() {
                               </span>
                             </div>
                             {accContacts.length > 0 && (
-                              <div className="space-y-1 pl-1 border-l border-slate-800/80">
+                              <div className="space-y-1 pl-1 border-l border-slate-200/80">
                                 <span className="text-xs text-slate-500 font-black uppercase tracking-widest block mb-0.5">Stakeholders</span>
                                 {accContacts.map(c => (
                                   <div key={c.contactId || c.id} className="text-xs font-semibold text-slate-300 truncate flex items-center justify-between gap-1">
@@ -250,7 +250,7 @@ export default function Users() {
     if (user?.role !== 'Admin') {
       return (
         <div 
-          className="border border-dashed border-slate-700/60 p-3 rounded-xl flex flex-col items-center justify-center w-56 h-[116px] text-center bg-slate-900/10 text-slate-500 transition-all shrink-0 select-none"
+          className="border border-dashed border-slate-200/60 p-3 rounded-xl flex flex-col items-center justify-center w-56 h-[116px] text-center bg-slate-900/10 text-slate-500 transition-all shrink-0 select-none"
         >
           <span className="text-xs font-extrabold uppercase tracking-wider block">{title}</span>
           <span className="text-xs text-slate-600 mt-1.5 font-black italic">
@@ -263,7 +263,7 @@ export default function Users() {
     return (
       <div 
         onClick={() => handleAssignRole(matchType, details)}
-        className="border border-dashed border-slate-700/65 hover:border-primary/50 hover:bg-primary/5 p-3 rounded-xl flex flex-col items-center justify-center w-56 h-[116px] text-center bg-slate-900/20 text-slate-400 cursor-pointer transition-all shrink-0 select-none group"
+        className="border border-dashed border-slate-200/65 hover:border-primary/50 hover:bg-primary/5 p-3 rounded-xl flex flex-col items-center justify-center w-56 h-[116px] text-center bg-slate-900/20 text-slate-400 cursor-pointer transition-all shrink-0 select-none group"
       >
         <span className="text-xs font-extrabold uppercase tracking-wider block">{title}</span>
         <span className="text-xs text-slate-500 mt-1.5 flex items-center gap-1 group-hover:text-primary transition-colors font-black">
@@ -277,8 +277,8 @@ export default function Users() {
     const matched = allCompanyStaff.filter(u => (u.userType || u.role) === matchType);
 
     return (
-      <div className="flex flex-col gap-2 bg-dark-900/40 p-4 rounded-2xl border border-slate-800/80 w-76 shadow-md shrink-0">
-        <h4 className="text-xs font-bold text-center text-slate-400 uppercase tracking-wider mb-2 pb-1.5 border-b border-slate-800/50">{title}</h4>
+      <div className="flex flex-col gap-2 bg-white p-4 rounded-2xl border border-slate-200/80 w-76 shadow-md shrink-0">
+        <h4 className="text-xs font-bold text-center text-slate-400 uppercase tracking-wider mb-2 pb-1.5 border-b border-slate-200/50">{title}</h4>
         <div className="flex flex-col gap-2 pr-1">
           {matched.length > 0 ? (
             matched.map(u => {
@@ -290,7 +290,7 @@ export default function Users() {
                 <div 
                   key={u.uid || u.id} 
                   onClick={() => { setSelectedDirUser(u); fetchHREmployeeData(u.email); }}
-                  className={`glass border ${isCurrentUser ? 'border-primary' : 'border-slate-700/60'} p-3 rounded-xl flex flex-col gap-2 cursor-pointer hover:border-primary/50 transition-all relative overflow-hidden`}
+                  className={`glass border ${isCurrentUser ? 'border-primary' : 'border-slate-200/60'} p-3 rounded-xl flex flex-col gap-2 cursor-pointer hover:bg-[#eef2f9]/80 hover:border-primary/50 transition-all relative overflow-hidden`}
                 >
                   {isCurrentUser && (
                     <span className="absolute top-0 left-0 bg-primary text-white text-xs font-bold px-1.5 py-0.5 rounded-br-lg z-10">You</span>
@@ -302,7 +302,7 @@ export default function Users() {
                         e.stopPropagation();
                         handleDeleteUser(u.uid || u.id, u.name);
                       }}
-                      className="absolute top-1 right-2 text-slate-500 hover:text-rose-500 transition-colors p-0.5 rounded hover:bg-slate-800 z-10 cursor-pointer"
+                      className="absolute top-1 right-2 text-slate-500 hover:text-rose-600 transition-colors p-0.5 rounded hover:bg-rose-50 z-10 cursor-pointer"
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>
@@ -333,11 +333,11 @@ export default function Users() {
                   )}
                   
                   {isExpanded && connectedAccs.length > 0 && (
-                    <div className="mt-2 pt-2 border-t border-slate-700/60 w-full text-left space-y-2.5 select-text">
+                    <div className="mt-2 pt-2 border-t border-slate-200/60 w-full text-left space-y-2.5 select-text">
                       {connectedAccs.map(acc => {
                         const accContacts = getAccountContacts(acc.accountId || acc.id);
                         return (
-                          <div key={acc.accountId || acc.id} className="bg-slate-900/80 border border-slate-800 p-2 rounded-lg space-y-1.5">
+                          <div key={acc.accountId || acc.id} className="bg-slate-900/80 border border-slate-200 p-2 rounded-lg space-y-1.5">
                             <div className="flex items-center justify-between gap-1">
                               <span className="text-xs font-extrabold text-white truncate max-w-[200px]">{acc.companyName}</span>
                               <span className={`text-xs font-black uppercase px-1.5 py-0.5 rounded shrink-0 ${
@@ -351,7 +351,7 @@ export default function Users() {
                               </span>
                             </div>
                             {accContacts.length > 0 && (
-                              <div className="space-y-1 pl-1 border-l border-slate-800/80">
+                              <div className="space-y-1 pl-1 border-l border-slate-200/80">
                                 <span className="text-xs text-slate-500 font-black uppercase tracking-widest block mb-0.5">Stakeholders</span>
                                 {accContacts.map(c => (
                                   <div key={c.contactId || c.id} className="text-xs font-semibold text-slate-300 truncate flex items-center justify-between gap-1">
@@ -372,7 +372,7 @@ export default function Users() {
           ) : user?.role === 'Admin' ? (
             <button 
               onClick={() => handleAssignRole(matchType, details)}
-              className="border border-dashed border-slate-700/50 hover:border-primary/50 hover:bg-primary/5 p-2.5 rounded-xl flex items-center justify-center gap-1.5 text-xs text-slate-500 cursor-pointer transition-all w-full select-none font-semibold"
+              className="border border-dashed border-slate-200/50 hover:border-primary/50 hover:bg-primary/5 p-2.5 rounded-xl flex items-center justify-center gap-1.5 text-xs text-slate-500 cursor-pointer transition-all w-full select-none font-semibold"
             >
               <PlusCircle className="w-4 h-4 text-slate-500" /> Assign Manager
             </button>
@@ -385,23 +385,18 @@ export default function Users() {
   };
 
   useEffect(() => {
+    // 1. Immediately fetch latest users and directory data from PostgreSQL database
     fetchUsersList();
     fetchStaff();
     fetchAccounts(1, '');
     fetchContacts();
     fetchInteractions();
-  }, []);
 
-  const handleSyncHR = async () => {
-    setSyncing(true);
-    const result = await syncDirectoryWithHR();
-    setSyncing(false);
-    if (result && result.success) {
-      alert(result.message || 'Directory synchronized successfully!');
-    } else {
-      alert(result?.error || 'Failed to synchronize directory.');
-    }
-  };
+    // 2. Automatically sync with HRMS and database without requiring any button click
+    syncDirectoryWithHR().catch(err => {
+      console.warn('Background HR auto-sync warning:', err);
+    });
+  }, []);
 
   const toggleAccountExpand = (accountId) => {
     setExpandedAccounts(prev => ({ ...prev, [accountId]: !prev[accountId] }));
@@ -784,20 +779,21 @@ export default function Users() {
   };
 
   return (
-    <div className="p-6 md:p-8 space-y-6 select-none animate-soft-pulse duration-1000">
+    <div className="p-3 sm:p-5 md:p-8 space-y-6 select-none animate-soft-pulse duration-1000">
 
       {isAddUserOpen ? (
         <div className="space-y-6">
           {/* Header */}
-          <div className="flex items-center justify-between pb-4 border-b border-slate-800">
+          <div className="flex items-center justify-between pb-4 border-b border-slate-200">
             <button 
+              type="button"
               onClick={() => setIsAddUserOpen(false)}
-              className="flex items-center gap-1.5 cursor-pointer text-black hover:bg-dark-700 transition-colors font-bold text-base px-3.5 py-1.5 rounded-full"
+              className="back-btn"
             >
-              <ChevronLeft className="w-5 h-5" />
+              <ChevronLeft className="w-5 h-5" strokeWidth={2.5} />
               <span>Back</span>
             </button>
-            <h2 className="text-base font-extrabold text-white tracking-wide">Register Platform User</h2>
+            <h2 className="text-base font-extrabold text-slate-900 tracking-wide">Register Platform User</h2>
           </div>
 
           <form onSubmit={handleAddUserSubmit} className="space-y-8">
@@ -820,7 +816,7 @@ export default function Users() {
                     <input 
                       type="text" required value={name} onChange={(e) => setName(e.target.value)}
                       placeholder="e.g. Robert Stark"
-                      className="w-full bg-dark-900/60 border border-slate-800 text-xs text-white rounded-lg py-3 pl-10 pr-4 focus:outline-none focus:border-primary/50"
+                      className="w-full bg-white border border-slate-200 text-xs text-black rounded-lg py-3 pl-10 pr-4 focus:outline-none focus:border-primary/50"
                     />
                   </div>
                 </div>
@@ -833,7 +829,7 @@ export default function Users() {
                     <input 
                       type="email" required value={email} onChange={(e) => setEmail(e.target.value)}
                       placeholder="name@company.com"
-                      className="w-full bg-dark-900/60 border border-slate-800 text-xs text-white rounded-lg py-3 pl-10 pr-4 focus:outline-none focus:border-primary/50"
+                      className="w-full bg-white border border-slate-200 text-xs text-black rounded-lg py-3 pl-10 pr-4 focus:outline-none focus:border-primary/50"
                     />
                   </div>
                 </div>
@@ -846,7 +842,7 @@ export default function Users() {
                     <input 
                       type="password" required value={password} onChange={(e) => setPassword(e.target.value)}
                       placeholder="••••••••"
-                      className="w-full bg-dark-900/60 border border-slate-800 text-xs text-white rounded-lg py-3 pl-10 pr-4 focus:outline-none focus:border-primary/50"
+                      className="w-full bg-white border border-slate-200 text-xs text-black rounded-lg py-3 pl-10 pr-4 focus:outline-none focus:border-primary/50"
                     />
                   </div>
                 </div>
@@ -857,7 +853,7 @@ export default function Users() {
                   <input 
                     type="text" required value={department} onChange={(e) => setDepartment(e.target.value)}
                     placeholder="e.g. Engineering, Sales, Human Resources"
-                    className="w-full bg-dark-900/60 border border-slate-800 text-xs text-white rounded-lg py-3 px-4 focus:outline-none focus:border-primary/50"
+                    className="w-full bg-white border border-slate-200 text-xs text-black rounded-lg py-3 px-4 focus:outline-none focus:border-primary/50"
                   />
                 </div>
 
@@ -867,7 +863,7 @@ export default function Users() {
                   <input 
                     type="text" required value={position} onChange={(e) => setPosition(e.target.value)}
                     placeholder="e.g. Lead Developer, BU Director, Executive Associate"
-                    className="w-full bg-dark-900/60 border border-slate-800 text-xs text-white rounded-lg py-3 px-4 focus:outline-none focus:border-primary/50"
+                    className="w-full bg-white border border-slate-200 text-xs text-black rounded-lg py-3 px-4 focus:outline-none focus:border-primary/50"
                   />
                 </div>
 
@@ -878,7 +874,7 @@ export default function Users() {
                     <Briefcase className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
                     <select 
                       value={userType} onChange={(e) => setUserType(e.target.value)}
-                      className="w-full bg-dark-900/60 border border-slate-800 text-xs text-white rounded-lg py-3 pl-10 pr-4 focus:outline-none cursor-pointer"
+                      className="w-full bg-white border border-slate-200 text-xs text-black rounded-lg py-3 pl-10 pr-4 focus:outline-none cursor-pointer"
                     >
                       <option value="Employee">Employee</option>
                       <option value="Project Manager">Project Manager</option>
@@ -907,7 +903,7 @@ export default function Users() {
                       onFocus={() => setShowReportingSuggestions(true)}
                       onBlur={() => setTimeout(() => setShowReportingSuggestions(false), 200)}
                       placeholder="e.g. Jonathan Stark (CEO), Arthur Pendragon (Admin)"
-                      className="w-full bg-dark-900/60 border border-slate-800 text-xs text-white rounded-lg py-3 px-4 focus:outline-none focus:border-primary/50"
+                      className="w-full bg-white border border-slate-200 text-xs text-black rounded-lg py-3 px-4 focus:outline-none focus:border-primary/50"
                     />
                     {showReportingSuggestions && (
                       <div className="absolute left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-xl max-h-48 overflow-y-auto z-50 divide-y divide-slate-100">
@@ -926,7 +922,7 @@ export default function Users() {
                                 setReportingTo(u.name);
                                 setShowReportingSuggestions(false);
                               }}
-                              className="w-full text-left px-4 py-2.5 hover:bg-slate-800 flex items-center justify-between text-xs transition-colors cursor-pointer"
+                              className="w-full text-left px-4 py-2.5 hover:bg-slate-100 flex items-center justify-between text-xs transition-colors cursor-pointer"
                             >
                               <div className="flex items-center gap-2">
                                 <div className="bg-primary/10 border border-primary/20 text-primary w-8 h-8 rounded flex items-center justify-center font-bold text-xs shrink-0">
@@ -937,7 +933,7 @@ export default function Users() {
                                   <span className="text-xs text-slate-355 font-medium">{u.email}</span>
                                 </div>
                               </div>
-                              <span className="text-xs bg-slate-700 border border-slate-600 px-2 py-0.5 rounded-full text-slate-200 font-bold uppercase tracking-wider">
+                              <span className="text-xs bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-full text-slate-700 font-bold uppercase tracking-wider">
                                 {u.position || u.userType || u.role}
                               </span>
                             </button>
@@ -957,14 +953,14 @@ export default function Users() {
             {/* --------------------------------------------------------
                 CONDITIONAL DYNAMIC PANELS
                 -------------------------------------------------------- */}
-            <div className="border-t border-slate-800/80 pt-6 space-y-6">
+            <div className="border-t border-slate-200/80 pt-6 space-y-6">
               
               {/* PANEL 1: BU HEAD / DELIVERY HEAD */}
               {['BU Head', 'Delivery Head'].includes(userType) && (
                 <div className="space-y-6">
-                  <div className="flex items-center gap-2 border-b border-slate-700 pb-2">
+                  <div className="flex items-center gap-2 border-b border-slate-200 pb-2">
                     <span className="w-2.5 h-2.5 rounded-full bg-amber-500" />
-                    <h4 className="text-xs font-bold text-slate-350 uppercase tracking-wider">{userType} details</h4>
+                    <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">{userType} details</h4>
                   </div>
 
                   {/* BU Name */}
@@ -975,14 +971,14 @@ export default function Users() {
                     <input 
                       type="text" required value={buHeadBu} onChange={(e) => setBuHeadBu(e.target.value)}
                       placeholder={userType === 'Delivery Head' ? "e.g. Insurance, Industrial, Healthcare" : "e.g. Digital, Logistics, Finance"}
-                      className="w-full bg-dark-900/60 border border-slate-800 text-xs text-white rounded-lg py-3 px-4 focus:outline-none focus:border-primary/50"
+                      className="w-full bg-white border border-slate-200 text-xs text-black rounded-lg py-3 px-4 focus:outline-none focus:border-primary/50"
                     />
                   </div>
 
                   {/* Projects Configuration Toggle */}
                   <div className="flex items-center justify-between">
                     <label className="text-xs text-slate-400 uppercase tracking-wider font-semibold">Projects Mode</label>
-                    <div className="bg-dark-900/60 p-0.5 rounded-lg border border-slate-700 flex">
+                    <div className="bg-white p-0.5 rounded-lg border border-slate-200 flex">
                       <button 
                         type="button" onClick={() => setBuProjectsMode('manual')}
                         className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all cursor-pointer ${buProjectsMode === 'manual' ? 'bg-primary text-white shadow-sm' : 'text-slate-400'}`}
@@ -999,7 +995,7 @@ export default function Users() {
                   </div>
 
                   {buProjectsMode === 'excel' ? (
-                    <div className="border-2 border-dashed border-slate-700 rounded-xl p-6 text-center hover:border-primary/50 transition-colors relative bg-dark-900/40">
+                    <div className="border-2 border-dashed border-slate-200 rounded-xl p-6 text-center hover:border-primary/50 transition-colors relative bg-white">
                       <input 
                         type="file" accept=".xlsx,.xls" onChange={(e) => setBuProjectsExcelFile(e.target.files[0])}
                         className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
@@ -1033,7 +1029,7 @@ export default function Users() {
                       </div>
 
                       {buProjects.map((proj, projIdx) => (
-                        <div key={projIdx} className="bg-dark-900/40 border border-slate-700 rounded-xl p-4 space-y-4 shadow-sm relative">
+                        <div key={projIdx} className="bg-white border border-slate-200 rounded-xl p-4 space-y-4 shadow-sm relative">
                           {buProjects.length > 1 && (
                             <button 
                               type="button" onClick={() => handleRemoveBuProject(projIdx)}
@@ -1050,17 +1046,17 @@ export default function Users() {
                               type="text" required value={proj.name} 
                               onChange={(e) => handleBuProjectFieldChange(projIdx, 'name', e.target.value)}
                               placeholder={`e.g. Project Apollo / Option #${projIdx + 1}`}
-                              className="w-full bg-dark-900/60 border border-slate-700 text-xs text-white rounded-lg py-2.5 px-3 focus:outline-none focus:border-primary/50"
+                              className="w-full bg-white border border-slate-200 text-xs text-black rounded-lg py-2.5 px-3 focus:outline-none focus:border-primary/50"
                             />
                           </div>
 
-                          <div className="space-y-3 pt-2 border-t border-slate-700/60">
+                          <div className="space-y-3 pt-2 border-t border-slate-200/60">
                             
                             {/* Employees Subsection */}
                             <div className="space-y-3">
                               <div className="flex items-center justify-between">
                                 <label className="text-xs text-slate-400 uppercase tracking-wider font-semibold">Employees Working on this Project</label>
-                                <div className="bg-dark-900/60 p-0.5 rounded-lg border border-slate-700 flex">
+                                <div className="bg-white p-0.5 rounded-lg border border-slate-200 flex">
                                   <button 
                                     type="button" onClick={() => handleBuProjectFieldChange(projIdx, 'employeesMode', 'manual')}
                                     className={`px-2 py-1 rounded-md text-xs font-bold cursor-pointer ${proj.employeesMode === 'manual' ? 'bg-primary text-white shadow-sm' : 'text-slate-400'}`}
@@ -1077,7 +1073,7 @@ export default function Users() {
                               </div>
 
                               {proj.employeesMode === 'excel' ? (
-                                <div className="border-2 border-dashed border-slate-700 rounded-lg p-4 text-center relative bg-dark-900/40">
+                                <div className="border-2 border-dashed border-slate-200 rounded-lg p-4 text-center relative bg-white">
                                   <input 
                                     type="file" accept=".xlsx,.xls" 
                                     onChange={(e) => handleBuProjectFieldChange(projIdx, 'excelFileEmployees', e.target.files[0])}
@@ -1115,7 +1111,7 @@ export default function Users() {
                                           type="text" required value={emp} 
                                           onChange={(e) => handleBuProjectEmployeeChange(projIdx, empIdx, e.target.value)}
                                           placeholder={`Employee Name #${empIdx + 1}`}
-                                          className="w-full bg-dark-900/60 border border-slate-700 text-xs text-white rounded-lg py-2 px-3 focus:outline-none focus:border-primary/50"
+                                          className="w-full bg-white border border-slate-200 text-xs text-black rounded-lg py-2 px-3 focus:outline-none focus:border-primary/50"
                                         />
                                         {proj.employees.length > 1 && (
                                           <button type="button" onClick={() => handleRemoveBuProjectEmployee(projIdx, empIdx)} className="text-rose-500 hover:text-rose-600 cursor-pointer">
@@ -1140,9 +1136,9 @@ export default function Users() {
               {/* PANEL 2: PROJECT / DELIVERY / SALES / ACCOUNT MANAGER */}
               {['Project Manager', 'Delivery Manager', 'Sales Manager', 'Account Manager'].includes(userType) && (
                 <div className="space-y-6">
-                  <div className="flex items-center gap-2 border-b border-slate-700 pb-2">
+                  <div className="flex items-center gap-2 border-b border-slate-200 pb-2">
                     <span className="w-2.5 h-2.5 rounded-full bg-purple-500" />
-                    <h4 className="text-xs font-bold text-slate-350 uppercase tracking-wider">{userType} details</h4>
+                    <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">{userType} details</h4>
                   </div>
 
                   {/* Under which BU */}
@@ -1151,14 +1147,14 @@ export default function Users() {
                     <input 
                       type="text" required value={pmBu} onChange={(e) => setPmBu(e.target.value)}
                       placeholder="e.g. Insurance, Healthcare, BFS BU, Enterprise BU"
-                      className="w-full bg-dark-900/60 border border-slate-700 text-xs text-white rounded-lg py-3 px-4 focus:outline-none focus:border-primary/50"
+                      className="w-full bg-white border border-slate-200 text-xs text-black rounded-lg py-3 px-4 focus:outline-none focus:border-primary/50"
                     />
                   </div>
 
                   {/* Projects Configuration Toggle */}
                   <div className="flex items-center justify-between pt-2">
                     <label className="text-xs text-slate-400 uppercase tracking-wider font-semibold">Projects Managed Mode</label>
-                    <div className="bg-dark-900/60 p-0.5 rounded-lg border border-slate-700 flex">
+                    <div className="bg-white p-0.5 rounded-lg border border-slate-200 flex">
                       <button 
                         type="button" onClick={() => setPmProjectsMode('manual')}
                         className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all cursor-pointer ${pmProjectsMode === 'manual' ? 'bg-primary text-white shadow-sm' : 'text-slate-400'}`}
@@ -1175,7 +1171,7 @@ export default function Users() {
                   </div>
 
                   {pmProjectsMode === 'excel' ? (
-                    <div className="border-2 border-dashed border-slate-700 rounded-xl p-6 text-center hover:border-primary/50 transition-colors relative bg-dark-900/40">
+                    <div className="border-2 border-dashed border-slate-200 rounded-xl p-6 text-center hover:border-primary/50 transition-colors relative bg-white">
                       <input 
                         type="file" accept=".xlsx,.xls" onChange={(e) => setPmProjectsExcelFile(e.target.files[0])}
                         className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
@@ -1209,7 +1205,7 @@ export default function Users() {
                       </div>
 
                       {pmProjects.map((proj, projIdx) => (
-                        <div key={projIdx} className="bg-dark-900/40 border border-slate-700 rounded-xl p-4 space-y-4 shadow-sm relative">
+                        <div key={projIdx} className="bg-white border border-slate-200 rounded-xl p-4 space-y-4 shadow-sm relative">
                           {pmProjects.length > 1 && (
                             <button 
                               type="button" onClick={() => handleRemovePmProject(projIdx)}
@@ -1226,17 +1222,17 @@ export default function Users() {
                               type="text" required value={proj.name} 
                               onChange={(e) => handlePmProjectFieldChange(projIdx, 'name', e.target.value)}
                               placeholder={`e.g. Project Artemis / Option #${projIdx + 1}`}
-                              className="w-full bg-dark-900/60 border border-slate-700 text-xs text-white rounded-lg py-2.5 px-3 focus:outline-none focus:border-primary/50"
+                              className="w-full bg-white border border-slate-200 text-xs text-black rounded-lg py-2.5 px-3 focus:outline-none focus:border-primary/50"
                             />
                           </div>
 
-                          <div className="space-y-3 pt-2 border-t border-slate-700/60">
+                          <div className="space-y-3 pt-2 border-t border-slate-200/60">
                             
                             {/* Employees Subsection */}
                             <div className="space-y-3">
                               <div className="flex items-center justify-between">
                                 <label className="text-xs text-slate-400 uppercase tracking-wider font-semibold">Employees Working on this Project</label>
-                                <div className="bg-dark-900/60 p-0.5 rounded-lg border border-slate-700 flex">
+                                <div className="bg-white p-0.5 rounded-lg border border-slate-200 flex">
                                   <button 
                                     type="button" onClick={() => handlePmProjectFieldChange(projIdx, 'employeesMode', 'manual')}
                                     className={`px-2 py-1 rounded-md text-xs font-bold cursor-pointer ${proj.employeesMode === 'manual' ? 'bg-primary text-white shadow-sm' : 'text-slate-400'}`}
@@ -1253,7 +1249,7 @@ export default function Users() {
                               </div>
 
                               {proj.employeesMode === 'excel' ? (
-                                <div className="border-2 border-dashed border-slate-700 rounded-lg p-4 text-center relative bg-dark-900/40">
+                                <div className="border-2 border-dashed border-slate-200 rounded-lg p-4 text-center relative bg-white">
                                   <input 
                                     type="file" accept=".xlsx,.xls" 
                                     onChange={(e) => handlePmProjectFieldChange(projIdx, 'excelFileEmployees', e.target.files[0])}
@@ -1291,7 +1287,7 @@ export default function Users() {
                                           type="text" required value={emp} 
                                           onChange={(e) => handlePmProjectEmployeeChange(projIdx, empIdx, e.target.value)}
                                           placeholder={`Employee Name #${empIdx + 1}`}
-                                          className="w-full bg-dark-900/60 border border-slate-700 text-xs text-white rounded-lg py-2 px-3 focus:outline-none focus:border-primary/50"
+                                          className="w-full bg-white border border-slate-200 text-xs text-black rounded-lg py-2 px-3 focus:outline-none focus:border-primary/50"
                                         />
                                         {proj.employees.length > 1 && (
                                           <button type="button" onClick={() => handleRemovePmProjectEmployee(projIdx, empIdx)} className="text-rose-500 hover:text-rose-600 cursor-pointer">
@@ -1316,7 +1312,7 @@ export default function Users() {
               {/* PANEL 3: EMPLOYEE */}
               {userType === 'Employee' && (
                 <div className="space-y-6">
-                  <div className="flex items-center gap-2 border-b border-slate-850 pb-2">
+                  <div className="flex items-center gap-2 border-b border-slate-200 pb-2">
                     <span className="w-2.5 h-2.5 rounded-full bg-blue-500" />
                     <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Employee Assignment Details</h4>
                   </div>
@@ -1328,7 +1324,7 @@ export default function Users() {
                       <input 
                         type="text" required value={empBu} onChange={(e) => setEmpBu(e.target.value)}
                         placeholder="e.g. Enterprise Software BU"
-                        className="w-full bg-dark-900/60 border border-slate-800 text-xs text-white rounded-lg py-3 px-4 focus:outline-none focus:border-primary/50"
+                        className="w-full bg-white border border-slate-200 text-xs text-black rounded-lg py-3 px-4 focus:outline-none focus:border-primary/50"
                       />
                     </div>
 
@@ -1338,7 +1334,7 @@ export default function Users() {
                       <input 
                         type="text" required value={empProject} onChange={(e) => setEmpProject(e.target.value)}
                         placeholder="e.g. Project Pulse"
-                        className="w-full bg-dark-900/60 border border-slate-800 text-xs text-white rounded-lg py-3 px-4 focus:outline-none focus:border-primary/50"
+                        className="w-full bg-white border border-slate-200 text-xs text-black rounded-lg py-3 px-4 focus:outline-none focus:border-primary/50"
                       />
                     </div>
 
@@ -1348,7 +1344,7 @@ export default function Users() {
                       <input 
                         type="text" required value={empManager} onChange={(e) => setEmpManager(e.target.value)}
                         placeholder="e.g. Arthur Pendragon"
-                        className="w-full bg-dark-900/60 border border-slate-800 text-xs text-white rounded-lg py-3 px-4 focus:outline-none focus:border-primary/50"
+                        className="w-full bg-white border border-slate-200 text-xs text-black rounded-lg py-3 px-4 focus:outline-none focus:border-primary/50"
                       />
                     </div>
                   </div>
@@ -1357,10 +1353,10 @@ export default function Users() {
             </div>
 
             {/* Form Actions Footer */}
-            <div className="border-t border-slate-800 pt-6 flex justify-end gap-3">
+            <div className="border-t border-slate-200 pt-6 flex justify-end gap-3">
               <button 
                 type="button" onClick={() => setIsAddUserOpen(false)}
-                className="bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-lg px-6 py-3 border border-slate-700/50 cursor-pointer active:scale-98 transition-all"
+                className="bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg px-6 py-3 border border-slate-200 cursor-pointer active:scale-98 transition-all"
               >
                 Cancel
               </button>
@@ -1388,21 +1384,10 @@ export default function Users() {
                   value={clientSearch}
                   onChange={(e) => setClientSearch(e.target.value)}
                   placeholder="Search by name, role, BU..."
-                  className="w-full bg-dark-900/60 border border-slate-800 text-xs text-white rounded-xl py-2.5 pl-4 pr-10 focus:outline-none focus:border-primary/50 placeholder-slate-500 font-semibold"
+                  className="w-full bg-white border border-slate-200 text-xs text-black rounded-xl py-2.5 pl-4 pr-10 focus:outline-none focus:border-primary/50 placeholder-slate-500 font-semibold"
                 />
               </div>
-              <button
-                onClick={handleSyncHR}
-                disabled={syncing}
-                className="bg-dark-900 border border-slate-800 px-4 py-2.5 rounded-xl text-xs font-semibold flex items-center gap-2 text-slate-350 active:scale-98 transition-all cursor-pointer shrink-0 disabled:opacity-50"
-              >
-                {syncing ? (
-                  <div className="animate-spin rounded-full h-3.5 w-3.5 border-b-2 border-slate-400"></div>
-                ) : (
-                  <Building2 className="w-4 h-4" />
-                )}
-                {syncing ? 'Syncing...' : 'Sync HR Data'}
-              </button>
+
               {user?.role === 'Admin' && (
                 <button
                   onClick={() => {
@@ -1424,7 +1409,7 @@ export default function Users() {
           {/* User Groups */}
           {usersLoading ? (
             <div className="h-64 flex items-center justify-center">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+              <LoadingSpinner size="lg" text="Loading team directory..." />
             </div>
           ) : (() => {
             const q = clientSearch.toLowerCase();
@@ -1492,7 +1477,7 @@ export default function Users() {
               return (
                 <div 
                   onClick={() => { setSelectedDirUser(u); fetchHREmployeeData(u.email); }}
-                  className={`glass border ${isMe ? 'border-primary/60 ring-1 ring-primary/30' : 'border-slate-700/50'} rounded-xl p-3 flex items-center gap-3 relative hover:border-primary/50 cursor-pointer transition-all group`}
+                  className={`glass border ${isMe ? 'border-primary/60 ring-1 ring-primary/30' : 'border-slate-200/50'} rounded-xl p-3 flex items-center gap-3 relative hover:bg-[#eef2f9]/80 hover:border-primary/50 hover:shadow-sm cursor-pointer transition-all group`}
                 >
                   {isMe && (
                     <span className="absolute top-0 left-0 bg-primary text-white text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded-br-lg rounded-tl-xl">You</span>
@@ -1502,12 +1487,12 @@ export default function Users() {
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-start justify-between gap-2">
-                      <span className="font-extrabold text-white text-xs truncate">{u.name}</span>
+                      <span className="font-extrabold text-slate-900 text-xs truncate">{u.name}</span>
                       {(user?.role === 'Admin') && (
                         <button
                           type="button"
                           onClick={() => handleDeleteUser(u.uid || u.id, u.name)}
-                          className="shrink-0 text-slate-600 hover:text-rose-400 transition-colors opacity-0 group-hover:opacity-100 cursor-pointer"
+                          className="shrink-0 text-slate-600 hover:text-rose-600 hover:bg-rose-50 p-0.5 rounded transition-colors opacity-0 group-hover:opacity-100 cursor-pointer"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
@@ -1529,11 +1514,11 @@ export default function Users() {
               <div className="space-y-5">
                 {/* Leadership Section */}
                 {leadership.length > 0 && (
-                  <div className="glass rounded-2xl border border-slate-800/60 p-5">
+                  <div className="p-5">
                     <div className="flex items-center gap-2 mb-4">
                       <span className="w-2 h-2 rounded-full bg-indigo-400 shrink-0"></span>
-                      <h3 className="text-xs font-black text-slate-300 uppercase tracking-widest">Leadership & Administration</h3>
-                      <span className="ml-auto text-[10px] font-bold text-slate-600 bg-slate-800/60 px-2 py-0.5 rounded-full">{leadership.length}</span>
+                      <h3 className="text-xs font-black text-slate-800 uppercase tracking-widest">Leadership & Administration</h3>
+                      <span className="ml-auto text-[10px] font-bold text-slate-700 bg-slate-100 border border-slate-200/80 px-2 py-0.5 rounded-full">{leadership.length}</span>
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
                       {sortUsers(leadership).map(u => <UserCard key={u.uid||u.id} u={u} />)}
@@ -1554,12 +1539,12 @@ export default function Users() {
                   };
 
                   return (
-                    <div key={bu} className="glass rounded-2xl border border-slate-800/60 p-5 space-y-4">
+                    <div key={bu} className="p-5 space-y-4">
                       {/* BU Header */}
-                      <div className="flex items-center gap-2 pb-3 border-b border-slate-800/60">
+                      <div className="flex items-center gap-2 pb-3 border-b border-slate-200/60">
                         <span className={`w-2 h-2 rounded-full ${buColors.head} shrink-0`}></span>
                         <h3 className={`text-xs font-black uppercase tracking-widest ${buColors.label}`}>{bu}</h3>
-                        <span className="ml-auto text-[10px] font-bold text-slate-600 bg-slate-800/60 px-2 py-0.5 rounded-full">{members.length} members</span>
+                        <span className="ml-auto text-[10px] font-bold text-slate-700 bg-slate-100 border border-slate-200/80 px-2 py-0.5 rounded-full">{members.length} members</span>
                       </div>
 
                       {/* BU / Delivery Heads */}
@@ -1596,7 +1581,7 @@ export default function Users() {
                 })}
 
                 {filtered.length === 0 && (
-                  <div className="glass rounded-2xl border border-slate-800/60 p-12 text-center">
+                  <div className="p-12 text-center">
                     <p className="text-sm text-slate-500 font-semibold">No users found matching "{clientSearch}"</p>
                   </div>
                 )}
@@ -1609,13 +1594,13 @@ export default function Users() {
           EMPLOYEE PROFILE & HR DETAILS MODAL
           ======================================================== */}
       {selectedDirUser && (
-        <div className="fixed inset-0 bg-dark-950/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="glass max-w-lg w-full rounded-2xl p-6 border border-slate-800 shadow-2xl space-y-6 relative select-text">
+        <div className="fixed inset-0 bg-slate-900/25 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="max-w-lg w-full p-6 space-y-6 relative select-text bg-white rounded-xl border border-slate-200/80 shadow-2xl">
             {/* Close Button */}
             <button 
               type="button" 
               onClick={() => setSelectedDirUser(null)}
-              className="absolute top-4 right-4 text-slate-500 p-1.5 rounded-lg cursor-pointer"
+              className="absolute top-4 right-4 text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-colors p-1.5 rounded-lg cursor-pointer"
             >
               <X className="w-5 h-5" />
             </button>
@@ -1632,36 +1617,36 @@ export default function Users() {
             </div>
 
             {/* CRM Profile Details */}
-            <div className="bg-slate-900/40 p-4 rounded-xl border border-slate-800/80 space-y-3">
-              <span className="text-[10px] text-black font-black uppercase tracking-wider block border-b border-slate-800 pb-1.5">CRM Local Record</span>
+            <div className="bg-slate-50 hover:bg-[#eef2f9]/50 transition-colors p-4 rounded-xl border border-slate-200 space-y-3">
+              <span className="text-[10px] text-black font-black uppercase tracking-wider block border-b border-slate-200 pb-1.5">CRM Local Record</span>
               <div className="grid grid-cols-2 gap-4 text-xs">
                 <div>
                   <span className="text-black font-medium block">Employee ID</span>
-                  <span className="text-slate-200 font-bold">{selectedDirUser.employeeId || '—'}</span>
+                  <span className="text-black font-bold">{selectedDirUser.employeeId || '—'}</span>
                 </div>
                 <div>
                   <span className="text-black font-medium block">Position</span>
-                  <span className="text-slate-200 font-bold">{selectedDirUser.position || selectedDirUser.userType || selectedDirUser.role || '—'}</span>
+                  <span className="text-black font-bold">{selectedDirUser.position || selectedDirUser.userType || selectedDirUser.role || '—'}</span>
                 </div>
                 <div>
                   <span className="text-black font-medium block">Department</span>
-                  <span className="text-slate-200 font-bold">{selectedDirUser.department || '—'}</span>
+                  <span className="text-black font-bold">{selectedDirUser.department || '—'}</span>
                 </div>
                 <div>
                   <span className="text-black font-medium block">Business Unit</span>
-                  <span className="text-slate-200 font-bold">{selectedDirUser.bu || '—'}</span>
+                  <span className="text-black font-bold">{selectedDirUser.bu || '—'}</span>
                 </div>
                 <div>
                   <span className="text-black font-medium block">Access Role</span>
-                  <span className="text-slate-200 font-bold">{selectedDirUser.userType || selectedDirUser.role || 'Employee'}</span>
+                  <span className="text-black font-bold">{selectedDirUser.userType || selectedDirUser.role || 'Employee'}</span>
                 </div>
                 <div>
                   <span className="text-black font-medium block">Phone</span>
-                  <span className="text-slate-200 font-bold">{selectedDirUser.phone || '—'}</span>
+                  <span className="text-black font-bold">{selectedDirUser.phone || '—'}</span>
                 </div>
                 <div className="col-span-2">
                   <span className="text-black font-medium block">Reporting To</span>
-                  <span className="text-slate-200 font-bold">
+                  <span className="text-black font-bold">
                     {selectedDirUser.reportingManagerName 
                       ? `${selectedDirUser.reportingManagerName} (${selectedDirUser.reportingTo})` 
                       : (selectedDirUser.reportingTo || '—')}
@@ -1678,16 +1663,16 @@ export default function Users() {
                   const uid = selectedDirUser.uid || selectedDirUser.id;
                   const name = selectedDirUser.name;
                   setSelectedDirUser(null);
-                  navigate('/staff-tasks/new', { state: { preselectUid: uid, preselectName: name } });
+                  navigate('/staff-tasks/new', { state: { preselectUid: uid, preselectName: name, from: location.pathname + location.search } });
                 }}
-                className="bg-primary hover:bg-blue-700 text-white text-xs font-bold rounded-lg px-5 py-2.5 flex items-center gap-2 cursor-pointer active:scale-98 transition-all shadow-md"
+                className="bg-primary hover:bg-blue-600 text-white text-xs font-bold rounded-lg px-5 py-2.5 flex items-center gap-2 cursor-pointer active:scale-98 transition-all shadow-md"
               >
                 <Plus size={14} /> Assign Staff Task
               </button>
               <button 
                 type="button" 
                 onClick={() => setSelectedDirUser(null)}
-                className="bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-lg px-5 py-2.5 border border-slate-700/50 cursor-pointer active:scale-98 transition-all"
+                className="bg-primary hover:bg-blue-600 text-white text-xs font-bold rounded-lg px-5 py-2.5 cursor-pointer active:scale-98 transition-all shadow-md"
               >
                 Close Profile
               </button>
@@ -1700,8 +1685,8 @@ export default function Users() {
           DELETE USER CONFIRMATION MODAL
           ======================================================== */}
       {userToDelete && (
-        <div className="fixed inset-0 bg-dark-950/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="glass max-w-sm w-full rounded-2xl p-6 border border-slate-800 shadow-2xl text-center space-y-4">
+        <div className="fixed inset-0 bg-slate-900/25 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="max-w-sm w-full p-6 text-center space-y-4 bg-white shadow-2xl">
             <div className="bg-rose-500/10 border border-rose-500/20 text-rose-500 p-3 rounded-full w-12 h-12 flex items-center justify-center mx-auto">
               <Trash2 className="w-6 h-6" />
             </div>
@@ -1715,7 +1700,7 @@ export default function Users() {
             <div className="flex gap-3 pt-2">
               <button 
                 onClick={() => setUserToDelete(null)}
-                className="w-full bg-slate-800 hover:bg-slate-700 active:scale-98 text-slate-200 text-xs font-semibold rounded-lg py-2.5 border border-slate-700/50 transition-all cursor-pointer"
+                className="w-full bg-slate-100 hover:bg-slate-200 active:scale-98 text-slate-700 text-xs font-semibold rounded-lg py-2.5 border border-slate-200 transition-all cursor-pointer"
               >
                 Cancel
               </button>

@@ -8,16 +8,16 @@ import { useStore } from '../store/index.js';
 import { formatDate, formatDateTime, formatNotificationTime } from '../utils/dateFormat.js';
 
 export default function Navbar() {
-  const { 
+  const {
     user,
     logout,
-    notifications, 
-    unreadNotificationsCount, 
-    fetchNotifications, 
-    markNotificationRead, 
+    notifications,
+    unreadNotificationsCount,
+    fetchNotifications,
+    markNotificationRead,
     markAllNotificationsRead,
     staffList,
-    fetchStaff
+    fetchStaff,
   } = useStore();
 
   const navigate = useNavigate();
@@ -73,7 +73,7 @@ export default function Navbar() {
     setIsNotifOpen(false);
 
     const type = (notif.type || '').toLowerCase();
-    const msg  = (notif.message || '').toLowerCase();
+    const msg = (notif.message || '').toLowerCase();
 
     // ── 1. Staff task (by task) ──────────────────────────────────────
     if (notif.taskId && (type.includes('task') || msg.includes('task'))) {
@@ -95,7 +95,7 @@ export default function Navbar() {
 
     // ── 4. Account (by account) ───────────────────────────────────────
     if (notif.accountId && (type.includes('account') || msg.includes('account'))) {
-      navigate(`/accounts/${notif.accountId}`);
+      navigate(`/accounts/${notif.accountId}`, { state: { from: location.pathname + location.search } });
       return;
     }
 
@@ -167,7 +167,7 @@ export default function Navbar() {
   }, [activeToast]);
 
   // Fetch tag dynamically from User Directory
-  const directoryUser = (staffList || []).find(s => 
+  const directoryUser = (staffList || []).find(s =>
     (s.uid && user?.uid && s.uid === user?.uid) ||
     (s.email && user?.email && s.email.toLowerCase().trim() === user?.email.toLowerCase().trim())
   );
@@ -201,13 +201,13 @@ export default function Navbar() {
   const getLinks = () => {
     const role = user?.role;
     const links = [
-      { path: '/dashboard',      label: 'Dashboard',  roles: ['Admin', 'Executive', 'Sales Manager', 'Employee'] },
-      { path: '/accounts',        label: 'Accounts',   roles: ['Admin', 'Executive', 'Sales Manager', 'Employee'] },
-      { path: '/contacts',        label: 'Contacts',   roles: ['Admin', 'Executive', 'Sales Manager', 'Employee'] },
-      { path: '/risks',           label: 'Risks',      roles: ['Admin', 'Executive', 'Sales Manager'] },
-      { path: '/webhooks-demo',   label: 'Email Ingestion',   roles: ['Admin', 'Executive', 'Sales Manager'] },
-      { path: '/users',           label: 'User Directory',      roles: ['Admin', 'Executive', 'Sales Manager', 'Employee'] },
-      { path: '/interaction-log',    label: 'Interaction Log',   roles: ['Admin', 'Executive', 'Sales Manager', 'Employee'] }
+      { path: '/dashboard', label: 'Dashboard', roles: ['Admin', 'Executive', 'Sales Manager', 'Employee'] },
+      { path: '/accounts', label: 'Accounts', roles: ['Admin', 'Executive', 'Sales Manager', 'Employee'] },
+      { path: '/contacts', label: 'Contacts', roles: ['Admin', 'Executive', 'Sales Manager', 'Employee'] },
+      { path: '/risks', label: 'Account Health', roles: ['Admin', 'Executive', 'Sales Manager'] },
+      { path: '/webhooks-demo', label: 'Greetings Sender', roles: ['Admin', 'Executive', 'Sales Manager'] },
+      { path: '/users', label: 'User Directory', roles: ['Admin', 'Executive', 'Sales Manager', 'Employee'] },
+      { path: '/interaction-log', label: 'Interaction Log', roles: ['Admin', 'Executive', 'Sales Manager', 'Employee'] }
     ];
     return links.filter(link => link.roles.includes(role));
   };
@@ -215,8 +215,8 @@ export default function Navbar() {
   const canAccessNotificationEngine = user?.role === 'Admin' || user?.userType === 'Admin' || user?.name?.toLowerCase().includes('nazneen') || user?.email?.toLowerCase().includes('nazneen') || user?.email === 'nj@gmail.com';
 
   return (
-    <header className="h-20 glass border-b border-slate-800/80 px-3 sm:px-5 xl:px-8 flex items-center justify-between gap-3 sticky top-0 shrink-0 select-none" style={{ zIndex: 9999 }}>
-      
+    <header className="h-20 bg-white border-b border-slate-100 px-3 sm:px-5 xl:px-8 flex items-center justify-between gap-3 sticky top-0 shrink-0 select-none z-40">
+
       {/* Brand Logo - click to go back to landing page */}
       <div className="flex items-center gap-3.5 cursor-pointer shrink-0" onClick={() => navigate('/')}>
         <div className="flex items-center gap-2.5">
@@ -251,25 +251,25 @@ export default function Navbar() {
         {/* Dashboard */}
         <NavLink
           to="/dashboard"
-          className={({ isActive }) => 
-            `px-2.5 py-1.5 xl:px-3.5 xl:py-1.5 rounded-lg text-xs xl:text-sm font-semibold border whitespace-nowrap transition-colors ${
-              isActive 
-                ? 'bg-primary/10 border-primary/25 text-primary' 
-                : 'bg-transparent border-transparent text-primary/70 hover:text-primary'
+          className={({ isActive }) =>
+            `px-2.5 py-1.5 xl:px-3.5 xl:py-1.5 rounded-lg text-xs xl:text-sm font-semibold border whitespace-nowrap transition-colors ${isActive
+              ? 'bg-[#EBEEF7] border-transparent text-[#223670] font-bold'
+              : 'bg-transparent border-transparent text-slate-800 hover:bg-[#F4F6FB] hover:text-[#223670]'
             }`
           }
         >
           Dashboard
         </NavLink>
 
+
+
         {/* Interaction Log */}
         <NavLink
           to="/interaction-log"
-          className={({ isActive }) => 
-            `px-2.5 py-1.5 xl:px-3.5 xl:py-1.5 rounded-lg text-xs xl:text-sm font-semibold border whitespace-nowrap transition-colors ${
-              isActive 
-                ? 'bg-primary/10 border-primary/25 text-primary' 
-                : 'bg-transparent border-transparent text-primary/70 hover:text-primary'
+          className={({ isActive }) =>
+            `px-2.5 py-1.5 xl:px-3.5 xl:py-1.5 rounded-lg text-xs xl:text-sm font-semibold border whitespace-nowrap transition-colors ${isActive
+              ? 'bg-[#EBEEF7] border-transparent text-[#223670] font-bold'
+              : 'bg-transparent border-transparent text-slate-800 hover:bg-[#F4F6FB] hover:text-[#223670]'
             }`
           }
         >
@@ -279,11 +279,10 @@ export default function Navbar() {
         {/* Staff Tasks */}
         <NavLink
           to="/staff-tasks"
-          className={({ isActive }) => 
-            `px-2.5 py-1.5 xl:px-3.5 xl:py-1.5 rounded-lg text-xs xl:text-sm font-semibold border whitespace-nowrap transition-colors ${
-              isActive 
-                ? 'bg-primary/10 border-primary/25 text-primary' 
-                : 'bg-transparent border-transparent text-primary/70 hover:text-primary'
+          className={({ isActive }) =>
+            `px-2.5 py-1.5 xl:px-3.5 xl:py-1.5 rounded-lg text-xs xl:text-sm font-semibold border whitespace-nowrap transition-colors ${isActive
+              ? 'bg-[#EBEEF7] border-transparent text-[#223670] font-bold'
+              : 'bg-transparent border-transparent text-slate-800 hover:bg-[#F4F6FB] hover:text-[#223670]'
             }`
           }
         >
@@ -291,12 +290,11 @@ export default function Navbar() {
         </NavLink>
 
         {/* Accounts Dropdown */}
-        <div 
-          className={`relative flex items-center rounded-lg border whitespace-nowrap transition-colors ${
-            ['/accounts', '/contacts'].includes(location.pathname)
-              ? 'bg-primary/10 border-primary/25 text-primary'
-              : 'bg-transparent border-transparent text-primary/70 hover:text-primary'
-          }`}
+        <div
+          className={`relative flex items-center rounded-lg border whitespace-nowrap transition-colors ${['/accounts', '/contacts'].includes(location.pathname)
+              ? 'bg-[#EBEEF7] border-transparent text-[#223670] font-bold'
+              : 'bg-transparent border-transparent text-slate-800 hover:bg-[#F4F6FB] hover:text-[#223670]'
+            }`}
           ref={accountsDropdownRef}
         >
           <NavLink
@@ -316,17 +314,16 @@ export default function Navbar() {
           >
             <ChevronDown className="w-3.5 h-3.5 opacity-60" />
           </button>
-          
+
           {isAccountsOpen && (
-            <div className="absolute left-0 mt-2 top-full w-48 glass border border-slate-800 rounded-xl shadow-2xl p-1.5 z-50 animate-soft-pulse duration-300">
+            <div className="absolute left-0 mt-2 top-full w-48 bg-white border border-slate-100 rounded-xl shadow-lg p-1.5 z-50">
               <NavLink
                 to="/accounts"
                 onClick={() => setIsAccountsOpen(false)}
                 className={({ isActive }) =>
-                  `flex items-center px-3 py-2.5 rounded-lg text-xs font-bold transition-all ${
-                    isActive
-                      ? 'bg-primary/10 text-primary'
-                      : 'text-slate-350 hover:text-primary'
+                  `flex items-center px-3 py-2.5 rounded-lg text-xs font-bold transition-all ${isActive
+                    ? 'bg-primary/10 text-primary'
+                    : 'text-slate-350 hover:text-primary'
                   }`
                 }
               >
@@ -336,10 +333,9 @@ export default function Navbar() {
                 to="/contacts"
                 onClick={() => setIsAccountsOpen(false)}
                 className={({ isActive }) =>
-                  `flex items-center px-3 py-2.5 rounded-lg text-xs font-bold transition-all mt-0.5 ${
-                    isActive
-                      ? 'bg-primary/10 text-primary'
-                      : 'text-slate-350 hover:text-primary'
+                  `flex items-center px-3 py-2.5 rounded-lg text-xs font-bold transition-all mt-0.5 ${isActive
+                    ? 'bg-primary/10 text-primary'
+                    : 'text-slate-350 hover:text-primary'
                   }`
                 }
               >
@@ -349,73 +345,26 @@ export default function Navbar() {
           )}
         </div>
 
-        {/* Risks Dropdown – visible to all users */}
-        <div 
-          className={`relative flex items-center rounded-lg border whitespace-nowrap transition-colors ${
-            ['/risks', '/webhooks-demo'].includes(location.pathname)
-              ? 'bg-primary/10 border-primary/25 text-primary'
-              : 'bg-transparent border-transparent text-primary/70 hover:text-primary'
-          }`}
-          ref={risksDropdownRef}
+        {/* Account Health */}
+        <NavLink
+          to="/risks"
+          className={({ isActive }) =>
+            `px-2.5 py-1.5 xl:px-3.5 xl:py-1.5 rounded-lg text-xs xl:text-sm font-semibold border whitespace-nowrap transition-colors ${isActive || location.pathname === '/webhooks-demo'
+              ? 'bg-[#EBEEF7] border-transparent text-[#223670] font-bold'
+              : 'bg-transparent border-transparent text-slate-800 hover:bg-[#F4F6FB] hover:text-[#223670]'
+            }`
+          }
         >
-          <NavLink
-            to="/risks"
-            className="px-2.5 py-1.5 xl:px-3.5 xl:py-1.5 text-xs xl:text-sm font-semibold transition-colors"
-            onClick={() => setIsRisksOpen(false)}
-          >
-            Risks
-          </NavLink>
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              setIsRisksOpen(!isRisksOpen);
-              setIsAccountsOpen(false);
-            }}
-            className="pr-2 pl-0.5 py-1.5 cursor-pointer flex items-center justify-center hover:text-primary border-l border-transparent transition-colors"
-          >
-            <ChevronDown className="w-3.5 h-3.5 opacity-60" />
-          </button>
-          
-          {isRisksOpen && (
-            <div className="absolute left-0 mt-2 top-full w-48 glass border border-slate-800 rounded-xl shadow-2xl p-1.5 z-50 animate-soft-pulse duration-300">
-              <NavLink
-                to="/risks"
-                onClick={() => setIsRisksOpen(false)}
-                className={({ isActive }) =>
-                  `flex items-center px-3 py-2.5 rounded-lg text-xs font-bold transition-all ${
-                    isActive
-                      ? 'bg-primary/10 text-primary'
-                      : 'text-slate-350 hover:text-primary'
-                  }`
-                }
-              >
-                Risks Center
-              </NavLink>
-              <NavLink
-                to="/webhooks-demo"
-                onClick={() => setIsRisksOpen(false)}
-                className={({ isActive }) =>
-                  `flex items-center px-3 py-2.5 rounded-lg text-xs font-bold transition-all mt-0.5 ${
-                    isActive
-                      ? 'bg-primary/10 text-primary'
-                      : 'text-slate-355 hover:text-primary'
-                  }`
-                }
-              >
-                Email Ingestion
-              </NavLink>
-            </div>
-          )}
-        </div>
+          Account Health
+        </NavLink>
 
         {/* User Directory */}
         <NavLink
           to="/users"
-          className={({ isActive }) => 
-            `px-2.5 py-1.5 xl:px-3.5 xl:py-1.5 rounded-lg text-xs xl:text-sm font-semibold border whitespace-nowrap transition-colors ${
-              isActive 
-                ? 'bg-primary/10 border-primary/25 text-primary' 
-                : 'bg-transparent border-transparent text-primary/70 hover:text-primary'
+          className={({ isActive }) =>
+            `px-2.5 py-1.5 xl:px-3.5 xl:py-1.5 rounded-lg text-xs xl:text-sm font-semibold border whitespace-nowrap transition-colors ${isActive
+              ? 'bg-[#EBEEF7] border-transparent text-[#223670] font-bold'
+              : 'bg-transparent border-transparent text-slate-800 hover:bg-[#F4F6FB] hover:text-[#223670]'
             }`
           }
         >
@@ -425,33 +374,35 @@ export default function Navbar() {
 
       {/* Right Actions Block */}
       <div className="flex items-center gap-2.5 sm:gap-3.5 shrink-0">
-        
+
         {/* Mobile Menu Toggler */}
         <button
           onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-          className="lg:hidden bg-slate-800/50 p-2 rounded-xl border border-slate-700/60 hover:bg-slate-800 hover:text-white transition-all cursor-pointer"
+          className="lg:hidden bg-slate-100 hover:bg-slate-200 text-slate-700 hover:text-black p-2 rounded-xl border border-slate-200 hover:border-slate-300 transition-colors cursor-pointer"
           type="button"
         >
-          {isMobileMenuOpen ? <X className="w-5 h-5 text-slate-300" /> : <Menu className="w-5 h-5 text-slate-300" />}
+          {isMobileMenuOpen ? <X className="w-5 h-5 text-slate-700" /> : <Menu className="w-5 h-5 text-slate-700" />}
         </button>
 
         {/* Notification Bell */}
         <div className="relative" ref={notifDropdownRef}>
-          <button 
+          <button
+            type="button"
             onClick={() => setIsNotifOpen(!isNotifOpen)}
-            className="relative bg-slate-800/50 p-2.5 rounded-xl border border-slate-700/60 hover:bg-slate-800 hover:text-white transition-all duration-200 cursor-pointer"
+            className="relative bg-slate-100 hover:bg-slate-200 p-2.5 rounded-xl border border-slate-200 hover:border-slate-300 transition-colors duration-150 cursor-pointer shadow-xs"
+            title="Notifications"
           >
-            <Bell className="w-4.5 h-4.5 text-slate-300" />
+            <Bell className="w-4.5 h-4.5 text-slate-700" />
             {unreadNotificationsCount > 0 && (
-              <span className="absolute -top-1 -right-1 bg-danger text-white text-xs font-bold w-5 h-5 rounded-full flex items-center justify-center animate-bounce border border-dark-950">
+              <span className="absolute -top-1 -right-1 bg-danger text-white text-xs font-bold w-5 h-5 rounded-full flex items-center justify-center animate-bounce border-2 border-white shadow-xs">
                 {unreadNotificationsCount}
               </span>
             )}
           </button>
 
           {isNotifOpen && (
-            <div className="absolute right-0 mt-3 w-80 bg-white border border-slate-800 rounded-xl shadow-2xl overflow-hidden" style={{ zIndex: 99999, backgroundColor: '#ffffff' }}>
-              <div className="px-4 py-3 border-b border-slate-800/80 flex items-center justify-between bg-white">
+            <div className="absolute -right-12 sm:right-0 mt-3 w-[calc(100vw-32px)] sm:w-80 max-w-sm bg-white border border-slate-200 rounded-xl shadow-2xl overflow-hidden" style={{ zIndex: 99999, backgroundColor: '#ffffff' }}>
+              <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between bg-white">
                 <span className="text-xs font-black text-black uppercase tracking-wider">Notifications</span>
                 {unreadNotificationsCount > 0 && (
                   <span className="bg-danger/10 text-danger text-[10px] font-black px-2 py-0.5 rounded-full border border-danger/20">
@@ -459,19 +410,18 @@ export default function Navbar() {
                   </span>
                 )}
               </div>
-              <div className="max-h-80 overflow-y-auto divide-y divide-slate-800/60 bg-white">
+              <div className="max-h-80 overflow-y-auto divide-y divide-slate-100 bg-white">
                 {notifications.length === 0 ? (
                   <div className="p-6 text-center bg-white">
-                    <Bell className="w-8 h-8 text-slate-600 mx-auto mb-2 opacity-50" />
+                    <Bell className="w-8 h-8 text-slate-400 mx-auto mb-2 opacity-50" />
                     <p className="text-xs text-slate-500 font-semibold">No notifications yet</p>
                   </div>
                 ) : (
                   notifications.map((notif, idx) => (
                     <div
                       key={notif.notificationId || notif.id || notif._id || idx}
-                      className={`px-4 py-3 cursor-pointer transition-colors hover:bg-sky-50/60 bg-white ${
-                        notif.read ? 'bg-white' : 'bg-primary/5 border-l-2 border-primary'
-                      }`}
+                      className={`px-4 py-3 cursor-pointer transition-colors hover:bg-sky-50/60 bg-white ${notif.read ? 'bg-white' : 'bg-primary/5 border-l-2 border-primary'
+                        }`}
                     >
                       <div className="flex items-start justify-between gap-2">
                         <p
@@ -510,9 +460,9 @@ export default function Navbar() {
         </div>
 
         {/* User Profile Dropdown Menu */}
-        <div className="relative border-l border-slate-800/60 pl-4" ref={profileDropdownRef}>
+        <div className="relative border-l border-slate-200 pl-4" ref={profileDropdownRef}>
 
-          <button 
+          <button
             onClick={() => setIsProfileOpen(!isProfileOpen)}
             className="flex items-center gap-2 hover:opacity-85 transition-opacity cursor-pointer text-left"
           >
@@ -529,23 +479,26 @@ export default function Navbar() {
           </button>
 
           {isProfileOpen && (
-            <div className="absolute right-0 mt-3 w-56 glass border border-slate-800 rounded-xl shadow-2xl p-1.5 animate-soft-pulse duration-500" style={{ zIndex: 99999 }}>
-              <div className="px-3.5 py-2.5 border-b border-slate-800/80 mb-1 leading-none md:hidden">
+            <div className="absolute right-0 mt-3 w-56 bg-white border border-slate-200 rounded-xl shadow-2xl p-1.5" style={{ zIndex: 99999 }}>
+              <div className="px-3.5 py-2.5 border-b border-slate-100 mb-1 leading-none md:hidden">
                 <span className="text-sm font-bold text-black block truncate">{user?.name}</span>
                 <span className="text-xs font-bold uppercase mt-1 block truncate" style={{ color: '#10b981' }}>
                   {userDisplayTag}
                 </span>
               </div>
               {canAccessNotificationEngine && (
-                <button 
-                  onClick={() => { setIsProfileOpen(false); navigate('/notification-center'); }}
+                <button
+                  onClick={() => { setIsProfileOpen(false); navigate('/notification-center', { state: { from: location.pathname + location.search } }); }}
                   className="w-full flex items-center gap-2 px-3 py-2.5 rounded-lg text-slate-700 hover:bg-slate-100 text-sm font-semibold transition-all cursor-pointer text-left mb-1"
                 >
                   <Bell className="w-4 h-4 text-primary" />
                   Notification Engine
                 </button>
               )}
-              <button 
+
+              
+
+              <button
                 onClick={handleLogout}
                 className="w-full flex items-center gap-2 px-3 py-2.5 rounded-lg text-rose-500 hover:bg-rose-500/10 active:scale-98 text-sm font-semibold transition-all cursor-pointer text-left"
               >
@@ -560,16 +513,15 @@ export default function Navbar() {
 
       {/* Mobile Menu Drawer */}
       {isMobileMenuOpen && (
-        <div className="lg:hidden absolute top-20 left-0 right-0 bg-dark-950/98 backdrop-blur-md border-b border-slate-800 p-5 space-y-3.5 shadow-2xl flex flex-col select-none max-h-[80vh] overflow-y-auto" style={{ zIndex: 99999 }}>
+        <div className="lg:hidden absolute top-20 left-0 right-0 bg-white/98 backdrop-blur-md border-b border-slate-200 p-5 space-y-3.5 shadow-2xl flex flex-col select-none max-h-[calc(100vh-80px)] overflow-y-auto" style={{ zIndex: 99999 }}>
           {/* Dashboard */}
           <NavLink
             to="/dashboard"
             onClick={() => setIsMobileMenuOpen(false)}
-            className={({ isActive }) => 
-              `px-4 py-3 rounded-xl text-sm font-semibold border ${
-                isActive 
-                  ? 'bg-primary/15 border-primary/25 text-primary' 
-                  : 'bg-transparent border-transparent text-primary/70 hover:text-primary'
+            className={({ isActive }) =>
+              `px-4 py-3 rounded-xl text-sm font-semibold border ${isActive
+                ? 'bg-[#EBEEF7] border-transparent text-[#223670] font-bold'
+                : 'bg-transparent border-transparent text-slate-800 hover:bg-[#F4F6FB] hover:text-[#223670]'
               }`
             }
           >
@@ -580,11 +532,10 @@ export default function Navbar() {
           <NavLink
             to="/interaction-log"
             onClick={() => setIsMobileMenuOpen(false)}
-            className={({ isActive }) => 
-              `px-4 py-3 rounded-xl text-sm font-semibold border ${
-                isActive 
-                  ? 'bg-primary/15 border-primary/25 text-primary' 
-                  : 'bg-transparent border-transparent text-primary/70 hover:text-primary'
+            className={({ isActive }) =>
+              `px-4 py-3 rounded-xl text-sm font-semibold border ${isActive
+                ? 'bg-[#EBEEF7] border-transparent text-[#223670] font-bold'
+                : 'bg-transparent border-transparent text-slate-800 hover:bg-[#F4F6FB] hover:text-[#223670]'
               }`
             }
           >
@@ -595,18 +546,15 @@ export default function Navbar() {
           <NavLink
             to="/staff-tasks"
             onClick={() => setIsMobileMenuOpen(false)}
-            className={({ isActive }) => 
-              `px-4 py-3 rounded-xl text-sm font-semibold border ${
-                isActive 
-                  ? 'bg-primary/15 border-primary/25 text-primary' 
-                  : 'bg-transparent border-transparent text-primary/70 hover:text-primary'
+            className={({ isActive }) =>
+              `px-4 py-3 rounded-xl text-sm font-semibold border ${isActive
+                ? 'bg-[#EBEEF7] border-transparent text-[#223670] font-bold'
+                : 'bg-transparent border-transparent text-slate-800 hover:bg-[#F4F6FB] hover:text-[#223670]'
               }`
             }
           >
             Tasks
           </NavLink>
-
-
 
           {/* Accounts Group */}
           <div className="space-y-1.5">
@@ -615,11 +563,10 @@ export default function Navbar() {
               <NavLink
                 to="/accounts"
                 onClick={() => setIsMobileMenuOpen(false)}
-                className={({ isActive }) => 
-                  `block px-4 py-2.5 rounded-xl text-sm font-semibold border ${
-                    isActive 
-                      ? 'bg-primary/15 border-primary/25 text-primary' 
-                      : 'bg-transparent border-transparent text-primary/70 hover:text-primary'
+                className={({ isActive }) =>
+                  `block px-4 py-2.5 rounded-xl text-sm font-semibold border ${isActive
+                    ? 'bg-[#EBEEF7] border-transparent text-[#223670] font-bold'
+                    : 'bg-transparent border-transparent text-slate-800 hover:bg-[#F4F6FB] hover:text-[#223670]'
                   }`
                 }
               >
@@ -628,11 +575,10 @@ export default function Navbar() {
               <NavLink
                 to="/contacts"
                 onClick={() => setIsMobileMenuOpen(false)}
-                className={({ isActive }) => 
-                  `block px-4 py-2.5 rounded-xl text-sm font-semibold border ${
-                    isActive 
-                      ? 'bg-primary/15 border-primary/25 text-primary' 
-                      : 'bg-transparent border-transparent text-primary/70 hover:text-primary'
+                className={({ isActive }) =>
+                  `block px-4 py-2.5 rounded-xl text-sm font-semibold border ${isActive
+                    ? 'bg-[#EBEEF7] border-transparent text-[#223670] font-bold'
+                    : 'bg-transparent border-transparent text-slate-800 hover:bg-[#F4F6FB] hover:text-[#223670]'
                   }`
                 }
               >
@@ -641,35 +587,21 @@ export default function Navbar() {
             </div>
           </div>
 
-          {/* Risks Group – visible to all users */}
+          {/* Account Health Group – visible to all users */}
           <div className="space-y-1.5">
-            <div className="px-4 text-[10px] font-black uppercase tracking-wider text-slate-500">Risks & Ingestion</div>
+            <div className="px-4 text-[10px] font-black uppercase tracking-wider text-slate-500">Account Health & Ingestion</div>
             <div className="pl-4 space-y-1">
               <NavLink
                 to="/risks"
                 onClick={() => setIsMobileMenuOpen(false)}
-                className={({ isActive }) => 
-                  `block px-4 py-2.5 rounded-xl text-sm font-semibold border ${
-                    isActive 
-                      ? 'bg-primary/15 border-primary/25 text-primary' 
-                      : 'bg-transparent border-transparent text-primary/70 hover:text-primary'
+                className={({ isActive }) =>
+                  `block px-4 py-2.5 rounded-xl text-sm font-semibold border ${isActive
+                    ? 'bg-[#EBEEF7] border-transparent text-[#223670] font-bold'
+                    : 'bg-transparent border-transparent text-slate-800 hover:bg-[#F4F6FB] hover:text-[#223670]'
                   }`
                 }
               >
-                Risks Center
-              </NavLink>
-              <NavLink
-                to="/webhooks-demo"
-                onClick={() => setIsMobileMenuOpen(false)}
-                className={({ isActive }) => 
-                  `block px-4 py-2.5 rounded-xl text-sm font-semibold border ${
-                    isActive 
-                      ? 'bg-primary/15 border-primary/25 text-primary' 
-                      : 'bg-transparent border-transparent text-primary/70 hover:text-primary'
-                  }`
-                }
-              >
-                Email Ingestion
+                Account Health
               </NavLink>
             </div>
           </div>
@@ -678,17 +610,15 @@ export default function Navbar() {
           <NavLink
             to="/users"
             onClick={() => setIsMobileMenuOpen(false)}
-            className={({ isActive }) => 
-              `px-4 py-3 rounded-xl text-sm font-semibold border ${
-                isActive 
-                  ? 'bg-primary/15 border-primary/25 text-primary' 
-                  : 'bg-transparent border-transparent text-primary/70 hover:text-primary'
+            className={({ isActive }) =>
+              `px-4 py-3 rounded-xl text-sm font-semibold border ${isActive
+                ? 'bg-[#EBEEF7] border-transparent text-[#223670] font-bold'
+                : 'bg-transparent border-transparent text-slate-800 hover:bg-[#F4F6FB] hover:text-[#223670]'
               }`
             }
           >
             User Directory
           </NavLink>
-
         </div>
       )}
 
@@ -697,9 +627,10 @@ export default function Navbar() {
         <div
           style={{
             position: 'fixed',
-            bottom: '24px',
-            right: '24px',
-            width: '360px',
+            bottom: '16px',
+            right: '16px',
+            width: 'calc(100vw - 32px)',
+            maxWidth: '360px',
             zIndex: 999999,
             backgroundColor: '#ffffff',
             border: '1px solid #cbd5e1',

@@ -1,15 +1,29 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { 
   CheckSquare, ArrowLeft, Building2, Users, Calendar, Clock, AtSign, Square, Send, 
   Mail, Video, Phone, MessageSquare, X, Paperclip, Upload, FileText, Trash2, Loader2, ChevronLeft, Plus
 } from 'lucide-react';
 import { useStore } from '../store/index.js';
 import { getCurrentKolkataDate, getCurrentKolkataTime } from '../utils/dateFormat.js';
+import SearchableSelect from '../components/SearchableSelect.jsx';
+import LoadingSpinner from '../components/LoadingSpinner.jsx';
 
 export default function LogInteraction() {
   const navigate = useNavigate();
+  const location = useLocation();
+
+  const handleBack = () => {
+    if (location.state?.from) {
+      navigate(location.state.from);
+    } else if (window.history.length > 1) {
+      navigate(-1);
+    } else {
+      navigate('/interaction-log');
+    }
+  };
   const { 
+    user,
     accounts,
     fetchAccounts,
     contacts,
@@ -96,15 +110,220 @@ export default function LogInteraction() {
   };
 
   useEffect(() => {
-    fetchAccounts();
+    fetchAccounts(1, '', { limit: 10000 });
     fetchStaff();
-  }, []);
+    fetchContacts();
+
+    if (location.state?.preselectAccountId) {
+      setInteractionAccountId(location.state.preselectAccountId);
+    } else if (location.state?.accountId) {
+      setInteractionAccountId(location.state.accountId);
+    }
+
+    if (location.state?.preselectContactId) {
+      setInteractionContactId(location.state.preselectContactId);
+    } else if (location.state?.contactId) {
+      setInteractionContactId(location.state.contactId);
+    }
+  }, [location.state]);
+
+  // Account matching fallback if accounts was still loading or passed by name
+  useEffect(() => {
+    if (accounts?.length) {
+      const targetId = location.state?.preselectAccountId || location.state?.accountId;
+      const targetName = location.state?.preselectCompanyName || location.state?.companyName;
+      const currentMatched = accounts.some(a => String(a.accountId || a.id) === String(interactionAccountId));
+      if (!currentMatched && (targetId || targetName)) {
+        const match = accounts.find(a => 
+          (targetId && (String(a.accountId) === String(targetId) || String(a.id) === String(targetId))) ||
+          (targetName && (
+            a.companyName?.toLowerCase().trim() === targetName.toLowerCase().trim() ||
+            a.companyName?.toLowerCase().includes(targetName.toLowerCase().trim()) ||
+            targetName.toLowerCase().includes(a.companyName?.toLowerCase().trim())
+          ))
+        );
+        if (match) {
+          setInteractionAccountId(match.accountId || match.id);
+        }
+      }
+    }
+  }, [accounts, interactionAccountId, location.state]);
+
+  // Client Contact matching fallback if contacts loaded
+  useEffect(() => {
+    if (contacts?.length && !interactionContactId) {
+      const targetContactId = location.state?.preselectContactId || location.state?.contactId;
+      const targetContactName = location.state?.preselectContactName || location.state?.contactName;
+      if (targetContactId || targetContactName) {
+        const match = contacts.find(c => 
+          (targetContactId && (String(c.contactId) === String(targetContactId) || String(c.id) === String(targetContactId))) ||
+          (targetContactName && c.name?.toLowerCase().includes(targetContactName.toLowerCase()))
+        );
+        if (match) {
+          setInteractionContactId(match.contactId || match.id);
+        }
+      }
+    }
+  }, [contacts, interactionContactId, location.state]);
+
+  // If contact is selected and account is empty, auto-set account from contact
+  useEffect(() => {
+    if (!interactionAccountId && interactionContactId && contacts?.length) {
+      const matchedContact = contacts.find(c => String(c.contactId || c.id) === String(interactionContactId));
+      if (matchedContact?.accountId) {
+        setInteractionAccountId(matchedContact.accountId);
+      }
+    }
+  }, [contacts, interactionContactId, interactionAccountId]);
 
   useEffect(() => {
     if (interactionAccountId) {
       fetchContacts(interactionAccountId);
+    } else {
+      fetchContacts();
     }
   }, [interactionAccountId]);
+
+  // Auto-select contact for account if none selected yet (only if strictly 1 contact exists)
+  useEffect(() => {
+    if (interactionAccountId && contacts?.length && !interactionContactId) {
+      const accContacts = contacts.filter(c => 
+        String(c.accountId || c.account_id) === String(interactionAccountId)
+      );
+      if (accContacts.length === 1) {
+        setInteractionContactId(accContacts[0].contactId || accContacts[0].id);
+      }
+    }
+  }, [interactionAccountId, contacts, interactionContactId]);
+
+  // Auto-prefill staff mention in task following Admin vs Account Owner flow
+  useEffect(() => {
+    if (location.state?.preselectUid || location.state?.preselectName) {
+      const targetUid = location.state.preselectUid;
+      const targetName = location.state.preselectName;
+      if (staffList?.length) {
+        const match = staffList.find(s => 
+          (targetUid && String(s.uid) === String(targetUid)) ||
+          (targetName && s.name?.toLowerCase().trim() === targetName.toLowerCase().replace(/^@/, '').trim())
+        );
+        if (match) {
+          setTasks(prev => {
+            if (!prev || prev.length === 0) return prev;
+            if (prev[0].selectedMentions.length === 0) {
+              const updated = [...prev];
+              updated[0] = {
+                ...updated[0],
+                selectedMentions: [{ uid: match.uid, name: match.name, email: match.email }]
+              };
+              return updated;
+            }
+            return prev;
+          });
+          return;
+        }
+      }
+    }
+
+    if (interactionAccountId && accounts?.length && staffList?.length) {
+      const acc = accounts.find(a => String(a.accountId || a.id) === String(interactionAccountId));
+      if (!acc) return;
+
+      const accOwnerId = acc?.ownerId || acc?.assignedTo;
+      const accOwnerName = acc?.ownerName || acc?.owner;
+      const accOwnerEmail = acc?.ownerEmail;
+
+      const accContacts = (contacts || []).filter(c => 
+        String(c.accountId || c.account_id) === String(interactionAccountId)
+      );
+
+      const keyContactOwners = accContacts
+        .map(c => ({
+          ownerId: c.ownerId,
+          ownerName: c.ownerName,
+          ownerEmail: c.ownerEmail,
+          contactName: c.name
+        }))
+        .filter(k => k.ownerId || k.ownerName || k.ownerEmail);
+
+      const isUserMatch = (u, oId, oName, oEmail) => {
+        if (!u) return false;
+        const uId = String(u.uid || '');
+        const uEmail = (u.email || '').toLowerCase().trim();
+        const uName = (u.name || '').toLowerCase().trim();
+        if (oId && String(oId) === uId) return true;
+        if (oEmail && uEmail && oEmail.toLowerCase().trim() === uEmail) return true;
+        if (oName && uName && oName.toLowerCase().trim() === uName) return true;
+        return false;
+      };
+
+      const isAdminUser = (u) => {
+        if (!u) return false;
+        const role = String(u.role || u.userType || '').toLowerCase();
+        const email = String(u.email || u.ownerEmail || '').toLowerCase();
+        const uid = String(u.uid || u.ownerId || '');
+        const name = String(u.name || u.ownerName || '').toLowerCase();
+        return (
+          role === 'admin' ||
+          uid === 'mock-admin-uid' ||
+          email.includes('admin@') ||
+          name.includes('admin user')
+        );
+      };
+
+      const isCurrentUserAdmin = isAdminUser(user);
+      const isCurrentUserAccountOwner = !isCurrentUserAdmin && isUserMatch(user, accOwnerId, accOwnerName, accOwnerEmail);
+      const isCurrentUserKeyContactOwner = !isCurrentUserAdmin && keyContactOwners.some(k => isUserMatch(user, k.ownerId, k.ownerName, k.ownerEmail));
+
+      let chosen = null;
+      if (isCurrentUserAdmin) {
+        let accOwnerCandidate = (accOwnerId || accOwnerName) 
+          ? { ownerId: accOwnerId, ownerName: accOwnerName, ownerEmail: accOwnerEmail } 
+          : null;
+        if (accOwnerCandidate && !isAdminUser(accOwnerCandidate)) {
+          chosen = accOwnerCandidate;
+        } else {
+          chosen = keyContactOwners.find(k => !isAdminUser(k)) || accOwnerCandidate || keyContactOwners[0];
+        }
+      } else if (isCurrentUserAccountOwner) {
+        chosen = keyContactOwners.find(k => !isUserMatch(user, k.ownerId, k.ownerName, k.ownerEmail) && !isAdminUser(k))
+          || keyContactOwners.find(k => !isUserMatch(user, k.ownerId, k.ownerName, k.ownerEmail))
+          || keyContactOwners[0];
+      } else if (isCurrentUserKeyContactOwner) {
+        chosen = (accOwnerId || accOwnerName) ? { ownerId: accOwnerId, ownerName: accOwnerName, ownerEmail: accOwnerEmail } : null;
+      } else {
+        let accOwnerCandidate = (accOwnerId || accOwnerName) 
+          ? { ownerId: accOwnerId, ownerName: accOwnerName, ownerEmail: accOwnerEmail } 
+          : null;
+        if (accOwnerCandidate && !isAdminUser(accOwnerCandidate)) {
+          chosen = accOwnerCandidate;
+        } else {
+          chosen = keyContactOwners.find(k => !isAdminUser(k)) || accOwnerCandidate || keyContactOwners[0];
+        }
+      }
+
+      if (chosen) {
+        const match = staffList.find(s => 
+          (chosen.ownerId && String(s.uid) === String(chosen.ownerId)) ||
+          (chosen.ownerEmail && s.email && s.email.toLowerCase().trim() === chosen.ownerEmail.toLowerCase().trim()) ||
+          (chosen.ownerName && s.name && s.name.toLowerCase().trim() === chosen.ownerName.toLowerCase().trim())
+        );
+        if (match && (!isCurrentUserAdmin || !isAdminUser(match))) {
+          setTasks(prev => {
+            if (!prev || prev.length === 0) return prev;
+            if (prev[0].selectedMentions.length === 0) {
+              const updated = [...prev];
+              updated[0] = {
+                ...updated[0],
+                selectedMentions: [{ uid: match.uid, name: match.name, email: match.email }]
+              };
+              return updated;
+            }
+            return prev;
+          });
+        }
+      }
+    }
+  }, [interactionAccountId, accounts, contacts, staffList, user, location.state]);
 
   const channels = [
     { id: 'Outlook Mail', label: 'Outlook Mail', icon: Mail, color: 'text-blue-400' },
@@ -182,7 +401,7 @@ export default function LogInteraction() {
     if (res) {
       fetchActivityLogs();
       fetchInteractions();
-      navigate('/interaction-log');
+      handleBack();
     }
   };
 
@@ -336,10 +555,11 @@ export default function LogInteraction() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <button 
-          onClick={() => navigate('/interaction-log')}
-          className="flex items-center gap-1.5 cursor-pointer text-black hover:bg-dark-700 transition-colors font-bold text-base px-3.5 py-1.5 rounded-full"
+          type="button"
+          onClick={handleBack}
+          className="back-btn"
         >
-          <ChevronLeft className="w-5 h-5" />
+          <ChevronLeft className="w-5 h-5" strokeWidth={2.5} />
           <span>Back</span>
         </button>
         <h2 className="text-base font-extrabold text-white tracking-wide uppercase">Log Interaction</h2>
@@ -382,40 +602,45 @@ export default function LogInteraction() {
               <label className="text-xs text-slate-500 uppercase font-bold tracking-wider flex items-center gap-1.5">
                 <Building2 className="w-3 h-3 text-slate-400" /> Account
               </label>
-              <select
+              <SearchableSelect
                 value={interactionAccountId}
-                onChange={(e) => {
-                  setInteractionAccountId(e.target.value);
+                onChange={(val) => {
+                  setInteractionAccountId(val);
                   setInteractionContactId('');
                 }}
-                className="w-full bg-dark-700/50 border border-slate-350 text-xs rounded-xl p-3 focus:outline-none focus:border-primary/50 cursor-pointer"
-              >
-                <option value="">Select Company</option>
-                {accounts.map(acc => (
-                  <option key={acc.accountId || acc.id} value={acc.accountId || acc.id}>
-                    {acc.companyName}
-                  </option>
-                ))}
-              </select>
+                options={accounts || []}
+                getOptionValue={(a) => a.accountId || a.id}
+                getOptionLabel={(a) => a.companyName || ''}
+                getOptionSublabel={(a) => [a.domain, a.industry, a.region].filter(Boolean).join(' · ')}
+                placeholder="Search & select account..."
+                icon={Building2}
+                emptyMessage="No accounts found"
+              />
             </div>
             <div className="space-y-1.5">
               <label className="text-xs text-slate-500 uppercase font-bold tracking-wider flex items-center gap-1.5">
                 <Users className="w-3 h-3 text-slate-400" /> Client Contact
               </label>
-              <select
+              <SearchableSelect
                 value={interactionContactId}
-                onChange={(e) => setInteractionContactId(e.target.value)}
-                className="w-full bg-dark-700/50 border border-slate-350 text-xs rounded-xl p-3 focus:outline-none focus:border-primary/50 cursor-pointer"
-              >
-                <option value="">{contacts.length === 0 ? 'No contacts found' : 'Select Contact'}</option>
-                {contacts
-                  .filter(c => !interactionAccountId || c.accountId === interactionAccountId)
-                  .map(c => (
-                    <option key={c.contactId} value={c.contactId}>
-                      {c.name} — {c.designation || c.hierarchyTag}
-                    </option>
-                  ))}
-              </select>
+                onChange={(val, contactObj) => {
+                  setInteractionContactId(val);
+                  if (contactObj?.accountId && !interactionAccountId) {
+                    setInteractionAccountId(contactObj.accountId);
+                  }
+                }}
+                options={(contacts || []).filter(c => 
+                  !interactionAccountId || 
+                  String(c.accountId || c.account_id) === String(interactionAccountId) ||
+                  ((accounts || []).some(a => String(a.accountId || a.id) === String(interactionAccountId) && a.companyName && c.companyName?.toLowerCase().trim() === a.companyName?.toLowerCase().trim()))
+                )}
+                getOptionValue={(c) => c.contactId || c.id}
+                getOptionLabel={(c) => c.name || ''}
+                getOptionSublabel={(c) => [c.designation, c.hierarchyTag, c.ownerName ? `Owner: ${c.ownerName}` : null, c.email].filter(Boolean).join(' — ')}
+                placeholder={(!contacts || contacts.length === 0) ? "No contacts found" : "Search & select contact..."}
+                icon={Users}
+                emptyMessage="No contacts found"
+              />
             </div>
           </div>
 
@@ -480,7 +705,7 @@ export default function LogInteraction() {
                 </label>
                 {uploading && (
                   <span className="text-xs text-slate-400 animate-pulse flex items-center gap-1.5 font-bold">
-                    <Loader2 className="w-3.5 h-3.5 animate-spin text-primary" />
+                    <LoadingSpinner size="xs" />
                     Uploading files to server...
                   </span>
                 )}
@@ -537,7 +762,7 @@ export default function LogInteraction() {
 
             <div className="space-y-6">
               {tasks.map((t, taskIdx) => (
-                <div key={t.id} className="relative bg-dark-900 border border-slate-805 rounded-2xl p-5 space-y-4 shadow-sm">
+                <div key={t.id} className="relative bg-dark-900 border border-slate-200 rounded-2xl p-5 space-y-4 shadow-sm">
                   {/* Remove Button */}
                   <div className="flex items-center justify-between pb-2 border-b border-slate-800/40">
                     <span className="text-xs font-black text-slate-400 uppercase tracking-wider">
@@ -672,7 +897,7 @@ export default function LogInteraction() {
           <div className="border-t border-slate-800 pt-6 flex items-center justify-end gap-3">
             <button
               type="button"
-              onClick={() => navigate('/interaction-log')}
+              onClick={handleBack}
               className="bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-lg px-6 py-3 border border-slate-700/50 cursor-pointer active:scale-98 transition-all"
             >
               Cancel

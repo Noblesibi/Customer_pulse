@@ -1,3 +1,32 @@
+
+const normalizeBU = (raw = '') => {
+  if (!raw || typeof raw !== 'string') return '';
+  const s = raw.trim().toLowerCase();
+
+  if (s === 'bfs' || s.includes('bank') || s.includes('financial')) {
+    return 'Banking & Financial Services (BFS)';
+  }
+  if (s === 'auto' || s.includes('automotive')) {
+    return 'Automotive & Mobility (AUTO)';
+  }
+  if (s === 'hc' || s.includes('health') || s.includes('lifescience')) {
+    return 'Healthcare & Lifesciences (HC)';
+  }
+  if (s === 'stc' || s.includes('software technology')) {
+    return 'Software Technology Center (STC)';
+  }
+  if (s === 'gis' || s.includes('geospatial')) {
+    return 'GIS & Geospatial (GIS)';
+  }
+  if (s === 'ia' || s.includes('industrial automation')) {
+    return 'Industrial Automation (IA)';
+  }
+  if (s.includes('aerospace') || s.includes('defense') || s === 'a&d') {
+    return 'Aerospace & Defense (A&D)';
+  }
+  return raw.trim();
+};
+
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -8,6 +37,10 @@ import {
 import { useStore } from '../store/index.js';
 import { formatDate, formatTime, formatDateTime, getCurrentKolkataDate, getCurrentKolkataTime } from '../utils/dateFormat.js';
 
+import BulkUploadModal from '../components/BulkUploadModal.jsx';
+import LoadingSpinner from '../components/LoadingSpinner.jsx';
+import { getAccountHealthConfig } from '../utils/healthUtils.js';
+
 export default function Accounts() {
   const navigate = useNavigate();
   const {
@@ -16,11 +49,15 @@ export default function Accounts() {
     totalAccounts,
     totalPages,
     currentPage,
+    allAccountIds,
+    nestBus: storeNestBus,
+    regions: storeRegions,
     accountsLoading,
     fetchAccounts,
     addAccount,
     updateAccount,
     deleteAccount,
+    bulkDeleteAccounts,
     fetchHealthExplanation,
 
     contacts,
@@ -58,6 +95,24 @@ export default function Accounts() {
 
   // Modals state
   const [isLogInteractionOpen, setIsLogInteractionOpen] = useState(false);
+  const [isBulkUploadOpen, setIsBulkUploadOpen] = useState(false);
+
+  // Bulk deletion state
+  const [selectedBulkAccounts, setSelectedBulkAccounts] = useState([]);
+  const [isDeletingBulk, setIsDeletingBulk] = useState(false);
+
+  // Helper to get all company IDs matching current filters/search across all pages
+  const availableAllIds = (allAccountIds && allAccountIds.length > 0)
+    ? allAccountIds
+    : accounts.map(a => a.accountId || a.id);
+
+  const isAllSelected = availableAllIds.length > 0 && selectedBulkAccounts.length === availableAllIds.length;
+  const isSomeSelected = selectedBulkAccounts.length > 0 && !isAllSelected;
+
+  // Clear selections when search or filters change
+  useEffect(() => {
+    setSelectedBulkAccounts([]);
+  }, [search, industryFilter, regionFilter, statusFilter]);
 
   const [interactionSource, setInteractionSource] = useState('Outlook Mail');
   const [interactionText, setInteractionText] = useState('');
@@ -136,8 +191,14 @@ export default function Accounts() {
     setExplanationLoading(false);
   };
 
-  const industries = ['Technology', 'Finance', 'Logistics', 'Healthcare', 'Manufacturing', 'Retail'];
-  const regions = ['USA', 'UK', 'Germany', 'Singapore', 'India', 'UAE'];
+  // Dynamic list of NeST BUs - use raw values from DB so filter matches what's stored
+  const nestBusList = (storeNestBus && storeNestBus.length > 0)
+    ? Array.from(new Set(storeNestBus.map(b => (b || '').trim()).filter(Boolean))).sort((a, b) => a.localeCompare(b))
+    : Array.from(new Set(accounts.map(a => (a.domain || a.industry || '').trim()).filter(Boolean))).sort((a, b) => a.localeCompare(b));
+
+  const regionsList = (storeRegions && storeRegions.length > 0)
+    ? storeRegions
+    : Array.from(new Set(accounts.map(a => a.region).filter(Boolean))).sort((a, b) => a.localeCompare(b));
 
   // Load staff once on mount (independent of filter changes)
   useEffect(() => {
@@ -332,6 +393,46 @@ export default function Accounts() {
     });
   };
 
+  const handlePageChange = (newPage) => {
+    const filters = {};
+    if (industryFilter) filters.industry = industryFilter;
+    if (regionFilter) filters.region = regionFilter;
+    if (statusFilter) filters.status = statusFilter;
+    fetchAccounts(newPage, search, filters);
+  };
+
+  const handleBulkDelete = async () => {
+    if (!selectedBulkAccounts.length) return;
+    if (!window.confirm(`Are you sure you want to delete ${selectedBulkAccounts.length} selected account(s)? This will also delete their contacts, tasks, and interactions.`)) return;
+    
+    setIsDeletingBulk(true);
+    try {
+      const deletedCount = selectedBulkAccounts.length;
+      const res = await bulkDeleteAccounts(selectedBulkAccounts);
+      if (res) {
+        setSelectedBulkAccounts([]);
+        // Clean up if the currently viewed account was one of the deleted ones
+        if (selectedBulkAccounts.includes(selectedAccount?.id) || selectedBulkAccounts.includes(selectedAccount?.accountId)) {
+          setSelectedAccount(null);
+          setSelectedAccountId(null);
+        }
+        const remaining = Math.max(0, totalAccounts - deletedCount);
+        const maxPage = Math.max(1, Math.ceil(remaining / 10));
+        const targetPage = Math.min(currentPage, maxPage);
+        const filters = {};
+        if (industryFilter) filters.industry = industryFilter;
+        if (regionFilter) filters.region = regionFilter;
+        if (statusFilter) filters.status = statusFilter;
+        await fetchAccounts(targetPage, search, filters);
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Failed to bulk delete accounts.');
+    } finally {
+      setIsDeletingBulk(false);
+    }
+  };
+
   const triggerGenerateAISummary = () => {
     const id = selectedAccount.accountId || selectedAccount.id;
     fetchAccountSummary(id);
@@ -346,88 +447,106 @@ export default function Accounts() {
   ];
 
   const getHealthPillColor = (score) => {
-    if (score >= 90) return 'bg-emerald-500/10 border-emerald-500/25 text-emerald-400';
-    if (score >= 75) return 'bg-blue-500/10 border-blue-500/25 text-blue-400';
-    if (score >= 50) return 'bg-amber-500/10 border-amber-500/25 text-amber-400';
-    return 'bg-rose-500/10 border-rose-500/25 text-rose-400 animate-pulse';
+    return getAccountHealthConfig(score).pillClass;
   };
 
   return (
-    <div className="p-6 md:p-8 flex flex-col lg:flex-row gap-6 lg:gap-8 relative select-none h-auto lg:h-[calc(100vh-10rem)]">
+    <div className="p-4 sm:p-6 md:p-8 flex flex-col lg:flex-row gap-6 lg:gap-8 relative select-none flex-1 min-h-[calc(100vh-64px)] bg-white">
 
       {/* LEFT PANEL: ACCOUNTS TABLE LIST */}
-      <div className={`w-full lg:flex-1 flex flex-col justify-between glass p-4 md:p-6 rounded-2xl border border-slate-800/80 transition-all duration-300 ${selectedAccount ? 'lg:max-w-[50%]' : 'w-full'
+      <div className={`w-full lg:flex-1 flex flex-col justify-between transition-all duration-300 ${selectedAccount ? 'lg:max-w-[50%]' : 'w-full'
         }`}>
 
         {/* Header Tools */}
         <div className="space-y-4 mb-6">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-bold text-white tracking-wide">Client Portfolio</h2>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <h2 className="text-xl font-bold text-slate-900 tracking-tight">Client Portfolio</h2>
             {(user?.role === 'Admin' || user?.position?.toLowerCase().includes('ceo') || user?.userType === 'CEO' || user?.email === 'nj@gmail.com') && (
-              <button
-                onClick={() => navigate('/accounts/new')}
-                className="bg-primary hover:bg-blue-600 px-4 py-2.5 rounded-xl text-xs font-semibold flex items-center gap-2 text-white active:scale-98 transition-all"
-              >
-                <Plus className="w-4 h-4" />
-                Add Account
-              </button>
+              <div className="flex items-center gap-2 flex-wrap">
+                {user?.role === 'Admin' && selectedBulkAccounts.length > 0 && (
+                  <button
+                    onClick={handleBulkDelete}
+                    disabled={isDeletingBulk}
+                    className="bg-rose-50 border border-rose-200 hover:bg-rose-100 px-4 py-2 rounded-xl text-xs font-semibold flex items-center gap-2 text-rose-700 active:scale-98 transition-all"
+                  >
+                    {isDeletingBulk ? <LoadingSpinner size="xs" color="white" /> : <Trash2 className="w-4 h-4 text-rose-600" />}
+                    Delete Selected ({selectedBulkAccounts.length})
+                  </button>
+                )}
+                {user?.role === 'Admin' && (
+                  <button
+                    onClick={() => setIsBulkUploadOpen(true)}
+                    className="bg-primary hover:bg-primary/90 px-4 py-2 rounded-xl text-xs font-semibold flex items-center gap-2 text-white active:scale-98 transition-all shadow-xs"
+                  >
+                    <Upload className="w-4 h-4" />
+                    Bulk Upload Accounts
+                  </button>
+                )}
+
+              </div>
             )}
           </div>
 
           {/* Search and Filters */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+          <div className="flex flex-col sm:flex-row gap-3">
             {/* Search Box */}
-            <div className="relative col-span-1 md:col-span-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
               <input
                 type="text"
-                placeholder="Search clients..."
+                placeholder="Search company, number, owner, contact, BU, location..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="w-full bg-dark-900/60 border border-slate-800 focus:border-primary/50 text-xs rounded-xl py-2.5 pl-9 pr-4 text-white focus:outline-none transition-colors"
+                className="w-full bg-slate-50 border border-slate-200 focus:border-primary text-xs rounded-xl py-2.5 pl-9 pr-4 text-slate-900 placeholder:text-slate-400 focus:outline-none transition-colors"
               />
             </div>
 
-            {/* Filter: Industry */}
+            {/* Filter: NeST BU */}
             <select
               value={industryFilter}
               onChange={(e) => setIndustryFilter(e.target.value)}
-              className="bg-dark-900/60 border border-slate-800 focus:border-primary/50 text-xs rounded-xl p-2.5 text-slate-300 focus:outline-none cursor-pointer"
+              className="w-full sm:w-72 bg-slate-50 border border-slate-200 focus:border-primary text-xs rounded-xl p-2.5 text-slate-800 focus:outline-none cursor-pointer"
             >
-              <option value="">All Industries</option>
-              {industries.map(ind => <option key={ind} value={ind}>{ind}</option>)}
-            </select>
-
-            {/* Filter: Location */}
-            <select
-              value={regionFilter}
-              onChange={(e) => setRegionFilter(e.target.value)}
-              className="bg-dark-900/60 border border-slate-800 focus:border-primary/50 text-xs rounded-xl p-2.5 text-slate-300 focus:outline-none cursor-pointer"
-            >
-              <option value="">All Locations</option>
-              {regions.map(reg => <option key={reg} value={reg}>{reg}</option>)}
-            </select>
-
-            {/* Filter: Status */}
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="bg-dark-900/60 border border-slate-800 focus:border-primary/50 text-xs rounded-xl p-2.5 text-slate-300 focus:outline-none cursor-pointer"
-            >
-              <option value="">All Health Statuses</option>
-              <option value="Excellent">Excellent</option>
-              <option value="Healthy">Healthy</option>
-              <option value="Warning">Warning</option>
-              <option value="Critical">Critical</option>
+              <option value="">All NeST BUs</option>
+              {nestBusList.map(bu => <option key={bu} value={bu}>{bu}</option>)}
             </select>
           </div>
         </div>
 
+        {/* Selection Status Banner */}
+        {user?.role === 'Admin' && selectedBulkAccounts.length > 0 && (
+          <div className="bg-primary/10 border border-primary/20 text-blue-300 text-xs px-4 py-2.5 rounded-xl flex items-center justify-between mb-4 animate-in fade-in duration-200">
+            <span className="font-medium">
+              {isAllSelected
+                ? `All ${selectedBulkAccounts.length} companies selected across all ${totalPages} pages.`
+                : `${selectedBulkAccounts.length} of ${availableAllIds.length} companies selected.`}
+            </span>
+            <div className="flex items-center gap-3">
+              {!isAllSelected && (
+                <button
+                  type="button"
+                  onClick={() => setSelectedBulkAccounts([...availableAllIds])}
+                  className="text-primary hover:text-blue-400 underline font-semibold text-xs transition-colors"
+                >
+                  Select all {availableAllIds.length} companies
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => setSelectedBulkAccounts([])}
+                className="text-slate-400 hover:text-white underline text-xs font-medium transition-colors"
+              >
+                Clear selection
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Data Table */}
-        <div className="flex-1 overflow-auto mb-4 border border-slate-800/60 rounded-xl">
+        <div className="flex-1 overflow-auto mb-4 border border-slate-200/80 rounded-xl bg-white shadow-xs">
           {accountsLoading ? (
             <div className="h-48 flex items-center justify-center">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+              <LoadingSpinner size="lg" text="Loading client portfolio..." />
             </div>
           ) : accounts.length === 0 ? (
             <div className="p-8 text-center text-xs text-slate-500">
@@ -435,6 +554,37 @@ export default function Accounts() {
             </div>
           ) : (
             <>
+              {/* Select All Bar for Mobile */}
+              {user?.role === 'Admin' && accounts.length > 0 && (
+                <div className="block md:hidden px-3 pt-2">
+                  <label className="flex items-center justify-between p-2.5 rounded-xl bg-dark-900/60 border border-slate-800 text-xs text-slate-300 cursor-pointer">
+                    <div className="flex items-center gap-2">
+                      <input 
+                        type="checkbox"
+                        className="w-4 h-4 cursor-pointer accent-rose-500"
+                        checked={isAllSelected}
+                        ref={el => {
+                          if (el) el.indeterminate = isSomeSelected;
+                        }}
+                        onChange={() => {
+                          if (isAllSelected) {
+                            setSelectedBulkAccounts([]);
+                          } else {
+                            setSelectedBulkAccounts([...availableAllIds]);
+                          }
+                        }}
+                      />
+                      <span className="font-semibold text-slate-200">
+                        Select all {availableAllIds.length} companies
+                      </span>
+                    </div>
+                    {selectedBulkAccounts.length > 0 && (
+                      <span className="text-rose-400 font-semibold text-[11px]">{selectedBulkAccounts.length} selected</span>
+                    )}
+                  </label>
+                </div>
+              )}
+
               {/* Stacked Cards for Mobile */}
               <div className="block md:hidden space-y-3 p-3">
                 {accounts.map(acc => {
@@ -443,10 +593,23 @@ export default function Accounts() {
                   return (
                     <div
                       key={id}
-                      onClick={() => navigate(`/accounts/${id}`)}
-                      className={`glass p-3.5 rounded-xl border transition-all cursor-pointer ${isSelected ? 'border-primary bg-primary/5 ring-1 ring-primary/30' : 'border-slate-800/80 hover:border-slate-700/80'
+                      onClick={() => navigate(`/accounts/${id}`, { state: { from: location.pathname + location.search } })}
+                      className={`glass p-3.5 rounded-xl border transition-all cursor-pointer relative ${isSelected ? 'border-primary bg-primary/5 ring-1 ring-primary/30' : 'border-slate-800/80 hover:border-slate-700/80'
                         }`}
                     >
+                      {user?.role === 'Admin' && (
+                        <div className="absolute top-2 right-2" onClick={(e) => e.stopPropagation()}>
+                          <input 
+                            type="checkbox" 
+                            className="w-4 h-4 cursor-pointer accent-rose-500"
+                            checked={selectedBulkAccounts.includes(id)}
+                            onChange={(e) => {
+                              if (e.target.checked) setSelectedBulkAccounts([...selectedBulkAccounts, id]);
+                              else setSelectedBulkAccounts(selectedBulkAccounts.filter(x => x !== id));
+                            }}
+                          />
+                        </div>
+                      )}
                       <div className="flex justify-between items-start gap-3">
                         <div className="min-w-0 flex-1">
                           <h3 className="font-bold text-xs text-white hover:text-primary transition-colors truncate">
@@ -458,35 +621,8 @@ export default function Accounts() {
                           </div>
                         </div>
                         <div className="flex flex-col items-end gap-3 shrink-0">
-                          <span
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleShowHealthExplanation(id);
-                            }}
-                            className={`px-2 py-0.5 text-[10px] font-black rounded-full border whitespace-nowrap cursor-help hover:scale-105 transition-all ${getHealthPillColor(acc.healthScore)}`}
-                          >
-                            {acc.healthScore}% - {acc.status}
-                          </span>
-                          {(user?.role === 'Admin' || user?.position?.toLowerCase().includes('ceo') || user?.userType === 'CEO' || user?.email === 'nj@gmail.com') && (
-                            <div className="flex gap-1.5" onClick={(e) => e.stopPropagation()}>
-                              {(user?.role === 'Admin' || user?.position?.toLowerCase().includes('ceo') || user?.userType === 'CEO' || user?.email === 'nj@gmail.com') && (
-                                <button
-                                  onClick={() => navigate(`/accounts/${id}/edit`)}
-                                  className="inline-flex items-center justify-center bg-slate-800 hover:bg-slate-700 p-1.5 rounded-lg text-slate-300 hover:text-white transition-colors"
-                                >
-                                  <Edit2 className="w-3 h-3" />
-                                </button>
-                              )}
-                              {user?.role === 'Admin' && (
-                                <button
-                                  onClick={() => handleDeleteAccount(acc)}
-                                  className="inline-flex items-center justify-center bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 p-1.5 rounded-lg text-rose-400 hover:text-rose-200 transition-colors"
-                                >
-                                  <Trash2 className="w-3 h-3" />
-                                </button>
-                              )}
-                            </div>
-                          )}
+
+
                         </div>
                       </div>
                     </div>
@@ -498,62 +634,63 @@ export default function Accounts() {
               <div className="hidden md:block">
                 <table className="w-full text-left text-xs border-collapse">
                   <thead>
-                    <tr className="bg-dark-900 border-b border-slate-800 text-slate-400 font-semibold uppercase tracking-wider">
-                      <th className="p-4 sticky top-0 bg-dark-900 z-10 text-left">Company</th>
-                      <th className="p-4 sticky top-0 bg-dark-900 z-10 text-left">Nest BU</th>
-                      <th className="p-4 sticky top-0 bg-dark-900 z-10 text-left">Location</th>
-                      <th className="p-4 text-center sticky top-0 bg-dark-900 z-10">Health</th>
-                      {(user?.role === 'Admin' || user?.position?.toLowerCase().includes('ceo') || user?.userType === 'CEO' || user?.email === 'nj@gmail.com') && (
-                        <th className="p-4 text-right sticky top-0 bg-dark-900 z-10">Actions</th>
+                    <tr className="bg-slate-50/80 border-b border-slate-200/80 text-slate-500 font-semibold uppercase tracking-wider">
+                      {user?.role === 'Admin' && (
+                        <th className="p-4 sticky top-0 bg-slate-50/95 backdrop-blur-xs z-10 text-slate-600 w-12 text-center">
+                          <input 
+                            type="checkbox"
+                            className="w-4 h-4 cursor-pointer accent-rose-500"
+                            title={isAllSelected ? "Deselect all companies" : `Select all ${availableAllIds.length} companies`}
+                            checked={isAllSelected}
+                            ref={el => {
+                              if (el) el.indeterminate = isSomeSelected;
+                            }}
+                            onChange={() => {
+                              if (isAllSelected) {
+                                setSelectedBulkAccounts([]);
+                              } else {
+                                setSelectedBulkAccounts([...availableAllIds]);
+                              }
+                            }}
+                          />
+                        </th>
                       )}
+                      <th className="p-4 sticky top-0 bg-slate-50/95 backdrop-blur-xs z-10 text-slate-600 text-left">Company</th>
+                      <th className="p-4 sticky top-0 bg-slate-50/95 backdrop-blur-xs z-10 text-slate-600 text-left">Nest BU</th>
+                      <th className="p-4 sticky top-0 bg-slate-50/95 backdrop-blur-xs z-10 text-slate-600 text-left">Location</th>
+
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-800/40">
+                  <tbody className="">
                     {accounts.map((acc, index) => {
                       const id = acc.accountId || acc.id;
                       const isSelected = selectedAccount && (selectedAccount.accountId === id || selectedAccount.id === id);
                       return (
                         <tr
                           key={id}
-                          onClick={() => navigate(`/accounts/${id}`)}
+                          onClick={() => navigate(`/accounts/${id}`, { state: { from: location.pathname + location.search } })}
                           className={`hover:bg-blue-50/80 cursor-pointer transition-colors duration-150 ${index % 2 === 0 ? 'bg-blue-50/30' : 'bg-white'
                             } ${isSelected ? 'bg-primary/5 border-l-2 border-l-primary' : ''
                             }`}
                         >
-                          <td className="p-4 font-bold text-white hover:text-primary transition-colors">{acc.companyName}</td>
-                          <td className="p-4 text-slate-300">{acc.domain || '—'}</td>
-                          <td className="p-4 text-slate-300">{acc.region}</td>
-                          <td className="p-4 text-center whitespace-nowrap">
-                            <span
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleShowHealthExplanation(id);
-                              }}
-                              className={`px-2.5 py-1 text-xs font-bold rounded-full border whitespace-nowrap cursor-help hover:scale-105 transition-transform duration-150 ${getHealthPillColor(acc.healthScore)}`}
-                            >
-                              {acc.healthScore}% - {acc.status}
-                            </span>
-                          </td>
-                          {(user?.role === 'Admin' || user?.position?.toLowerCase().includes('ceo') || user?.userType === 'CEO' || user?.email === 'nj@gmail.com') && (
-                            <td className="p-4 text-right space-x-1.5 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
-                              {(user?.role === 'Admin' || user?.position?.toLowerCase().includes('ceo') || user?.userType === 'CEO' || user?.email === 'nj@gmail.com') && (
-                                <button
-                                  onClick={() => navigate(`/accounts/${id}/edit`)}
-                                  className="inline-flex items-center justify-center bg-slate-800 hover:bg-slate-700 p-2 rounded-lg text-slate-300 hover:text-white transition-colors"
-                                >
-                                  <Edit2 className="w-3.5 h-3.5" />
-                                </button>
-                              )}
-                              {user?.role === 'Admin' && (
-                                <button
-                                  onClick={() => handleDeleteAccount(acc)}
-                                  className="inline-flex items-center justify-center bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 p-2 rounded-lg text-rose-400 hover:text-rose-200 transition-colors"
-                                >
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                </button>
-                              )}
+                          {user?.role === 'Admin' && (
+                            <td className="p-4 text-center" onClick={(e) => e.stopPropagation()}>
+                              <input 
+                                type="checkbox"
+                                className="w-4 h-4 cursor-pointer accent-rose-500"
+                                checked={selectedBulkAccounts.includes(id)}
+                                onChange={(e) => {
+                                  if (e.target.checked) setSelectedBulkAccounts([...selectedBulkAccounts, id]);
+                                  else setSelectedBulkAccounts(selectedBulkAccounts.filter(x => x !== id));
+                                }}
+                              />
                             </td>
                           )}
+                          <td className="p-4 font-bold text-gray-900 hover:text-primary transition-colors">{acc.companyName}</td>
+                          <td className="p-4 text-slate-600">{normalizeBU(acc.domain || acc.industry) || '—'}</td>
+                          <td className="p-4 text-slate-600">{acc.region}</td>
+
+
                         </tr>
                       );
                     })}
@@ -566,20 +703,20 @@ export default function Accounts() {
 
         {/* Pagination Row */}
         {totalPages > 1 && (
-          <div className="flex items-center justify-between border-t border-slate-800 pt-4 text-xs">
+          <div className="flex items-center justify-between border-t border-slate-200 pt-4 text-xs">
             <span className="text-slate-400">Showing page {currentPage} of {totalPages}</span>
             <div className="flex gap-2">
               <button
                 disabled={currentPage === 1}
-                onClick={() => fetchAccounts(currentPage - 1, search)}
-                className="bg-slate-800 border border-slate-700/60 hover:bg-slate-700 disabled:opacity-40 disabled:hover:bg-slate-800 text-white rounded-lg px-3 py-1.5 transition-colors"
+                onClick={() => handlePageChange(currentPage - 1)}
+                className="bg-white border border-slate-200 hover:bg-slate-100 hover:text-primary hover:border-slate-300 disabled:opacity-40 disabled:hover:bg-white disabled:hover:text-slate-400 disabled:cursor-not-allowed text-slate-700 font-semibold rounded-lg px-3.5 py-1.5 transition-colors cursor-pointer shadow-xs"
               >
                 Prev
               </button>
               <button
                 disabled={currentPage === totalPages}
-                onClick={() => fetchAccounts(currentPage + 1, search)}
-                className="bg-slate-800 border border-slate-700/60 hover:bg-slate-700 disabled:opacity-40 disabled:hover:bg-slate-800 text-white rounded-lg px-3 py-1.5 transition-colors"
+                onClick={() => handlePageChange(currentPage + 1)}
+                className="bg-white border border-slate-200 hover:bg-slate-100 hover:text-primary hover:border-slate-300 disabled:opacity-40 disabled:hover:bg-white disabled:hover:text-slate-400 disabled:cursor-not-allowed text-slate-700 font-semibold rounded-lg px-3.5 py-1.5 transition-colors cursor-pointer shadow-xs"
               >
                 Next
               </button>
@@ -590,7 +727,7 @@ export default function Accounts() {
 
       {/* RIGHT PANEL: SELECTED ACCOUNT DRAWER DETAILS */}
       {selectedAccount ? (
-        <div className="w-full lg:w-[50%] glass rounded-2xl border border-slate-800/80 p-4 md:p-6 flex flex-col justify-between overflow-y-auto relative animate-soft-pulse duration-1000">
+        <div className="w-full lg:w-[50%] p-4 md:p-6 flex flex-col justify-between overflow-y-auto relative animate-soft-pulse duration-1000">
 
           {/* Close Panel Button */}
           <button
@@ -713,7 +850,7 @@ export default function Accounts() {
 
                       {/* Contact Owner Select */}
                       <div className="mt-2.5 pt-2 border-t border-slate-800/30">
-                        <label className="text-xs font-bold text-slate-500 uppercase block mb-0.5">Stakeholder Owner</label>
+                        <label className="text-xs font-bold text-slate-500 uppercase block mb-0.5">Key Contact Owner</label>
                         {['Admin', 'Sales Manager', 'Employee', 'Executive'].includes(user?.role) ? (
                           <select
                             value={c.ownerId || ''}
@@ -947,7 +1084,7 @@ export default function Accounts() {
       {/* 4. Modal: Log Interaction Activity — Rich Note-Keeping Panel */}
       {isLogInteractionOpen && (
         <div className="fixed inset-0 bg-dark-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="glass w-full max-w-2xl rounded-2xl border border-slate-700/80 flex flex-col shadow-2xl max-h-[92vh] overflow-hidden">
+          <div className="w-full max-w-2xl flex flex-col max-h-[92vh] overflow-hidden">
 
             {/* Header */}
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800">
@@ -1100,7 +1237,7 @@ export default function Accounts() {
                       </label>
                       {uploading && (
                         <span className="text-xs text-slate-500 animate-pulse flex items-center gap-1.5 font-bold">
-                          <Loader2 className="w-3.5 h-3.5 animate-spin text-primary" />
+                          <LoadingSpinner size="xs" />
                           Uploading files to server...
                         </span>
                       )}
@@ -1268,7 +1405,7 @@ export default function Accounts() {
       {/* 5. Modal: Health Score Explanation Breakdown */}
       {isHealthExplanationOpen && (
         <div className="fixed inset-0 bg-dark-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="glass w-full max-w-2xl rounded-2xl border border-slate-700/80 flex flex-col shadow-2xl max-h-[92vh] overflow-hidden">
+          <div className="w-full max-w-2xl flex flex-col max-h-[92vh] overflow-hidden">
 
             {/* Header */}
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800">
@@ -1291,7 +1428,7 @@ export default function Accounts() {
             <div className="overflow-y-auto flex-1 p-6 space-y-6">
               {explanationLoading ? (
                 <div className="h-64 flex flex-col items-center justify-center gap-3">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                  <LoadingSpinner size="md" />
                   <span className="text-xs text-slate-400">Analyzing database logs and metrics...</span>
                 </div>
               ) : !explanationData ? (
@@ -1435,6 +1572,11 @@ export default function Accounts() {
         </div>
       )}
 
+      {/* Bulk Upload Modal */}
+      <BulkUploadModal 
+        isOpen={isBulkUploadOpen} 
+        onClose={() => setIsBulkUploadOpen(false)} 
+      />
     </div>
   );
 }

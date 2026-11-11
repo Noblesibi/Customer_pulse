@@ -112,3 +112,5 @@ export class SmtpEmailProvider extends IEmailProvider {
 
 // Export singleton instance for use across the engine
 export const smtpProvider = new SmtpEmailProvider();
+
+

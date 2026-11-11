@@ -46,7 +46,9 @@ class MockFirestore {
       taskreplies: {},
       emailqueue: {},
       emaillogs: {},
-      notificationpreferences: {}
+      notificationpreferences: {},
+      celebrationEvents: {},
+      userintegrations: {}
     };
     this.loadData();
   }
@@ -59,73 +61,7 @@ class MockFirestore {
         this.saveData();
       }
 
-      // Auto seed/verify the dummy all-users task in mock database if it doesn't exist
-      if (this.data) {
-        if (!this.data.interactions) {
-          this.data.interactions = {};
-        }
-        if (!this.data.interactions['int-dummy-all-users']) {
-          console.log('🌱 Seeding dummy task for all 14 users in mock database...');
-          
-          const getKolkataDateString = (d = new Date()) => {
-            const dateObj = d instanceof Date ? d : new Date(d);
-            const yyyy = dateObj.getFullYear();
-            const mm = String(dateObj.getMonth() + 1).padStart(2, '0');
-            const dd = String(dateObj.getDate()).padStart(2, '0');
-            return `${yyyy}-${mm}-${dd}`;
-          };
-          
-          const getKolkataTimeString = (d = new Date()) => {
-            const dateObj = d instanceof Date ? d : new Date(d);
-            const hh = String(dateObj.getHours()).padStart(2, '0');
-            const min = String(dateObj.getMinutes()).padStart(2, '0');
-            return `${hh}:${min}`;
-          };
 
-          const taskDueDate = new Date();
-          taskDueDate.setDate(taskDueDate.getDate() + 7);
-          const taskDueDateStr = getKolkataDateString(taskDueDate);
-
-          this.data.interactions['int-dummy-all-users'] = {
-            id: 'int-dummy-all-users',
-            interactionId: 'int-dummy-all-users',
-            accountId: 'acc-1',
-            contactId: 'con-1',
-            source: 'Meeting',
-            subject: 'All-Hands Portfolio Review',
-            messageText: 'We held a portfolio review meeting with Acme Corporation. All team members must review their client updates and key deliverables.',
-            date: getKolkataDateString(),
-            time: getKolkataTimeString(),
-            loggedByUid: 'mock-admin-uid',
-            loggedByName: 'Admin User',
-            sentiment: 'Neutral',
-            riskDetected: false,
-            riskCategory: '',
-            actionMentions: [
-              { uid: 'mock-admin-uid', name: 'Admin User', task: 'Review all accounts and verify global access permissions', taskHeader: 'Review Admin Access', status: 'Task Assigned', dueDate: taskDueDateStr, priority: 'High', comments: '', completionDate: null },
-              { uid: 'mock-nazneen-ceo-uid', name: 'Nazneen Jahangir', task: 'Review high-level executive dashboard and quarterly risk report', taskHeader: 'Review Exec Dashboard', status: 'Task Assigned', dueDate: taskDueDateStr, priority: 'High', comments: '', completionDate: null },
-              { uid: 'mock-exec-uid', name: 'Executive User', task: 'Approve project budget and review overall alignment', taskHeader: 'Approve Budget', status: 'Task Assigned', dueDate: taskDueDateStr, priority: 'High', comments: '', completionDate: null },
-              { uid: 'mock-finance-head-uid', name: 'Finance Head', task: 'Perform finance audit for Apex Financial Services and billing integration', taskHeader: 'Finance Audit', status: 'Task Assigned', dueDate: taskDueDateStr, priority: 'Medium', comments: '', completionDate: null },
-              { uid: 'mock-global-hr-head-uid', name: 'Global HR Head', task: 'Initiate performance appraisals and review Acme Corporation HR roadmap', taskHeader: 'Appraisal Review', status: 'Task Assigned', dueDate: taskDueDateStr, priority: 'Medium', comments: '', completionDate: null },
-              { uid: 'mock-itg-head-uid', name: 'ITG Head', task: 'Audit cybersecurity protocol and IT infrastructure on Global Logistics Inc', taskHeader: 'Security Audit', status: 'Task Assigned', dueDate: taskDueDateStr, priority: 'High', comments: '', completionDate: null },
-              { uid: 'mock-nda-head-uid', name: 'NDA Head', task: 'Review NDA agreements and compliance training roadmap', taskHeader: 'NDA Review', status: 'Task Assigned', dueDate: taskDueDateStr, priority: 'High', comments: '', completionDate: null },
-              { uid: 'mock-tc-head-uid', name: 'TC Head', task: 'Evaluate AI/ML platform R&D roadmap and quality gates', taskHeader: 'Evaluate Platform', status: 'Task Assigned', dueDate: taskDueDateStr, priority: 'Medium', comments: '', completionDate: null },
-              { uid: 'mock-quality-head-uid', name: 'Quality Head', task: 'Oversee performance regression suite results and quality audit', taskHeader: 'Quality Audit', status: 'Task Assigned', dueDate: taskDueDateStr, priority: 'Medium', comments: '', completionDate: null },
-              { uid: 'mock-manager-uid', name: 'Manager User', task: 'Sync with employee on frontend milestones and verify deliverables', taskHeader: 'Manager Sync', status: 'Task Assigned', dueDate: taskDueDateStr, priority: 'Medium', comments: '', completionDate: null },
-              { uid: 'mock-employee-uid', name: 'Employee User', task: 'Implement frontend components and run regression tests', taskHeader: 'Implement UI', status: 'Task Assigned', dueDate: taskDueDateStr, priority: 'Medium', comments: '', completionDate: null },
-              { uid: 'ldap-3cm36onhw', name: 'Albert S Joseph', task: 'Coordinate load testing and API stability check for dashboard widgets', taskHeader: 'Dashboard Load Test', status: 'Task Assigned', dueDate: taskDueDateStr, priority: 'High', comments: '', completionDate: null },
-              { uid: 'ldap-rhkufekom', name: 'Amina Rashad', task: 'Perform regression suite execution and validation of CRM flows', taskHeader: 'Run Regression', status: 'Task Assigned', dueDate: taskDueDateStr, priority: 'High', comments: '', completionDate: null },
-              { uid: 'ldap-2jm2pvhe0', name: 'Noble Sibi', task: 'Evaluate CRM security posture and RBAC policy definitions', taskHeader: 'Verify Security', status: 'Task Assigned', dueDate: taskDueDateStr, priority: 'High', comments: '', completionDate: null }
-            ],
-            attachments: [],
-            timestamp: new Date().toISOString()
-          };
-          this.saveData();
-          console.log('✅ Dummy task for all 14 users seeded in mock database.');
-        } else {
-          console.log('🌱 Dummy task "int-dummy-all-users" already exists in mock database, skipping seed.');
-        }
-      }
     } catch (err) {
       console.error('Failed to load mock database:', err);
     }
@@ -263,76 +199,15 @@ class MockAuth {
 // ─────────────────────────────────────────────────────────
 function seedMockData(mockDb) {
   mockDb.data.users['mock-admin-uid'] = { uid: 'mock-admin-uid', email: 'admin@pulse.com', role: 'Admin', position: 'System Administrator', userType: 'Admin', name: 'Admin User' };
-  mockDb.data.users['mock-exec-uid'] = { uid: 'mock-exec-uid', email: 'executive@pulse.com', role: 'Executive', position: 'Chief Executive Officer', userType: 'CEO', name: 'Executive User' };
-  mockDb.data.users['mock-manager-uid'] = { uid: 'mock-manager-uid', email: 'manager@pulse.com', role: 'Sales Manager', position: 'Logistics Division Lead', userType: 'BU Head', name: 'Manager User' };
-  mockDb.data.users['mock-employee-uid'] = { uid: 'mock-employee-uid', email: 'employee@pulse.com', role: 'Employee', position: 'Frontend Engineer', userType: 'Employee', name: 'Employee User' };
 
   NESTGROUP_EMPLOYEES.forEach(emp => {
     mockDb.data.users[emp.uid] = { ...emp };
   });
 
-  const abcAnniv = new Date();
-  abcAnniv.setFullYear(abcAnniv.getFullYear() - 5);
-  abcAnniv.setDate(abcAnniv.getDate() + 3);
-  const abcCreated = abcAnniv.toISOString();
-
-  const bday = new Date();
-  bday.setDate(bday.getDate() + 7);
-  const bdayStr = bday.toISOString().split('T')[0];
-
-  mockDb.data.accounts['acc-1'] = { id: 'acc-1', accountId: 'acc-1', companyName: 'Acme Corporation', industry: 'Technology', region: 'North America', healthScore: 88, status: 'Healthy', ownerId: 'mock-admin-uid', ownerName: 'Admin User', createdAt: new Date().toISOString() };
-  mockDb.data.accounts['acc-2'] = { id: 'acc-2', accountId: 'acc-2', companyName: 'Global Logistics Inc', industry: 'Logistics', region: 'Europe', healthScore: 42, status: 'Critical', ownerId: 'mock-manager-uid', ownerName: 'Manager User', createdAt: new Date().toISOString() };
-  mockDb.data.accounts['acc-3'] = { id: 'acc-3', accountId: 'acc-3', companyName: 'Apex Financial Services', industry: 'Finance', region: 'Asia Pacific', healthScore: 68, status: 'Warning', ownerId: 'mock-employee-uid', ownerName: 'Employee User', createdAt: new Date().toISOString() };
-  mockDb.data.accounts['acc-abc'] = { id: 'acc-abc', accountId: 'acc-abc', companyName: 'ABC Bank', industry: 'Finance', region: 'North America', healthScore: 78, status: 'Healthy', email: 'corporate@abcbank.com', phone: '+1 555-9876', ceoName: 'John Pierpont', domain: 'abcbank.com', ownerId: 'mock-admin-uid', ownerName: 'Admin User', createdAt: abcCreated };
-
-  mockDb.data.contacts['con-1'] = { id: 'con-1', contactId: 'con-1', accountId: 'acc-1', name: 'Sarah Jenkins', email: 's.jenkins@acme.com', designation: 'VP of Engineering', hierarchyTag: 'VP', influenceTag: 'Decision Maker', phone: '+1 555-0199', ownerId: 'mock-admin-uid', ownerName: 'Admin User', birthday: null, createdAt: new Date().toISOString() };
-  mockDb.data.contacts['con-2'] = { id: 'con-2', contactId: 'con-2', accountId: 'acc-2', name: 'Robert Miller', email: 'r.miller@globallogistics.com', designation: 'IT Director', hierarchyTag: 'Director', influenceTag: 'Champion', phone: '+44 20 7946 0958', ownerId: 'mock-manager-uid', ownerName: 'Manager User', birthday: null, createdAt: new Date().toISOString() };
-  mockDb.data.contacts['con-cio'] = { id: 'con-cio', contactId: 'con-cio', accountId: 'acc-1', name: 'John Doe', email: 'j.doe@acme.com', designation: 'CIO', hierarchyTag: 'CXO', influenceTag: 'Decision Maker', phone: '+1 555-0155', ownerId: 'mock-admin-uid', ownerName: 'Admin User', birthday: bdayStr, createdAt: new Date().toISOString() };
-  mockDb.data.contacts['con-abc-cio'] = { id: 'con-abc-cio', contactId: 'con-abc-cio', accountId: 'acc-abc', name: 'David Vance', email: 'd.vance@abcbank.com', designation: 'Chief Information Officer', hierarchyTag: 'CXO', influenceTag: 'Decision Maker', phone: '+1 555-0255', ownerId: 'mock-admin-uid', ownerName: 'Admin User', birthday: null, createdAt: new Date().toISOString() };
-
   mockDb.data.activitylogs['act-init-1'] = {
     logId: 'act-init-1', userId: 'mock-admin-uid', userName: 'Admin User',
     action: 'User Login', details: 'Logged in successfully via mock credentials: admin@pulse.com',
     timestamp: new Date(Date.now() - 1000 * 60 * 45).toISOString()
-  };
-
-  const taskDueDate = new Date();
-  taskDueDate.setDate(taskDueDate.getDate() + 7);
-  const taskDueDateStr = taskDueDate.toISOString().split('T')[0];
-
-  mockDb.data.interactions['int-dummy-all-users'] = {
-    id: 'int-dummy-all-users',
-    interactionId: 'int-dummy-all-users',
-    accountId: 'acc-1',
-    contactId: 'con-1',
-    source: 'Meeting',
-    subject: 'All-Hands Portfolio Review',
-    messageText: 'We held a portfolio review meeting with Acme Corporation. All team members must review their client updates and key deliverables.',
-    date: new Date().toISOString().split('T')[0],
-    time: new Date().toTimeString().slice(0, 5),
-    loggedByUid: 'mock-admin-uid',
-    loggedByName: 'Admin User',
-    sentiment: 'Neutral',
-    riskDetected: false,
-    riskCategory: '',
-    actionMentions: [
-      { uid: 'mock-admin-uid', name: 'Admin User', task: 'Review all accounts and verify global access permissions', taskHeader: 'Review Admin Access', status: 'Task Assigned', dueDate: taskDueDateStr, priority: 'High', comments: '', completionDate: null },
-      { uid: 'mock-nazneen-ceo-uid', name: 'Nazneen Jahangir', task: 'Review high-level executive dashboard and quarterly risk report', taskHeader: 'Review Exec Dashboard', status: 'Task Assigned', dueDate: taskDueDateStr, priority: 'High', comments: '', completionDate: null },
-      { uid: 'mock-exec-uid', name: 'Executive User', task: 'Approve project budget and review overall alignment', taskHeader: 'Approve Budget', status: 'Task Assigned', dueDate: taskDueDateStr, priority: 'High', comments: '', completionDate: null },
-      { uid: 'mock-finance-head-uid', name: 'Finance Head', task: 'Perform finance audit for Apex Financial Services and billing integration', taskHeader: 'Finance Audit', status: 'Task Assigned', dueDate: taskDueDateStr, priority: 'Medium', comments: '', completionDate: null },
-      { uid: 'mock-global-hr-head-uid', name: 'Global HR Head', task: 'Initiate performance appraisals and review Acme Corporation HR roadmap', taskHeader: 'Appraisal Review', status: 'Task Assigned', dueDate: taskDueDateStr, priority: 'Medium', comments: '', completionDate: null },
-      { uid: 'mock-itg-head-uid', name: 'ITG Head', task: 'Audit cybersecurity protocol and IT infrastructure on Global Logistics Inc', taskHeader: 'Security Audit', status: 'Task Assigned', dueDate: taskDueDateStr, priority: 'High', comments: '', completionDate: null },
-      { uid: 'mock-nda-head-uid', name: 'NDA Head', task: 'Review NDA agreements and compliance training roadmap', taskHeader: 'NDA Review', status: 'Task Assigned', dueDate: taskDueDateStr, priority: 'High', comments: '', completionDate: null },
-      { uid: 'mock-tc-head-uid', name: 'TC Head', task: 'Evaluate AI/ML platform R&D roadmap and quality gates', taskHeader: 'Evaluate Platform', status: 'Task Assigned', dueDate: taskDueDateStr, priority: 'Medium', comments: '', completionDate: null },
-      { uid: 'mock-quality-head-uid', name: 'Quality Head', task: 'Oversee performance regression suite results and quality audit', taskHeader: 'Quality Audit', status: 'Task Assigned', dueDate: taskDueDateStr, priority: 'Medium', comments: '', completionDate: null },
-      { uid: 'mock-manager-uid', name: 'Manager User', task: 'Sync with employee on frontend milestones and verify deliverables', taskHeader: 'Manager Sync', status: 'Task Assigned', dueDate: taskDueDateStr, priority: 'Medium', comments: '', completionDate: null },
-      { uid: 'mock-employee-uid', name: 'Employee User', task: 'Implement frontend components and run regression tests', taskHeader: 'Implement UI', status: 'Task Assigned', dueDate: taskDueDateStr, priority: 'Medium', comments: '', completionDate: null },
-      { uid: 'ldap-3cm36onhw', name: 'Albert S Joseph', task: 'Coordinate load testing and API stability check for dashboard widgets', taskHeader: 'Dashboard Load Test', status: 'Task Assigned', dueDate: taskDueDateStr, priority: 'High', comments: '', completionDate: null },
-      { uid: 'ldap-rhkufekom', name: 'Amina Rashad', task: 'Perform regression suite execution and validation of CRM flows', taskHeader: 'Run Regression', status: 'Task Assigned', dueDate: taskDueDateStr, priority: 'High', comments: '', completionDate: null },
-      { uid: 'ldap-2jm2pvhe0', name: 'Noble Sibi', task: 'Evaluate CRM security posture and RBAC policy definitions', taskHeader: 'Verify Security', status: 'Task Assigned', dueDate: taskDueDateStr, priority: 'High', comments: '', completionDate: null }
-    ],
-    attachments: [],
-    timestamp: new Date().toISOString()
   };
 }
 
@@ -383,15 +258,27 @@ if (isPostgres) {
 // ─────────────────────────────────────────────────────────
 // Activity Logger (shared across all route modules)
 // ─────────────────────────────────────────────────────────
-export async function logActivity(userId, userName, action, details) {
+export async function logActivity(userIdOrObj, userName, action, details) {
   try {
+    let uId = userIdOrObj;
+    let uName = userName;
+    let act = action;
+    let det = details;
+
+    if (typeof userIdOrObj === 'object' && userIdOrObj !== null) {
+      uId = userIdOrObj.userId || userIdOrObj.uid || 'system';
+      uName = userIdOrObj.userName || userIdOrObj.name || 'System';
+      act = userIdOrObj.action || 'ACTIVITY';
+      det = userIdOrObj.details || (userIdOrObj.entityType ? `${userIdOrObj.entityType} ${userIdOrObj.entityId || ''}` : '');
+    }
+
     const logId = 'act-' + Math.random().toString(36).substring(2, 11);
     await db.collection('activitylogs').doc(logId).set({
       logId,
-      userId,
-      userName,
-      action,
-      details,
+      userId: typeof uId === 'string' ? uId.slice(0, 50) : 'system',
+      userName: typeof uName === 'string' ? uName.slice(0, 100) : 'System',
+      action: typeof act === 'string' ? act.slice(0, 50) : 'ACTIVITY',
+      details: typeof det === 'string' ? det : JSON.stringify(det || ''),
       timestamp: new Date().toISOString()
     });
   } catch (err) {
