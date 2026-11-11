@@ -460,7 +460,7 @@ export default function InteractionLog() {
   };
 
   return (
-    <div className="p-4 md:p-5 space-y-3.5 flex flex-col h-auto md:h-[calc(100vh-7rem)] min-h-0 relative select-none">
+    <div className="p-3 sm:p-4 md:p-5 space-y-3.5 flex flex-col h-auto md:h-[calc(100vh-7rem)] min-h-0 relative select-none">
       {/* Header Block */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div className="flex items-center gap-2 text-white">
@@ -730,7 +730,7 @@ export default function InteractionLog() {
       </div>
 
       {selectedLog && (
-        <div className="absolute inset-0 bg-dark-950 z-30 flex flex-col animate-fade-in overflow-hidden rounded-2xl border border-dark-800 shadow-2xl" style={{fontFamily: 'Montserrat, sans-serif'}}>
+        <div className="fixed inset-0 sm:absolute sm:inset-0 bg-dark-950 z-50 sm:z-30 flex flex-col animate-fade-in overflow-hidden rounded-none sm:rounded-2xl border-0 sm:border border-dark-800 shadow-2xl" style={{fontFamily: 'Montserrat, sans-serif'}}>
           <div className="flex-1 flex flex-col overflow-hidden">
             {(() => {
               const isInteraction = !!selectedLog.interactionId;
@@ -773,7 +773,7 @@ export default function InteractionLog() {
               return (
                 <>
                   {/* Content Container */}
-                  <div className="p-6 overflow-y-auto space-y-6 bg-dark-950 flex-1 w-full">
+                  <div className="p-3.5 sm:p-5 md:p-6 overflow-y-auto space-y-4 sm:space-y-6 bg-dark-950 flex-1 w-full">
                     
                     {/* Header Card */}
                     <div className="bg-dark-900 border border-dark-800 rounded-xl p-5 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">

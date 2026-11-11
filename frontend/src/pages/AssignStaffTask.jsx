@@ -157,7 +157,7 @@ export default function AssignStaffTask() {
   };
 
   return (
-    <div className="p-6 md:p-8 space-y-6 w-full flex-1">
+    <div className="p-3.5 sm:p-5 md:p-8 space-y-4 sm:space-y-6 w-full flex-1">
       {/* Header */}
       <div className="flex items-center justify-between">
         <button 
@@ -171,7 +171,7 @@ export default function AssignStaffTask() {
       </div>
 
       {/* Form Container */}
-      <div className="glass p-6 md:p-8 rounded-2xl border border-slate-800/80 w-full">
+      <div className="glass p-4 sm:p-6 md:p-8 rounded-2xl border border-slate-800/80 w-full">
         <form onSubmit={handleCreateTask} className="space-y-6 text-xs font-semibold w-full">
           {formError && (
             <div className="p-3.5 bg-rose-50 border border-rose-100 text-rose-600 rounded-xl flex items-center gap-2">
@@ -315,18 +315,18 @@ export default function AssignStaffTask() {
           </div>
 
           {/* Form Footer */}
-          <div className="flex items-center justify-end gap-3 pt-4 border-t border-dark-800 w-full">
+          <div className="flex flex-col-reverse sm:flex-row sm:items-center justify-end gap-3 pt-4 border-t border-dark-800 w-full">
             <button
               type="button"
               onClick={() => navigate('/staff-tasks')}
-              className="px-5 py-2.5 bg-dark-900 border border-dark-800 text-slate-500 hover:text-black rounded-xl transition-colors cursor-pointer"
+              className="px-5 py-2.5 bg-dark-900 border border-dark-800 text-slate-500 hover:text-black rounded-xl transition-colors cursor-pointer text-center"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={submitting}
-              className="px-6 py-2.5 bg-primary hover:bg-blue-600 text-white rounded-xl shadow-lg transition-all cursor-pointer font-bold disabled:opacity-50"
+              className="px-6 py-2.5 bg-primary hover:bg-blue-600 text-white rounded-xl shadow-lg transition-all cursor-pointer font-bold disabled:opacity-50 text-center"
             >
               {submitting ? 'Assigning...' : 'Create & Assign'}
             </button>

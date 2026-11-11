@@ -80,12 +80,12 @@ export default function WebhooksDemo() {
   };
 
   return (
-    <div className="p-6 md:p-8 grid grid-cols-1 lg:grid-cols-2 gap-8 select-none">
+    <div className="p-3.5 sm:p-5 md:p-8 grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8 select-none">
       
       {/* LEFT PANEL: WEBHOOK SIMULATOR CONSOLE */}
-      <div className="glass p-6 rounded-2xl border border-slate-800/80 flex flex-col justify-between">
+      <div className="glass p-4 sm:p-6 rounded-2xl border border-slate-800/80 flex flex-col justify-between">
         <div>
-          <h2 className="text-lg font-bold text-white tracking-wide">MS Graph Webhook Ingestion Sandbox</h2>
+          <h2 className="text-base sm:text-lg font-bold text-white tracking-wide">MS Graph Webhook Ingestion Sandbox</h2>
           <p className="text-xs text-slate-400 mt-1 mb-6">
             Simulate Outlook email webhooks and Teams chat events triggering the ingestion pipeline.
           </p>
@@ -189,13 +189,13 @@ export default function WebhooksDemo() {
       </div>
 
       {/* RIGHT PANEL: LOGS PARSING OUTPUT VIEW */}
-      <div className="glass p-6 rounded-2xl border border-slate-800/80 flex flex-col">
+      <div className="glass p-4 sm:p-6 rounded-2xl border border-slate-800/80 flex flex-col">
         <div className="flex items-center gap-2 mb-4">
           <Terminal className="w-5 h-5 text-emerald-400" />
           <h2 className="text-base font-bold text-white tracking-wide">Ingestion Logs Console</h2>
         </div>
 
-        <div className="flex-1 bg-dark-950/80 border border-slate-800/80 rounded-2xl p-5 font-mono text-xs leading-relaxed overflow-y-auto max-h-[460px] text-slate-300">
+        <div className="flex-1 bg-dark-950/80 border border-slate-800/80 rounded-2xl p-3.5 sm:p-5 font-mono text-xs leading-relaxed overflow-y-auto max-h-[460px] text-slate-300">
           {logResponse ? (
             <div className="space-y-5">
               {/* Http Status Code Header */}

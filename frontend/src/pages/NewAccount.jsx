@@ -206,7 +206,7 @@ export default function NewAccount() {
   };
 
   return (
-    <div className="max-w-4xl mx-auto py-8 px-4 h-auto animate-soft-pulse duration-1000">
+    <div className="max-w-4xl mx-auto py-4 sm:py-8 px-3 sm:px-4 h-auto">
       
       {/* Header */}
       <div className="flex items-center gap-4 mb-8">
@@ -234,7 +234,7 @@ export default function NewAccount() {
         )}
         
         {/* Section 1: Corporate Profile */}
-        <div className="glass p-8 rounded-2xl border border-slate-800/80 shadow-2xl relative overflow-hidden">
+        <div className="glass p-4 sm:p-6 md:p-8 rounded-2xl border border-slate-800/80 shadow-2xl relative overflow-hidden">
           <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/3 pointer-events-none"></div>
           
           <h2 className="text-sm font-bold text-primary uppercase tracking-widest mb-6 flex items-center gap-2">
@@ -554,18 +554,18 @@ export default function NewAccount() {
         </div>
 
         {/* Action Buttons */}
-        <div className="flex items-center justify-end gap-4 pt-4 pb-12">
+        <div className="flex flex-col-reverse sm:flex-row sm:items-center justify-end gap-3 sm:gap-4 pt-4 pb-12">
           <button 
             type="button"
             onClick={() => navigate('/accounts')}
-            className="px-6 py-3 rounded-xl text-sm font-bold text-slate-400 hover:text-white hover:bg-slate-800/50 transition-all"
+            className="px-6 py-3 rounded-xl text-sm font-bold text-slate-400 hover:text-white hover:bg-slate-800/50 transition-all text-center"
           >
             Cancel
           </button>
           <button 
             type="submit"
             disabled={isSubmitting}
-            className="px-8 py-3 bg-primary hover:bg-blue-600 text-white text-sm font-bold rounded-xl shadow-lg shadow-primary/20 active:scale-98 transition-all flex items-center gap-2 disabled:opacity-70"
+            className="px-8 py-3 bg-primary hover:bg-blue-600 text-white text-sm font-bold rounded-xl shadow-lg shadow-primary/20 active:scale-98 transition-all flex items-center justify-center gap-2 disabled:opacity-70 text-center"
           >
             {isSubmitting ? (
               <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>

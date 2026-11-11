@@ -299,20 +299,20 @@ export default function AccountDetails() {
   }
 
   return (
-    <div className="space-y-6 w-full mx-auto py-4 px-4 h-auto">
+    <div className="space-y-4 sm:space-y-6 w-full mx-auto py-3 sm:py-4 px-2.5 sm:px-4 h-auto">
       {/* 1. Header Toolbar */}
-      <div className="glass p-6 rounded-2xl border border-slate-800/80 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-xl">
-        <div className="flex items-center gap-4">
+      <div className="glass p-4 sm:p-6 rounded-2xl border border-slate-800/80 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-xl">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4 w-full sm:w-auto">
           <button
             onClick={() => navigate('/accounts')}
-            className="flex items-center gap-1.5 cursor-pointer text-black hover:bg-dark-700 transition-colors font-bold text-base px-3.5 py-1.5 rounded-full"
+            className="flex items-center gap-1.5 cursor-pointer text-black hover:bg-dark-700 transition-colors font-bold text-base px-3.5 py-1.5 rounded-full self-start"
           >
             <ChevronLeft className="w-5 h-5" />
             <span>Back</span>
           </button>
           <div>
-            <div className="flex items-center gap-3">
-              <h1 className="text-3xl font-extrabold text-white tracking-wide">{account.companyName}</h1>
+            <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+              <h1 className="text-xl sm:text-2xl md:text-3xl font-extrabold text-white tracking-wide break-words">{account.companyName}</h1>
               <span
                 onClick={handleShowHealthExplanation}
                 className={`px-3.5 py-1.5 text-xs font-black rounded-full border cursor-help hover:scale-105 transition-transform duration-150 ${getHealthPillColor(account.healthScore)}`}
@@ -320,17 +320,17 @@ export default function AccountDetails() {
                 {account.healthScore}% {account.status}
               </span>
             </div>
-            <div className="flex items-center gap-5 text-sm text-slate-400 mt-2 font-bold">
+            <div className="flex flex-wrap items-center gap-3 sm:gap-5 text-xs sm:text-sm text-slate-400 mt-2 font-bold">
               <span className="flex items-center gap-1.5"><Building2 className="w-4 h-4 text-primary" /> {account.industry}</span>
               <span className="flex items-center gap-1.5"><Globe className="w-4 h-4 text-primary" /> {account.region}</span>
             </div>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
           {['Admin', 'Sales Manager', 'Executive'].includes(user?.role) && (
             <button
               onClick={() => navigate(`/accounts/${id}/edit`)}
-              className="bg-slate-800 hover:bg-slate-700 border border-slate-700 px-4 py-2.5 rounded-xl text-xs font-bold text-slate-200 flex items-center gap-2 cursor-pointer transition-all"
+              className="flex-1 sm:flex-none justify-center bg-slate-800 hover:bg-slate-700 border border-slate-700 px-4 py-2.5 rounded-xl text-xs font-bold text-slate-200 flex items-center gap-2 cursor-pointer transition-all"
             >
               <Edit2 className="w-4 h-4" />
               Edit Account
@@ -338,7 +338,7 @@ export default function AccountDetails() {
           )}
           <button
             onClick={() => setIsLogInteractionOpen(true)}
-            className="bg-primary hover:bg-blue-600 px-5 py-3 rounded-xl text-xs font-bold text-white flex items-center gap-2 cursor-pointer transition-all shadow-lg shadow-primary/20"
+            className="flex-1 sm:flex-none justify-center bg-primary hover:bg-blue-600 px-5 py-3 rounded-xl text-xs font-bold text-white flex items-center gap-2 cursor-pointer transition-all shadow-lg shadow-primary/20"
           >
             <MessageSquare className="w-4 h-4" />
             Log Interaction
@@ -352,7 +352,7 @@ export default function AccountDetails() {
         <div className="lg:col-span-5 space-y-6">
 
           {/* Corporate details Card */}
-          <div className="glass p-6 rounded-2xl border border-slate-800/80 space-y-5 overflow-visible relative z-30">
+          <div className="glass p-4 sm:p-6 rounded-2xl border border-slate-800/80 space-y-5 overflow-visible relative z-30">
             <h3 className="text-sm font-extrabold uppercase tracking-widest text-slate-400 border-b border-slate-850 pb-2">Corporate Profile</h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-4 overflow-visible">
               <div className="p-4 bg-slate-900/40 rounded-xl border border-slate-850 flex flex-col gap-1.5">
@@ -441,7 +441,7 @@ export default function AccountDetails() {
         <div className="lg:col-span-7 space-y-6">
 
           {/* Key Contacts */}
-          <div className="glass p-6 rounded-2xl border border-slate-800/80 space-y-5 overflow-visible relative z-30">
+          <div className="glass p-4 sm:p-6 rounded-2xl border border-slate-800/80 space-y-5 overflow-visible relative z-30">
             <h3 className="text-sm font-extrabold uppercase tracking-widest text-slate-400 border-b border-slate-850 pb-2">Key Contacts Mapped</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5 overflow-visible relative z-30">
               {contacts.length === 0 ? (
@@ -561,7 +561,7 @@ export default function AccountDetails() {
           </div>
 
           {/* Interaction Timeline */}
-          <div className="glass p-6 rounded-2xl border border-slate-800/80 space-y-5 relative z-10">
+          <div className="glass p-4 sm:p-6 rounded-2xl border border-slate-800/80 space-y-5 relative z-10">
             <h3 className="text-sm font-extrabold uppercase tracking-widest text-slate-400 border-b border-slate-850 pb-2">Interaction Timeline</h3>
 
             <div className="space-y-5 max-h-[600px] overflow-y-auto pr-1">
@@ -745,11 +745,11 @@ export default function AccountDetails() {
 
       {/* Modal: Log Interaction Activity */}
       {isLogInteractionOpen && (
-        <div className="fixed inset-0 bg-dark-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 bg-dark-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4">
           <div className="glass w-full max-w-2xl rounded-2xl border border-slate-700/80 flex flex-col shadow-2xl max-h-[92vh] overflow-hidden">
 
             {/* Header */}
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800 bg-dark-900/40">
+            <div className="flex items-center justify-between px-4 sm:px-6 py-3.5 sm:py-4 border-b border-slate-800 bg-dark-900/40">
               <div className="flex items-center gap-2.5">
                 <div className="w-8 h-8 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center">
                   <CheckSquare className="w-4 h-4 text-primary" />
@@ -765,7 +765,7 @@ export default function AccountDetails() {
             </div>
 
             <form onSubmit={handleLogInteraction} className="overflow-y-auto flex-1">
-              <div className="p-6 space-y-5">
+              <div className="p-4 sm:p-6 space-y-4 sm:space-y-5">
                 {/* Interaction Type selection */}
                 <div className="space-y-2">
                   <label className="text-xs text-slate-450 uppercase font-bold tracking-wider flex items-center gap-1.5">
@@ -995,17 +995,17 @@ export default function AccountDetails() {
               </div>
 
               {/* Footer Actions */}
-              <div className="px-6 py-4 border-t border-slate-800 flex items-center justify-end gap-3 bg-dark-900/40">
+              <div className="px-4 sm:px-6 py-3.5 sm:py-4 border-t border-slate-800 flex flex-col-reverse sm:flex-row sm:items-center justify-end gap-2.5 sm:gap-3 bg-dark-900/40">
                 <button
                   type="button"
                   onClick={() => { setIsLogInteractionOpen(false); resetInteractionForm(); }}
-                  className="px-4 py-2 text-xs font-semibold text-slate-400 hover:text-white transition-colors cursor-pointer"
+                  className="w-full sm:w-auto px-4 py-2 text-xs font-semibold text-slate-400 hover:text-white transition-colors cursor-pointer text-center"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="bg-primary hover:bg-blue-600 text-xs text-white font-semibold rounded-xl px-5 py-2.5 flex items-center gap-2 transition-all shadow-lg shadow-primary/20 cursor-pointer"
+                  className="w-full sm:w-auto justify-center bg-primary hover:bg-blue-600 text-xs text-white font-semibold rounded-xl px-5 py-2.5 flex items-center gap-2 transition-all shadow-lg shadow-primary/20 cursor-pointer"
                 >
                   <Send className="w-3.5 h-3.5" />
                   Save &amp; Assign
@@ -1018,13 +1018,13 @@ export default function AccountDetails() {
 
       {/* Modal: Health Score Explanation Breakdown */}
       {isHealthExplanationOpen && (
-        <div className="fixed inset-0 bg-dark-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 bg-dark-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4">
           <div className="glass w-full max-w-2xl rounded-2xl border border-slate-700/80 flex flex-col shadow-2xl max-h-[92vh] overflow-hidden">
 
             {/* Header */}
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800">
+            <div className="flex items-center justify-between px-4 sm:px-6 py-3.5 sm:py-4 border-b border-slate-800">
               <div className="flex items-center gap-2.5">
-                <ShieldAlert className="w-5 h-5 text-primary" />
+                <ShieldAlert className="w-5 h-5 text-primary shrink-0" />
                 <div>
                   <h3 className="font-bold text-white text-sm">Health Score Breakdown</h3>
                   <p className="text-xs text-slate-500">Pillar calculations contributing to client health status</p>
@@ -1039,7 +1039,7 @@ export default function AccountDetails() {
             </div>
 
             {/* Content */}
-            <div className="overflow-y-auto flex-1 p-6 space-y-6">
+            <div className="overflow-y-auto flex-1 p-4 sm:p-6 space-y-4 sm:space-y-6">
               {explanationLoading ? (
                 <div className="h-64 flex flex-col items-center justify-center gap-3">
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
@@ -1052,7 +1052,7 @@ export default function AccountDetails() {
               ) : (
                 <div className="space-y-6 text-xs text-slate-300 leading-relaxed">
                   {/* Summary Banner */}
-                  <div className="bg-slate-900/40 border border-slate-800 rounded-xl p-5 flex items-center gap-6">
+                  <div className="bg-slate-900/40 border border-slate-800 rounded-xl p-4 sm:p-5 flex flex-col sm:flex-row items-center gap-4 sm:gap-6 text-center sm:text-left">
                     <div className="relative flex items-center justify-center w-20 h-20 shrink-0">
                       <div className="absolute inset-0 rounded-full border-4 border-slate-800"></div>
                       <span className="text-xl font-black text-white">{explanationData.healthScore}%</span>
@@ -1173,10 +1173,10 @@ export default function AccountDetails() {
             </div>
 
             {/* Footer */}
-            <div className="px-6 py-4 border-t border-slate-800 flex justify-end">
+            <div className="px-4 sm:px-6 py-3.5 sm:py-4 border-t border-slate-800 flex justify-end">
               <button
                 onClick={() => { setIsHealthExplanationOpen(false); setExplanationData(null); }}
-                className="bg-primary hover:bg-blue-600 text-xs text-white font-semibold rounded-xl px-5 py-2 transition-colors cursor-pointer"
+                className="w-full sm:w-auto bg-primary hover:bg-blue-600 text-xs text-white font-semibold rounded-xl px-5 py-2.5 transition-colors cursor-pointer text-center"
               >
                 Close breakdown
               </button>

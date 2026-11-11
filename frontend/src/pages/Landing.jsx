@@ -42,7 +42,7 @@ export default function Landing() {
       <div className="absolute bottom-[-15%] right-[-15%] w-[55%] h-[55%] rounded-full bg-emerald-500/5 blur-[130px] pointer-events-none" />
 
       {/* NAVBAR */}
-      <header className="h-20 max-w-7xl mx-auto px-6 md:px-12 flex items-center justify-between relative z-20">
+      <header className="h-20 max-w-7xl mx-auto px-4 sm:px-6 md:px-12 flex items-center justify-between relative z-20">
         <div className="flex items-center gap-3">
           <div className="bg-[#0f172a] rounded-xl px-3 py-1.5">
             <img
@@ -83,10 +83,10 @@ export default function Landing() {
       </header>
 
       {/* HERO SECTION */}
-      <section className="max-w-7xl mx-auto px-6 md:px-12 pt-16 pb-20 relative z-10 grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 md:px-12 pt-8 sm:pt-16 pb-12 sm:pb-20 relative z-10 grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-center">
         <div className="lg:col-span-7 space-y-6 text-center lg:text-left">
 
-          <h1 className="text-4xl md:text-6xl font-black text-white leading-[1.15] tracking-tight">
+          <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-black text-white leading-[1.15] tracking-tight">
             Stop Guessing. <br />
             Know Your <span style={{background: 'linear-gradient(90deg, #1a3a8f, #cc1f27)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text'}}>Relationship Pulse</span>.
           </h1>
@@ -147,7 +147,7 @@ export default function Landing() {
       </section>
 
       {/* CORE MODULES / FEATURES */}
-      <section id="features" className="max-w-7xl mx-auto px-6 md:px-12 py-20 border-t border-slate-900">
+      <section id="features" className="max-w-7xl mx-auto px-4 sm:px-6 md:px-12 py-12 sm:py-20 border-t border-slate-900">
         <div className="text-center max-w-2xl mx-auto space-y-4 mb-16">
           <h2 className="text-2xl md:text-3xl font-bold text-white tracking-wide">Autonomous Account Diagnostics</h2>
           <p className="text-xs md:text-sm text-slate-400 leading-relaxed">
@@ -203,7 +203,7 @@ export default function Landing() {
       </section>
 
       {/* INTERACTIVE FORMULA CALCULATOR */}
-      <section id="calculator" className="max-w-7xl mx-auto px-6 md:px-12 py-20 border-t border-slate-900 grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+      <section id="calculator" className="max-w-7xl mx-auto px-4 sm:px-6 md:px-12 py-12 sm:py-20 border-t border-slate-900 grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 items-center">
         <div className="space-y-6">
           <div className="inline-block bg-emerald-500/10 border border-emerald-500/25 px-3 py-1 rounded-full text-xs text-emerald-400 font-bold uppercase tracking-wider">
             Weighted Score Formula
@@ -237,7 +237,7 @@ export default function Landing() {
         </div>
 
         {/* Live Simulator Widget */}
-        <div className="glass rounded-3xl border-slate-800 p-6 md:p-8 space-y-6">
+        <div className="glass rounded-3xl border-slate-800 p-4 sm:p-6 md:p-8 space-y-5 sm:space-y-6">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-slate-400 uppercase">Interactive Calculator</span>
             <div className={`px-3 py-1 rounded-lg border text-xs font-bold uppercase ${statusInfo.color}`}>
@@ -306,7 +306,7 @@ export default function Landing() {
       </section>
 
       {/* ── FEATURES SECTION ── */}
-      <section id="features" className="max-w-7xl mx-auto px-6 md:px-12 py-20 border-t border-slate-900">
+      <section id="features" className="max-w-7xl mx-auto px-4 sm:px-6 md:px-12 py-12 sm:py-20 border-t border-slate-900">
         <div className="text-center max-w-2xl mx-auto space-y-4 mb-16">
           <span className="inline-block bg-primary/10 border border-primary/20 text-primary text-xs font-bold uppercase tracking-wider px-3 py-1 rounded-full">Platform Features</span>
           <h2 className="text-2xl md:text-4xl font-black text-white">Everything You Need to <br />Manage Relationships</h2>
@@ -331,14 +331,14 @@ export default function Landing() {
       </section>
 
       {/* ── ABOUT US SECTION ── */}
-      <section id="about" className="border-t border-slate-900 py-20">
-        <div className="max-w-7xl mx-auto px-6 md:px-12 grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
+      <section id="about" className="border-t border-slate-900 py-12 sm:py-20">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-12 grid grid-cols-1 lg:grid-cols-2 gap-10 lg:gap-16 items-center">
           <div className="space-y-6">
             <span className="inline-block bg-[#1a3a8f]/10 border border-[#1a3a8f]/20 text-[#1a3a8f] text-xs font-bold uppercase tracking-wider px-3 py-1 rounded-full">About NeST Digital</span>
             <h2 className="text-2xl md:text-4xl font-black text-white leading-tight">Engineering Transformation <br />Through Technology</h2>
             <p className="text-sm text-slate-400 leading-relaxed">NeST Digital is a global technology company delivering enterprise-grade digital transformation solutions. With decades of experience across industries, we build intelligent platforms that help organizations make data-driven decisions, optimize operations, and accelerate growth.</p>
             <p className="text-sm text-slate-400 leading-relaxed">CustomerPulse is our flagship AI-powered CRM intelligence platform — built to give sales teams unprecedented visibility into the health and trajectory of every client relationship.</p>
-            <div className="grid grid-cols-3 gap-4 pt-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 pt-4">
               {[['20+', 'Years Experience'], ['500+', 'Enterprise Clients'], ['50+', 'Countries Served']].map(([num, label]) => (
                 <div key={label} className="glass rounded-xl p-4 border border-slate-800/60 text-center">
                   <div className="text-2xl font-black" style={{color: '#cc1f27'}}>{num}</div>
@@ -363,14 +363,14 @@ export default function Landing() {
       </section>
 
       {/* ── CONTACT US SECTION ── */}
-      <section id="contact" className="border-t border-slate-900 py-20">
-        <div className="max-w-7xl mx-auto px-6 md:px-12">
+      <section id="contact" className="border-t border-slate-900 py-12 sm:py-20">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-12">
           <div className="text-center max-w-2xl mx-auto space-y-4 mb-16">
             <span className="inline-block bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-bold uppercase tracking-wider px-3 py-1 rounded-full">Get In Touch</span>
             <h2 className="text-2xl md:text-4xl font-black text-white">Let's Start a Conversation</h2>
             <p className="text-sm text-slate-400 leading-relaxed">Interested in CustomerPulse for your organization? Our team is ready to walk you through a personalized demo.</p>
           </div>
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-start">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 items-start">
             {/* Contact Info */}
             <div className="space-y-6">
               {[
@@ -378,7 +378,7 @@ export default function Landing() {
                 { icon: <Users className="w-5 h-5" />, color: 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400', label: 'Sales Team', value: '+1 (800) 123-4567', sub: 'Mon–Fri, 9am–6pm IST' },
                 { icon: <Zap className="w-5 h-5" />, color: 'bg-amber-500/10 border-amber-500/20 text-amber-400', label: 'Headquarters', value: 'Kochi, Kerala, India', sub: 'NeST Digital Park, Technopark' },
               ].map((c) => (
-                <div key={c.label} className="glass rounded-2xl p-5 border border-slate-800/80 flex items-start gap-4">
+                <div key={c.label} className="glass rounded-2xl p-4 sm:p-5 border border-slate-800/80 flex items-start gap-4">
                   <div className={`border p-3 rounded-xl flex items-center justify-center shrink-0 ${c.color}`}>{c.icon}</div>
                   <div>
                     <p className="text-xs text-slate-500 font-semibold uppercase tracking-wider">{c.label}</p>
@@ -389,9 +389,9 @@ export default function Landing() {
               ))}
             </div>
             {/* Contact Form */}
-            <div className="glass rounded-2xl border border-slate-800/80 p-8 space-y-5">
+            <div className="glass rounded-2xl border border-slate-800/80 p-4 sm:p-6 md:p-8 space-y-4 sm:space-y-5">
               <h3 className="text-sm font-bold text-white">Send Us a Message</h3>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="text-xs text-slate-400 font-semibold uppercase block mb-1.5">First Name</label>
                   <input type="text" placeholder="John" className="w-full bg-dark-900/60 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-primary/50" />
@@ -422,8 +422,8 @@ export default function Landing() {
       </section>
 
       {/* FOOTER */}
-      <footer className="border-t border-slate-900 py-10 relative z-20">
-        <div className="max-w-7xl mx-auto px-6 md:px-12 flex flex-col md:flex-row items-center justify-between gap-4">
+      <footer className="border-t border-slate-900 py-8 sm:py-10 relative z-20">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-12 flex flex-col md:flex-row items-center justify-between gap-4 text-center md:text-left">
           <div className="flex items-center gap-3">
             <div className="bg-[#0f172a] rounded-xl px-2 py-1">
               <img src={nestLogo} alt="NeST Digital" className="h-6 w-auto object-contain" />

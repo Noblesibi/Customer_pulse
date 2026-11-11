@@ -35,7 +35,7 @@ export default function Toast({ type, message, onClose }) {
   const current = styles[type] || styles['default'];
 
   return (
-    <div className={`fixed bottom-5 right-5 z-50 glass flex items-start gap-3 p-4 rounded-xl border ${current.bg} max-w-sm shadow-2xl animate-soft-pulse transition-all duration-300`}>
+    <div className={`fixed bottom-3 sm:bottom-5 right-3 sm:right-5 left-3 sm:left-auto max-w-sm z-50 glass flex items-start gap-3 p-3.5 sm:p-4 rounded-xl border ${current.bg} shadow-2xl animate-soft-pulse transition-all duration-300`}>
       {current.icon}
       <div className="flex-1 text-sm font-medium">
         <div className="font-bold mb-0.5 text-white">{type || 'Notification'}</div>

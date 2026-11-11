@@ -353,7 +353,7 @@ export default function Accounts() {
   };
 
   return (
-    <div className="p-6 md:p-8 flex flex-col lg:flex-row gap-6 lg:gap-8 relative select-none h-auto lg:h-[calc(100vh-10rem)]">
+    <div className="p-3.5 sm:p-5 md:p-8 flex flex-col lg:flex-row gap-6 lg:gap-8 relative select-none h-auto lg:h-[calc(100vh-10rem)]">
 
       {/* LEFT PANEL: ACCOUNTS TABLE LIST */}
       <div className={`w-full lg:flex-1 flex flex-col justify-between glass p-4 md:p-6 rounded-2xl border border-slate-800/80 transition-all duration-300 ${selectedAccount ? 'lg:max-w-[50%]' : 'w-full'
@@ -946,11 +946,11 @@ export default function Accounts() {
 
       {/* 4. Modal: Log Interaction Activity — Rich Note-Keeping Panel */}
       {isLogInteractionOpen && (
-        <div className="fixed inset-0 bg-dark-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 bg-dark-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4">
           <div className="glass w-full max-w-2xl rounded-2xl border border-slate-700/80 flex flex-col shadow-2xl max-h-[92vh] overflow-hidden">
 
             {/* Header */}
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800">
+            <div className="flex items-center justify-between px-4 sm:px-6 py-3.5 sm:py-4 border-b border-slate-800">
               <div className="flex items-center gap-2.5">
                 <div className="w-8 h-8 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center">
                   <CheckSquare className="w-4 h-4 text-primary" />
@@ -966,7 +966,7 @@ export default function Accounts() {
             </div>
 
             <form onSubmit={handleLogInteraction} className="overflow-y-auto flex-1">
-              <div className="p-6 space-y-5">
+              <div className="p-4 sm:p-6 space-y-4 sm:space-y-5">
 
                 {/* Section 1: Channel Type */}
                 <div className="space-y-2">
@@ -1242,23 +1242,21 @@ export default function Accounts() {
               </div>
 
               {/* Footer Actions */}
-              <div className="px-6 py-4 border-t border-slate-800 flex items-center justify-end gap-3">
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => { setIsLogInteractionOpen(false); resetInteractionForm(); }}
-                    className="px-4 py-2 text-xs font-semibold text-slate-400 hover:text-white transition-colors"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    className="bg-primary hover:bg-blue-600 text-xs text-white font-semibold rounded-xl px-5 py-2.5 flex items-center gap-2 transition-all shadow-lg shadow-primary/20"
-                  >
-                    <Send className="w-3.5 h-3.5" />
-                    Save & Assign
-                  </button>
-                </div>
+              <div className="px-4 sm:px-6 py-3.5 sm:py-4 border-t border-slate-800 flex flex-col-reverse sm:flex-row sm:items-center justify-end gap-2.5 sm:gap-3">
+                <button
+                  type="button"
+                  onClick={() => { setIsLogInteractionOpen(false); resetInteractionForm(); }}
+                  className="w-full sm:w-auto px-4 py-2 text-xs font-semibold text-slate-400 hover:text-white transition-colors text-center"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="w-full sm:w-auto justify-center bg-primary hover:bg-blue-600 text-xs text-white font-semibold rounded-xl px-5 py-2.5 flex items-center gap-2 transition-all shadow-lg shadow-primary/20 text-center"
+                >
+                  <Send className="w-3.5 h-3.5" />
+                  Save & Assign
+                </button>
               </div>
             </form>
           </div>
@@ -1267,13 +1265,13 @@ export default function Accounts() {
 
       {/* 5. Modal: Health Score Explanation Breakdown */}
       {isHealthExplanationOpen && (
-        <div className="fixed inset-0 bg-dark-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 bg-dark-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4">
           <div className="glass w-full max-w-2xl rounded-2xl border border-slate-700/80 flex flex-col shadow-2xl max-h-[92vh] overflow-hidden">
 
             {/* Header */}
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800">
+            <div className="flex items-center justify-between px-4 sm:px-6 py-3.5 sm:py-4 border-b border-slate-800">
               <div className="flex items-center gap-2.5">
-                <ShieldAlert className="w-5 h-5 text-primary" />
+                <ShieldAlert className="w-5 h-5 text-primary shrink-0" />
                 <div>
                   <h3 className="font-bold text-white text-sm">Health Score Breakdown</h3>
                   <p className="text-xs text-slate-500">Pillar calculations contributing to client health status</p>
@@ -1288,7 +1286,7 @@ export default function Accounts() {
             </div>
 
             {/* Content */}
-            <div className="overflow-y-auto flex-1 p-6 space-y-6">
+            <div className="overflow-y-auto flex-1 p-4 sm:p-6 space-y-4 sm:space-y-6">
               {explanationLoading ? (
                 <div className="h-64 flex flex-col items-center justify-center gap-3">
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
@@ -1301,7 +1299,7 @@ export default function Accounts() {
               ) : (
                 <div className="space-y-6 text-xs text-slate-300 leading-relaxed">
                   {/* Summary Banner */}
-                  <div className="bg-slate-900/40 border border-slate-800 rounded-xl p-5 flex items-center gap-6">
+                  <div className="bg-slate-900/40 border border-slate-800 rounded-xl p-4 sm:p-5 flex flex-col sm:flex-row items-center gap-4 sm:gap-6 text-center sm:text-left">
                     <div className="relative flex items-center justify-center w-20 h-20 shrink-0">
                       <div className="absolute inset-0 rounded-full border-4 border-slate-800"></div>
                       <span className="text-xl font-black text-white">{explanationData.healthScore}%</span>
@@ -1422,10 +1420,10 @@ export default function Accounts() {
             </div>
 
             {/* Footer */}
-            <div className="px-6 py-4 border-t border-slate-800 flex justify-end">
+            <div className="px-4 sm:px-6 py-3.5 sm:py-4 border-t border-slate-800 flex justify-end">
               <button
                 onClick={() => { setIsHealthExplanationOpen(false); setExplanationData(null); }}
-                className="bg-primary hover:bg-blue-600 text-xs text-white font-semibold rounded-xl px-5 py-2 transition-colors"
+                className="w-full sm:w-auto bg-primary hover:bg-blue-600 text-xs text-white font-semibold rounded-xl px-5 py-2.5 transition-colors text-center"
               >
                 Close breakdown
               </button>

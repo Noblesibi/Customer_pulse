@@ -784,7 +784,7 @@ export default function Users() {
   };
 
   return (
-    <div className="p-6 md:p-8 space-y-6 select-none animate-soft-pulse duration-1000">
+    <div className="p-3.5 sm:p-5 md:p-8 space-y-4 sm:space-y-6 select-none">
 
       {isAddUserOpen ? (
         <div className="space-y-6">
@@ -1381,8 +1381,8 @@ export default function Users() {
               <h2 className="text-base font-extrabold text-white uppercase tracking-wider">User Directory</h2>
               <p className="text-xs text-slate-500 mt-1">All platform users grouped by their business unit and role.</p>
             </div>
-            <div className="flex items-center gap-3 relative max-w-lg w-full md:justify-end">
-              <div className="relative w-full max-w-sm">
+            <div className="flex flex-wrap sm:flex-nowrap items-center gap-2.5 sm:gap-3 relative max-w-lg w-full md:justify-end">
+              <div className="relative flex-1 min-w-[160px] sm:max-w-sm">
                 <input
                   type="text"
                   value={clientSearch}
@@ -1610,7 +1610,7 @@ export default function Users() {
           ======================================================== */}
       {selectedDirUser && (
         <div className="fixed inset-0 bg-dark-950/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="glass max-w-lg w-full rounded-2xl p-6 border border-slate-800 shadow-2xl space-y-6 relative select-text">
+          <div className="glass max-w-lg w-full rounded-2xl p-4 sm:p-6 border border-slate-800 shadow-2xl space-y-4 sm:space-y-6 relative select-text max-h-[90vh] overflow-y-auto">
             {/* Close Button */}
             <button 
               type="button" 
@@ -1673,7 +1673,7 @@ export default function Users() {
             </div>
 
             {/* Footer */}
-            <div className="pt-2 flex items-center justify-between gap-3">
+            <div className="pt-2 flex flex-col-reverse sm:flex-row sm:items-center sm:justify-between gap-2.5 sm:gap-3">
               <button 
                 type="button" 
                 onClick={() => {
@@ -1682,7 +1682,7 @@ export default function Users() {
                   setSelectedDirUser(null);
                   navigate('/staff-tasks/new', { state: { preselectUid: uid, preselectName: name } });
                 }}
-                className="bg-primary hover:bg-blue-700 text-white text-xs font-bold rounded-lg px-5 py-2.5 flex items-center gap-2 cursor-pointer active:scale-98 transition-all shadow-md"
+                className="bg-primary hover:bg-blue-700 text-white text-xs font-bold rounded-lg px-5 py-2.5 flex items-center justify-center gap-2 cursor-pointer active:scale-98 transition-all shadow-md"
               >
                 <Plus size={14} /> Assign Staff Task
               </button>

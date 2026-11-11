@@ -76,10 +76,10 @@ export default function Risks() {
   });
 
   return (
-    <div className="p-6 md:p-8 space-y-8 select-none">
+    <div className="p-3.5 sm:p-5 md:p-8 space-y-6 sm:space-y-8 select-none">
       
       {/* 1. Header with Filters */}
-      <div className="flex flex-wrap gap-4 items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h2 className="text-lg font-bold text-white tracking-wide">Risk Center Control Panel</h2>
           <p className="text-xs text-slate-400 mt-1">Monitor, evaluate and mitigate active client alerts</p>
@@ -212,7 +212,7 @@ export default function Risks() {
           ======================================================== */}
       {selectedRisk && (
         <div className="fixed inset-0 bg-dark-950/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="glass max-w-sm w-full rounded-2xl p-6 border border-slate-800">
+          <div className="glass max-w-sm w-full rounded-2xl p-5 sm:p-6 border border-slate-800 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-bold text-white text-base">Mitigate Risk Alert</h3>
               <button onClick={() => setSelectedRisk(null)} className="text-slate-400 hover:text-white"><X className="w-5 h-5" /></button>

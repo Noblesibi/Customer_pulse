@@ -332,7 +332,7 @@ export default function LogInteraction() {
   };
 
   return (
-    <div className="p-6 md:p-8 space-y-6">
+    <div className="p-3.5 sm:p-5 md:p-8 space-y-4 sm:space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <button 
@@ -669,17 +669,17 @@ export default function LogInteraction() {
           </div>
 
           {/* Form Actions */}
-          <div className="border-t border-slate-800 pt-6 flex items-center justify-end gap-3">
+          <div className="border-t border-slate-800 pt-6 flex flex-col-reverse sm:flex-row sm:items-center justify-end gap-3">
             <button
               type="button"
               onClick={() => navigate('/interaction-log')}
-              className="bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-lg px-6 py-3 border border-slate-700/50 cursor-pointer active:scale-98 transition-all"
+              className="bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-lg px-6 py-3 border border-slate-700/50 cursor-pointer active:scale-98 transition-all text-center"
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="bg-primary hover:bg-blue-600 text-xs text-white font-semibold rounded-lg px-8 py-3 shadow-lg active:scale-98 transition-all cursor-pointer flex items-center gap-2"
+              className="bg-primary hover:bg-blue-600 text-xs text-white font-semibold rounded-lg px-8 py-3 shadow-lg active:scale-98 transition-all cursor-pointer flex items-center justify-center gap-2 text-center"
             >
               <Send className="w-4 h-4 text-white" />
               Save & Assign Interaction

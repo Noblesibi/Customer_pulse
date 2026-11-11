@@ -51,8 +51,8 @@ export default function AppLayout() {
       {showNavbar && <Navbar />}
 
       {/* Main Content Viewport */}
-      <main ref={mainRef} className="flex-1 overflow-y-auto p-4 md:p-8 bg-dark-950 flex flex-col">
-        <div className="flex-1 bg-dark-900 border border-dark-800 rounded-2xl shadow-sm flex flex-col">
+      <main ref={mainRef} className="flex-1 overflow-y-auto p-2.5 sm:p-4 md:p-6 lg:p-8 bg-dark-950 flex flex-col min-w-0">
+        <div className="flex-1 bg-dark-900 border border-dark-800 rounded-xl sm:rounded-2xl shadow-sm flex flex-col min-w-0">
           <Outlet />
         </div>
       </main>

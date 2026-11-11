@@ -277,7 +277,7 @@ export default function NotificationCenter() {
                 srcDoc={previewModal.html}
                 title="Email Preview"
                 className="w-full rounded-lg border border-dark-800"
-                style={{ height: '580px' }}
+                style={{ height: 'min(580px, 65vh)' }}
               />
             </div>
           </div>
@@ -285,14 +285,14 @@ export default function NotificationCenter() {
       )}
 
       {/* Header Banner */}
-      <div className="p-6 border-b border-dark-800 bg-dark-900 rounded-t-2xl">
+      <div className="p-3.5 sm:p-5 md:p-6 border-b border-dark-800 bg-dark-900 rounded-t-xl sm:rounded-t-2xl">
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center">
+            <div className="w-11 h-11 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0">
               <Bell className="w-6 h-6 text-primary" />
             </div>
             <div>
-              <h1 className="text-lg font-extrabold text-black">Automatic Email & Notification Engine</h1>
+              <h1 className="text-base sm:text-lg font-extrabold text-black">Automatic Email & Notification Engine</h1>
               <p className="text-xs font-bold text-black mt-0.5">Automated Event Emails · Task Assignments · Status Changes · Reminders · Overdue Alerts</p>
             </div>
           </div>
@@ -305,31 +305,31 @@ export default function NotificationCenter() {
         </div>
 
         {/* Tab Navigation */}
-        <div className="flex gap-1.5 mt-5 flex-wrap">
+        <div className="flex gap-1.5 mt-4 overflow-x-auto whitespace-nowrap pb-1 sm:flex-wrap sm:pb-0">
           {TABS.map(tab => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-extrabold border cursor-pointer transition-all ${
+              className={`flex items-center gap-2 px-3 sm:px-4 py-2 rounded-xl text-xs font-extrabold border cursor-pointer transition-all ${
                 activeTab === tab.id
                   ? 'bg-primary border-primary text-white shadow-md'
                   : 'bg-dark-900 border-dark-800 text-black hover:bg-dark-800'
               }`}
             >
-              <tab.icon className="w-4 h-4" />
+              <tab.icon className="w-4 h-4 shrink-0" />
               {tab.label}
             </button>
           ))}
         </div>
       </div>
 
-      <div className="flex-1 p-6 space-y-6">
+      <div className="flex-1 p-3.5 sm:p-5 md:p-6 space-y-4 sm:space-y-6">
 
         {/* ─── TAB 1: Dashboard ────────────────────────────────────────────── */}
         {activeTab === 'dashboard' && (
           <div className="space-y-6">
             {/* Stats Grid */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
               <StatCard label="Sent Today" value={s?.totalSentToday ?? '—'} icon={Send} color="bg-emerald-500/10 text-emerald-600" sub={s?.totalMockSentToday ? `+${s.totalMockSentToday} mock` : 'live emails'} />
               <StatCard label="Queued" value={s?.totalQueued ?? '—'} icon={Clock} color="bg-amber-500/10 text-amber-600" sub="awaiting delivery" />
               <StatCard label="Failed" value={s?.totalFailed ?? '—'} icon={AlertTriangle} color="bg-rose-500/10 text-rose-600" sub="max retries reached" />
@@ -414,8 +414,8 @@ export default function NotificationCenter() {
                 <p className="text-xs font-bold mt-1">Automatic emails are processed in real-time every 30 seconds.</p>
               </div>
             ) : (
-              <div className="bg-dark-900 border border-dark-800 rounded-xl overflow-hidden shadow-sm">
-                <table className="w-full text-xs">
+              <div className="bg-dark-900 border border-dark-800 rounded-xl overflow-x-auto shadow-sm">
+                <table className="w-full text-xs min-w-[650px]">
                   <thead className="bg-dark-800/40 border-b border-dark-800">
                     <tr>
                       {['Recipient', 'Subject', 'Trigger Event', 'Status', 'Queued At', 'Retries', 'Actions'].map(h => (
@@ -496,8 +496,8 @@ export default function NotificationCenter() {
                 <p className="font-extrabold">No automatic email log records found.</p>
               </div>
             ) : (
-              <div className="bg-dark-900 border border-dark-800 rounded-xl overflow-hidden shadow-sm">
-                <table className="w-full text-xs">
+              <div className="bg-dark-900 border border-dark-800 rounded-xl overflow-x-auto shadow-sm">
+                <table className="w-full text-xs min-w-[650px]">
                   <thead className="bg-dark-800/40 border-b border-dark-800">
                     <tr>
                       {['Recipient', 'Subject', 'Trigger Event', 'Status', 'Sent At', 'Retries', 'Details'].map(h => (

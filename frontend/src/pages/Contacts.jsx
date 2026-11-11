@@ -218,11 +218,11 @@ export default function Contacts() {
   };
 
   return (
-    <div className="p-6 md:p-8 space-y-8 select-none">
+    <div className="p-3.5 sm:p-5 md:p-8 space-y-6 sm:space-y-8 select-none">
       
       {/* 1. Matrix Visualizer */}
-      <div className="glass p-6 rounded-2xl border border-slate-800/80">
-        <div className="flex items-center justify-between border-b border-slate-800/60 pb-4 mb-6">
+      <div className="glass p-4 sm:p-6 rounded-2xl border border-slate-800/80">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800/60 pb-4 mb-6">
           <div className="flex items-center gap-2">
             <Grid3X3 className="w-5 h-5 text-primary" />
             <h2 className="text-base font-bold text-white tracking-wide">Stakeholder Influence vs Hierarchy Matrix</h2>
@@ -232,7 +232,7 @@ export default function Contacts() {
           <select 
             value={selectedAccountId}
             onChange={(e) => setSelectedAccountId(e.target.value)}
-            className="bg-dark-900/60 border border-slate-800 text-xs rounded-xl p-2.5 text-slate-300 focus:outline-none cursor-pointer"
+            className="bg-dark-900/60 border border-slate-800 text-xs rounded-xl p-2.5 text-slate-300 focus:outline-none cursor-pointer w-full sm:w-auto"
           >
             <option value="">
               {['CEO', 'Admin'].includes(user?.userType || user?.role) ? 'All Accounts' : 'All Assigned Projects'}
@@ -305,7 +305,7 @@ export default function Contacts() {
       </div>
 
       {/* 2. Contacts List Data Panel */}
-      <div className="glass p-6 rounded-2xl border border-slate-800/80 flex flex-col">
+      <div className="glass p-4 sm:p-6 rounded-2xl border border-slate-800/80 flex flex-col">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
           <h2 className="text-lg font-bold text-white tracking-wide">Stakeholder Directory</h2>
           <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
@@ -429,10 +429,10 @@ export default function Contacts() {
 
       {/* Add Contact Modal */}
       {isAddContactOpen && (
-        <div className="fixed inset-0 bg-dark-950/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 bg-dark-950/70 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4">
           <div className="glass max-w-2xl w-full rounded-2xl border border-slate-800 flex flex-col max-h-[90vh] overflow-hidden">
             {/* Header */}
-            <div className="flex items-center justify-between p-6 border-b border-slate-800/80">
+            <div className="flex items-center justify-between p-4 sm:p-6 border-b border-slate-800/80">
               <h3 className="font-bold text-white text-base">Add Account Stakeholder</h3>
               <button 
                 onClick={() => setIsAddContactOpen(false)} 
@@ -442,7 +442,7 @@ export default function Contacts() {
               </button>
             </div>
             {/* Form Container */}
-            <form onSubmit={handleCreateContact} className="flex-1 overflow-y-auto p-6 space-y-4">
+            <form onSubmit={handleCreateContact} className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {/* Left Column: Client & Project Info */}
                 <div className="space-y-3">
@@ -584,17 +584,17 @@ export default function Contacts() {
                 </div>
               </div>
               
-              <div className="flex justify-end pt-4 border-t border-slate-800/80 gap-3">
+              <div className="flex flex-col-reverse sm:flex-row justify-end pt-4 border-t border-slate-800/80 gap-2.5 sm:gap-3">
                 <button 
                   type="button"
                   onClick={() => setIsAddContactOpen(false)}
-                  className="px-5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-350 font-bold text-xs cursor-pointer transition-all"
+                  className="w-full sm:w-auto px-5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-350 font-bold text-xs cursor-pointer transition-all text-center"
                 >
                   Cancel
                 </button>
                 <button 
                   type="submit" 
-                  className="px-6 py-2 rounded-xl bg-primary hover:bg-blue-600 text-white font-bold text-xs cursor-pointer shadow-md transition-all"
+                  className="w-full sm:w-auto justify-center px-6 py-2 rounded-xl bg-primary hover:bg-blue-600 text-white font-bold text-xs cursor-pointer shadow-md transition-all text-center"
                 >
                   Save Stakeholder
                 </button>
@@ -606,10 +606,10 @@ export default function Contacts() {
 
       {/* Edit Contact Modal */}
       {isEditContactOpen && (
-        <div className="fixed inset-0 bg-dark-950/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 bg-dark-950/70 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4">
           <div className="glass max-w-2xl w-full rounded-2xl border border-slate-800 flex flex-col max-h-[90vh] overflow-hidden">
             {/* Header */}
-            <div className="flex items-center justify-between p-6 border-b border-slate-800/80">
+            <div className="flex items-center justify-between p-4 sm:p-6 border-b border-slate-800/80">
               <h3 className="font-bold text-white text-base">
                 {canEdit ? 'Edit Stakeholder Profile' : 'Stakeholder Profile'}
               </h3>
@@ -621,7 +621,7 @@ export default function Contacts() {
               </button>
             </div>
             {/* Form Container */}
-            <form onSubmit={handleEditContact} className="flex-1 overflow-y-auto p-6 space-y-4">
+            <form onSubmit={handleEditContact} className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {/* Left Column: Client & Project Info */}
                 <div className="space-y-3">
@@ -753,18 +753,18 @@ export default function Contacts() {
                 </div>
               </div>
               
-              <div className="flex justify-end pt-4 border-t border-slate-800/80 gap-3">
+              <div className="flex flex-col-reverse sm:flex-row justify-end pt-4 border-t border-slate-800/80 gap-2.5 sm:gap-3">
                 <button 
                   type="button"
                   onClick={() => setIsEditContactOpen(false)}
-                  className="px-5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-350 font-bold text-xs cursor-pointer transition-all"
+                  className="w-full sm:w-auto px-5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-350 font-bold text-xs cursor-pointer transition-all text-center"
                 >
                   Cancel
                 </button>
                 {canEdit && (
                   <button 
                     type="submit" 
-                    className="px-6 py-2 rounded-xl bg-primary hover:bg-blue-600 text-white font-bold text-xs cursor-pointer shadow-md transition-all"
+                    className="w-full sm:w-auto justify-center px-6 py-2 rounded-xl bg-primary hover:bg-blue-600 text-white font-bold text-xs cursor-pointer shadow-md transition-all text-center"
                   >
                     Save Updates
                   </button>

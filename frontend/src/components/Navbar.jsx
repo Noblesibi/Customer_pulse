@@ -450,7 +450,7 @@ export default function Navbar() {
           </button>
 
           {isNotifOpen && (
-            <div className="absolute right-0 mt-3 w-80 bg-white border border-slate-800 rounded-xl shadow-2xl overflow-hidden" style={{ zIndex: 99999, backgroundColor: '#ffffff' }}>
+            <div className="absolute right-0 mt-3 w-[calc(100vw-2rem)] sm:w-80 max-w-sm bg-white border border-slate-800 rounded-xl shadow-2xl overflow-hidden" style={{ zIndex: 99999, backgroundColor: '#ffffff' }}>
               <div className="px-4 py-3 border-b border-slate-800/80 flex items-center justify-between bg-white">
                 <span className="text-xs font-black text-black uppercase tracking-wider">Notifications</span>
                 {unreadNotificationsCount > 0 && (
@@ -697,9 +697,11 @@ export default function Navbar() {
         <div
           style={{
             position: 'fixed',
-            bottom: '24px',
-            right: '24px',
-            width: '360px',
+            bottom: 'clamp(12px, 3vw, 24px)',
+            right: 'clamp(12px, 3vw, 24px)',
+            width: 'min(360px, calc(100vw - 24px))',
+            maxWidth: '100%',
+            boxSizing: 'border-box',
             zIndex: 999999,
             backgroundColor: '#ffffff',
             border: '1px solid #cbd5e1',

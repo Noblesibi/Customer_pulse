@@ -326,7 +326,8 @@ export default function Dashboard() {
     display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: 24
   };
   const MB = {
-    background: '#ffffff', borderRadius: 20, padding: 28, width: '100%', maxWidth: 460,
+    background: '#ffffff', borderRadius: 20, padding: '20px clamp(16px, 5vw, 28px)', width: '100%', maxWidth: 460,
+    maxHeight: '90vh', overflowY: 'auto',
     boxShadow: '0 24px 60px rgba(0,0,0,0.18)', position: 'relative'
   };
   const MC = {
@@ -340,13 +341,13 @@ export default function Dashboard() {
   const SB = (bg) => ({ padding: '10px 22px', borderRadius: 10, background: bg, color: '#ffffff', fontSize: 12, fontWeight: 700, border: 'none', cursor: 'pointer' });
 
   return (
-    <div style={{ padding: '24px 28px 48px', background: '#f0f4f8', minHeight: '100vh', fontFamily: 'Montserrat, sans-serif' }}>
+    <div className="p-3.5 sm:p-5 md:p-7 pb-12" style={{ background: '#f0f4f8', minHeight: '100vh', fontFamily: 'Montserrat, sans-serif' }}>
 
       {/* HERO HEADER */}
-      <div style={{ background: 'linear-gradient(135deg, #16244b 0%, #223670 55%, #2d458d 100%)', borderRadius: 20, padding: '26px 30px', marginBottom: 22, position: 'relative', overflow: 'hidden', boxShadow: '0 8px 32px rgba(34,54,112,0.28)' }}>
+      <div className="p-4 sm:p-6 md:p-7 rounded-2xl sm:rounded-[20px] mb-5 relative overflow-hidden" style={{ background: 'linear-gradient(135deg, #16244b 0%, #223670 55%, #2d458d 100%)', boxShadow: '0 8px 32px rgba(34,54,112,0.28)' }}>
         <div style={{ position: 'absolute', top: -50, right: -50, width: 240, height: 240, borderRadius: '50%', background: 'rgba(255,255,255,0.06)', pointerEvents: 'none' }} />
         <div style={{ position: 'absolute', bottom: -70, right: 140, width: 180, height: 180, borderRadius: '50%', background: 'rgba(255,255,255,0.04)', pointerEvents: 'none' }} />
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'relative', zIndex: 1 }}>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 relative z-10">
           <div>
             <h1 style={{ color: '#ffffff', fontSize: 26, fontWeight: 800, margin: '0 0 6px', lineHeight: 1.2 }}>{user?.name || 'User'}</h1>
             <div style={{ display: 'inline-flex', alignItems: 'center', gap: 7, background: 'rgba(255,255,255,0.12)', border: '1px solid rgba(255,255,255,0.2)', borderRadius: 999, padding: '5px 13px', color: 'rgba(255,255,255,0.9)', fontSize: 11, fontWeight: 700, marginTop: 8 }}>
@@ -354,7 +355,7 @@ export default function Dashboard() {
               {user?.position || user?.userType || user?.role || 'Employee'}
             </div>
           </div>
-          <div style={{ display: 'flex', gap: 10 }}>
+          <div className="flex flex-wrap items-center gap-2.5">
             <button onClick={() => navigate('/staff-tasks/new')} style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '10px 18px', background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.3)', borderRadius: 12, color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
               <Plus size={14} color="white" /> Assign Task
             </button>
@@ -366,7 +367,7 @@ export default function Dashboard() {
       </div>
 
       {/* KPI CARDS */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5,1fr)', gap: 14, marginBottom: 20 }}>
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-3.5 mb-5">
         {[
           { label: 'Total Accounts', value: cards.totalAccounts, accent: '#223670', iconBg: '#eef2f9', iconColor: '#223670', Icon: Building2, badge: 'CRM Active', badgeBg: '#eef2f9', badgeColor: '#223670', BI: Activity },
           { label: 'Healthy', value: cards.healthyAccounts, accent: '#10b981', iconBg: '#f0fdf4', iconColor: '#10b981', Icon: CheckCircle2, badge: '≥75% Score', badgeBg: '#f0fdf4', badgeColor: '#16a34a', BI: ArrowUpRight, vc: '#10b981' },
@@ -389,7 +390,7 @@ export default function Dashboard() {
       </div>
 
       {/* TASKS + SIDEBAR */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 360px', gap: 18, marginBottom: 20 }}>
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-4.5 mb-5">
 
         {/* Tasks Panel */}
         <div style={P}>
@@ -659,7 +660,7 @@ export default function Dashboard() {
       </div>
 
       {/* CHARTS */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 16, marginBottom: 20 }}>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-5">
 
         <div style={{ ...P, padding: '18px 20px' }}>
           <div style={{ fontSize: 11, fontWeight: 800, color: '#64748b', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 14, display: 'flex', alignItems: 'center', gap: 7 }}>
@@ -769,7 +770,7 @@ export default function Dashboard() {
 
       {/* BU HEAD */}
       {user?.userType === 'BU Head' && (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 20 }}>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-5">
           <div style={P}>
             <div style={PH}><div style={ST}><span style={{ width: 6, height: 6, borderRadius: '50%', background: '#223670', display: 'inline-block' }} />Division Projects & Teams</div></div>
             <div style={{ padding: '16px 20px' }}>
@@ -791,7 +792,7 @@ export default function Dashboard() {
             <div style={PH}><div style={ST}><span style={{ width: 6, height: 6, borderRadius: '50%', background: '#223670', display: 'inline-block' }} />BU Operations Directory</div></div>
             <div style={{ padding: '16px 20px' }}>
               <p style={{ fontSize: 10, fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>Division Employees</p>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
                 {user.employees && user.employees.length > 0 ? user.employees.map(emp => (
                   <div key={emp} style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 10, padding: '8px 12px', fontSize: 12, fontWeight: 600, color: '#374151' }}>💼 {emp}</div>
                 )) : <span style={{ fontSize: 12, color: '#94a3b8', gridColumn: '1/-1' }}>No employee records.</span>}
@@ -806,7 +807,7 @@ export default function Dashboard() {
         <div style={{ ...P, marginBottom: 20 }}>
           <div style={PH}><div style={ST}><span style={{ width: 6, height: 6, borderRadius: '50%', background: '#223670', display: 'inline-block' }} />My Managed Projects & Teams</div></div>
           <div style={{ padding: '16px 20px' }}>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 14 }}>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
               {user.projects && user.projects.length > 0 ? user.projects.map((proj, idx) => {
                 const projName = typeof proj === 'string' ? proj : proj.name;
                 const projEmps = typeof proj === 'string' ? [] : (proj.employees || []);
@@ -845,7 +846,7 @@ export default function Dashboard() {
               </div>
             </div>
             <div style={{ padding: '16px 20px' }}>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 12 }}>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                 {['Finance Head', 'Global HR Head', 'ITG Head', 'NDA Head', 'TC Head', 'Quality Head'].map(pos => {
                   const head = usersList.find(u => u.position?.toLowerCase().includes(pos.toLowerCase().replace(' head', '')) || u.position?.toLowerCase() === pos.toLowerCase());
                   return (
@@ -876,7 +877,7 @@ export default function Dashboard() {
           <div style={P}>
             <div style={PH}><div style={ST}><span style={{ width: 6, height: 6, borderRadius: '50%', background: '#223670', display: 'inline-block' }} />Corporate Business Units Status</div></div>
             <div style={{ padding: '16px 20px' }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
                 <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 12, padding: 14 }}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: 8, borderBottom: '1px solid #dcfce7', marginBottom: 10 }}>
                     <h4 style={{ fontSize: 12, fontWeight: 800, color: '#16a34a', margin: 0 }}>Delivery Division (Farming)</h4>
@@ -919,7 +920,7 @@ export default function Dashboard() {
 
       {/* FUNCTIONAL HEAD */}
       {user?.userType === 'Functional Head' && (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 20 }}>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-5">
           <div style={P}>
             <div style={PH}><div style={ST}><span style={{ width: 6, height: 6, borderRadius: '50%', background: '#223670', display: 'inline-block' }} />Departmental Projects & SLA</div></div>
             <div style={{ padding: '16px 20px' }}>

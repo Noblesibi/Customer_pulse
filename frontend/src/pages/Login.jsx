@@ -138,7 +138,7 @@ const styles = {
     flexDirection: 'column',
     alignItems: 'center',
     justifyContent: 'center',
-    padding: '24px',
+    padding: '16px',
     fontFamily: "'Montserrat', sans-serif",
   },
   brand: {
@@ -165,10 +165,11 @@ const styles = {
   card: {
     background: '#ffffff',
     borderRadius: '16px',
-    padding: '36px 40px',
+    padding: '32px clamp(18px, 6vw, 40px)',
     width: '100%',
     maxWidth: '420px',
     boxShadow: '0 4px 24px rgba(0,0,0,0.07)',
+    boxSizing: 'border-box',
   },
   cardTitle: {
     fontSize: '18px',
