@@ -28,18 +28,15 @@ function formatEmailDate(dateStr) {
 }
 
 /**
- * Formats time to 12-hour hh:mm am/pm
+ * Formats time to 24-hour hh:mm
  */
 function formatEmailTime(timeStr) {
   if (!timeStr) return '';
   if (/^\d{1,2}:\d{2}(:\d{2})?$/.test(String(timeStr).trim())) {
     const parts = String(timeStr).trim().split(':');
-    let hours = parseInt(parts[0], 10);
+    const hours = parseInt(parts[0], 10);
     const minutes = parts[1].substring(0, 2);
-    const ampm = hours >= 12 ? 'pm' : 'am';
-    hours = hours % 12;
-    hours = hours ? hours : 12;
-    return `${String(hours).padStart(2, '0')}:${minutes} ${ampm}`;
+    return `${String(hours).padStart(2, '0')}:${minutes}`;
   }
   return String(timeStr);
 }

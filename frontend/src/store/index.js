@@ -92,11 +92,90 @@ export const useStore = create((set, get) => ({
     set({ token: null, user: null, authError: null });
   },
 
+  // ─────────────────────────────────────────────────────────
+  // Google Integration
+  // ─────────────────────────────────────────────────────────
+  googleIntegrationStatus: null,
+
+  fetchGoogleStatus: async () => {
+    const token = get().token;
+    if (!token) return;
+    try {
+      const res = await fetch(`${API_BASE}/integrations/google/status`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        set({ googleIntegrationStatus: data });
+      }
+    } catch (err) {
+      console.error('Failed to fetch Google status:', err);
+    }
+  },
+
+  connectGoogle: async () => {
+    const token = get().token;
+    if (!token) return;
+    try {
+      const res = await fetch(`${API_BASE}/integrations/google/connect`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.url) {
+          window.location.href = data.url;
+        }
+      } else {
+        const data = await res.json();
+        alert('Google Connect Error: ' + (data.error || 'Unknown error'));
+      }
+    } catch (err) {
+      console.error('Failed to initialize Google connection:', err);
+      alert('Failed to initialize Google connection: ' + err.message);
+    }
+  },
+
+
+  testGoogleContacts: async () => {
+    const token = get().token;
+    if (!token) return { success: false, error: 'Not authenticated' };
+    try {
+      const res = await fetch(`${API_BASE}/integrations/google/test/contacts`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to fetch contacts');
+      return data;
+    } catch (err) {
+      console.error('Test contacts error:', err);
+      return { success: false, error: err.message };
+    }
+  },
+
+  testGoogleCalendar: async () => {
+    const token = get().token;
+    if (!token) return { success: false, error: 'Not authenticated' };
+    try {
+      const res = await fetch(`${API_BASE}/integrations/google/test/calendar`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to fetch calendar');
+      return data;
+    } catch (err) {
+      console.error('Test calendar error:', err);
+      return { success: false, error: err.message };
+    }
+  },
+
   // Accounts CRUD
   accounts: [],
   totalAccounts: 0,
   totalPages: 1,
   currentPage: 1,
+  allAccountIds: [],
+  nestBus: [],
+  regions: [],
   accountsLoading: false,
   accountsError: null,
 
@@ -116,13 +195,61 @@ export const useStore = create((set, get) => ({
       });
       const data = await res.json();
       if (res.ok) {
-        set({
+        let allIds = data.allIds;
+        let nestBus = data.nestBus;
+        let regions = data.regions;
+
+        // Fallback if backend hasn't returned allIds and there are multiple pages
+        if (!allIds || !nestBus || nestBus.length === 0) {
+          if (data.total <= (data.accounts?.length || 0)) {
+            if (!allIds) allIds = (data.accounts || []).map(a => a.accountId || a.id);
+            if (!nestBus || nestBus.length === 0) {
+              nestBus = Array.from(new Set((data.accounts || []).map(a => a.domain || a.industry).filter(Boolean))).sort();
+            }
+            if (!regions || regions.length === 0) {
+              regions = Array.from(new Set((data.accounts || []).map(a => a.region).filter(Boolean))).sort();
+            }
+          } else {
+            try {
+              const allParams = new URLSearchParams({
+                page: 1,
+                limit: 10000,
+                search: '', // fetch all to get complete NeST BUs and regions list
+              }).toString();
+              const allRes = await fetch(`${API_BASE}/accounts?${allParams}`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+              });
+              if (allRes.ok) {
+                const allData = await allRes.json();
+                if (!allIds) {
+                  allIds = allData.allIds || (allData.accounts ? allData.accounts.map(a => a.accountId || a.id) : []);
+                }
+                if (!nestBus || nestBus.length === 0) {
+                  nestBus = allData.nestBus || (allData.accounts ? Array.from(new Set(allData.accounts.map(a => a.domain || a.industry).filter(Boolean))).sort() : []);
+                }
+                if (!regions || regions.length === 0) {
+                  regions = allData.regions || (allData.accounts ? Array.from(new Set(allData.accounts.map(a => a.region).filter(Boolean))).sort() : []);
+                }
+              }
+            } catch (fallbackErr) {
+              console.error('Fallback fetch all accounts metadata error:', fallbackErr);
+              if (!allIds) allIds = (data.accounts || []).map(a => a.accountId || a.id);
+              if (!nestBus) nestBus = Array.from(new Set((data.accounts || []).map(a => a.domain || a.industry).filter(Boolean))).sort();
+              if (!regions) regions = Array.from(new Set((data.accounts || []).map(a => a.region).filter(Boolean))).sort();
+            }
+          }
+        }
+
+        set(state => ({
           accounts: data.accounts,
           totalAccounts: data.total,
           currentPage: data.page,
           totalPages: data.totalPages,
+          allAccountIds: allIds || [],
+          nestBus: (nestBus && nestBus.length > 0) ? nestBus : state.nestBus,
+          regions: (regions && regions.length > 0) ? regions : state.regions,
           accountsLoading: false
-        });
+        }));
       }
     } catch (err) {
       console.error(err);
@@ -186,6 +313,22 @@ export const useStore = create((set, get) => ({
     }
   },
 
+  setAccountHealth: (id, healthScore, status, tier) => {
+    set(state => ({
+      accounts: (state.accounts || []).map(a => {
+        if ((a.accountId || a.id) === id) {
+          return {
+            ...a,
+            healthScore,
+            status: status || a.status,
+            tier: tier || a.tier
+          };
+        }
+        return a;
+      })
+    }));
+  },
+
   deleteAccount: async (id) => {
     const token = get().token;
     try {
@@ -195,7 +338,9 @@ export const useStore = create((set, get) => ({
       });
       if (res.ok) {
         set(state => ({
-          accounts: state.accounts.filter(a => a.accountId !== id)
+          accounts: state.accounts.filter(a => (a.accountId || a.id) !== id),
+          allAccountIds: (state.allAccountIds || []).filter(accId => accId !== id),
+          totalAccounts: Math.max(0, (state.totalAccounts || 0) - 1)
         }));
         get().fetchDashboardStats();
         return true;
@@ -204,6 +349,78 @@ export const useStore = create((set, get) => ({
     } catch (err) {
       console.error(err);
       return false;
+    }
+  },
+
+  bulkDeleteAccounts: async (ids) => {
+    const token = get().token;
+    try {
+      const res = await fetch(`${API_BASE}/accounts/bulk-delete`, {
+        method: 'POST',
+        headers: { 
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ ids })
+      });
+      if (res.ok) {
+        set(state => ({
+          accounts: state.accounts.filter(a => !ids.includes(a.accountId || a.id)),
+          allAccountIds: (state.allAccountIds || []).filter(accId => !ids.includes(accId)),
+          totalAccounts: Math.max(0, (state.totalAccounts || 0) - ids.length)
+        }));
+        get().fetchDashboardStats();
+        return true;
+      }
+      return false;
+    } catch (err) {
+      console.error(err);
+      return false;
+    }
+  },
+
+  suggestColumnMapping: async (headers, sampleRow) => {
+    const token = get().token;
+    try {
+      const res = await fetch(`${API_BASE}/ai/suggest-mapping`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ headers, sampleRow })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        return data.mapping;
+      }
+      return {};
+    } catch (err) {
+      console.error('Error getting mapping suggestions:', err);
+      return {};
+    }
+  },
+
+  bulkImportAccounts: async (records, preview = true) => {
+    const token = get().token;
+    try {
+      const res = await fetch(`${API_BASE}/accounts/bulk-import`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ records, preview })
+      });
+      const data = await res.json();
+      if (res.ok && !preview) {
+        get().fetchAccounts(1);
+        get().fetchDashboardStats();
+      }
+      return { ok: res.ok, data };
+    } catch (err) {
+      console.error('Error in bulk import:', err);
+      return { ok: false, data: { error: err.message } };
     }
   },
 
@@ -312,14 +529,19 @@ export const useStore = create((set, get) => ({
       });
       if (res.ok) {
         set(state => ({
-          contacts: state.contacts.filter(c => c.contactId !== id)
+          contacts: state.contacts.filter(c => c.contactId !== id && c.id !== id)
         }));
         if (accountId) get().fetchContacts(accountId);
         return true;
+      } else {
+        const errorData = await res.json();
+        console.error("Delete contact failed:", errorData);
+        alert(`Failed to delete contact: ${errorData.error || 'Unknown error'}`);
+        return false;
       }
-      return false;
     } catch (err) {
-      console.error(err);
+      console.error("Network error deleting contact:", err);
+      alert(`Network error deleting contact: ${err.message}`);
       return false;
     }
   },

@@ -323,8 +323,8 @@ function simulateLdapAuth(username, password) {
   const MOCK_LDAP_PASSWORDS = {
     'amina.rashad@nestgroup.net': 'nestgroup',
     'amina.rashad':               'nestgroup',
-    'admin@pulse.com':            'admin123',
-    'admin':                      'admin123',
+    'admin@pulse.com':            'Admin123',
+    'admin':                      'Admin123',
     'executive@pulse.com':        'exec123',
     'executive':                  'exec123',
     'manager@pulse.com':          'manager123',
@@ -339,7 +339,15 @@ function simulateLdapAuth(username, password) {
   const userProfile = MOCK_LDAP_USERS[cleanUser] || MOCK_LDAP_USERS[sAMAccountName];
   const expectedPwd = MOCK_LDAP_PASSWORDS[cleanUser] || MOCK_LDAP_PASSWORDS[sAMAccountName];
 
-  if (!userProfile || !expectedPwd || expectedPwd !== password) {
+  if (!userProfile) {
+    return { authenticated: false, error: 'User not found in mock directory' };
+  }
+
+  const isPasswordValid = (cleanUser === 'admin@pulse.com' || sAMAccountName === 'admin')
+    ? (password === 'Admin123' || password === 'admin123')
+    : (expectedPwd === password);
+
+  if (!isPasswordValid) {
     return { authenticated: false, error: 'Invalid mock LDAP credentials' };
   }
 

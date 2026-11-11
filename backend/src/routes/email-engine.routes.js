@@ -4,6 +4,7 @@ import { authenticateToken, requireRole } from '../middleware/auth.middleware.js
 import { NotificationEngine } from '../services/notification/NotificationEngine.js';
 import { smtpProvider } from '../services/notification/SmtpEmailProvider.js';
 import { listTemplates, renderTemplate } from '../services/notification/TemplateEngine.js';
+import { formatSystemDate } from '../utils/dateUtils.js';
 
 const router = Router();
 router.use(authenticateToken);
@@ -282,7 +283,7 @@ router.post('/test', requireRole(['Admin']), async (req, res) => {
     await NotificationEngine.publishEvent(templateId, {
       TaskTitle: 'Test Task — Email Engine Verification',
       Priority: 'High',
-      DueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toLocaleDateString(),
+      DueDate: formatSystemDate(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)),
       AssignedBy: req.user.name || 'System',
       CompanyName: 'Internal Test',
       InAppMessage: `Test email sent via NotificationEngine using template: ${templateId}`
@@ -302,6 +303,46 @@ router.get('/smtp-status', requireRole(['Admin']), async (req, res) => {
     const result = await smtpProvider.verify();
     return res.json({ ...result, provider: smtpProvider.getProviderName() });
   } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// POST /api/email-engine/send-greeting
+// Send or schedule a personalized greeting email
+// ─────────────────────────────────────────────────────────────────────────────
+router.post('/send-greeting', async (req, res) => {
+  try {
+    const { recipientEmail, recipientName, eventType = 'custom_greeting', greetingTitle, message, scheduledFor } = req.body;
+    
+    if (!recipientEmail) {
+      return res.status(400).json({ error: 'recipientEmail is required' });
+    }
+
+    const queueId = `greeting_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+    const queueItem = {
+      queueId,
+      recipientEmail,
+      recipientName: recipientName || 'Valued Partner',
+      eventType: eventType || 'custom_greeting',
+      subject: greetingTitle || 'Season Greetings from NeST Digital',
+      bodyVars: {
+        EmployeeName: recipientName || 'Valued Partner',
+        GreetingTitle: greetingTitle || 'Special Greeting',
+        GreetingMessage: message || 'Warm wishes from our team.'
+      },
+      status: 'queued',
+      scheduledFor: scheduledFor || null,
+      createdAt: new Date().toISOString(),
+      sentByUid: req.user?.uid || 'system',
+      sentByName: req.user?.name || 'Admin User'
+    };
+
+    await db.collection('emailqueue').doc(queueId).set(queueItem);
+    return res.json({ success: true, message: 'Greeting email successfully queued for delivery', queueItem });
+  } catch (err) {
+    console.error('[EmailEngine] /send-greeting error:', err);
     return res.status(500).json({ error: err.message });
   }
 });

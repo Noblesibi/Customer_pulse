@@ -1,12 +1,13 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import {
   Bell, Mail, Clock, AlertTriangle, CheckCircle2, XCircle, RefreshCw,
   Send, Eye, RotateCcw, Trash2, Settings, BarChart3, List, FileText,
-  Server, ChevronDown, ChevronUp, Search, Filter, X, Wifi, WifiOff, Check
+  Server, ChevronDown, ChevronUp, Search, Filter, X, Wifi, WifiOff, Check, ChevronLeft
 } from 'lucide-react';
 import { useStore } from '../store/index.js';
 import { formatDateTime } from '../utils/dateFormat.js';
+import LoadingSpinner from '../components/LoadingSpinner.jsx';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend
 } from 'recharts';
@@ -91,6 +92,7 @@ const TABS = [
 
 export default function NotificationCenter() {
   const navigate = useNavigate();
+  const location = useLocation();
   const {
     user,
     emailEngineStats, emailEngineStatsLoading, fetchEmailEngineStats,
@@ -234,10 +236,20 @@ export default function NotificationCenter() {
             The Automatic Email & Notification Engine is restricted exclusively to Administrators and authorized management (Nazneen).
           </p>
           <button
-            onClick={() => navigate('/dashboard')}
-            className="px-5 py-2.5 bg-primary text-white rounded-xl text-xs font-bold shadow-md hover:bg-blue-700 transition-all cursor-pointer"
+            type="button"
+            onClick={() => {
+              if (location.state?.from) {
+                navigate(location.state.from);
+              } else if (window.history.length > 1) {
+                navigate(-1);
+              } else {
+                navigate('/dashboard');
+              }
+            }}
+            className="px-5 py-2.5 bg-primary text-white rounded-xl text-xs font-bold shadow-md hover:bg-blue-700 transition-all cursor-pointer flex items-center gap-1.5 mx-auto"
           >
-            Back to Dashboard
+            <ChevronLeft className="w-4 h-4 text-white" strokeWidth={2.5} />
+            <span>Back</span>
           </button>
         </div>
       </div>
@@ -363,7 +375,7 @@ export default function NotificationCenter() {
 
             {emailEngineStatsLoading && (
               <div className="flex justify-center py-8">
-                <RefreshCw className="w-5 h-5 text-black animate-spin" />
+                <LoadingSpinner size="md" />
               </div>
             )}
           </div>
@@ -406,7 +418,7 @@ export default function NotificationCenter() {
             </div>
 
             {emailQueueLoading ? (
-              <div className="flex justify-center py-12"><RefreshCw className="w-6 h-6 text-black animate-spin" /></div>
+              <div className="flex justify-center py-12"><LoadingSpinner size="md" text="Loading email queue..." /></div>
             ) : emailQueue.length === 0 ? (
               <div className="text-center py-12 text-black text-sm">
                 <Clock className="w-8 h-8 mx-auto mb-3 opacity-60 text-primary" />
@@ -414,7 +426,7 @@ export default function NotificationCenter() {
                 <p className="text-xs font-bold mt-1">Automatic emails are processed in real-time every 30 seconds.</p>
               </div>
             ) : (
-              <div className="bg-dark-900 border border-dark-800 rounded-xl overflow-hidden shadow-sm">
+              <div className="bg-dark-900 border border-dark-800 rounded-xl overflow-x-auto shadow-sm">
                 <table className="w-full text-xs">
                   <thead className="bg-dark-800/40 border-b border-dark-800">
                     <tr>
@@ -489,14 +501,14 @@ export default function NotificationCenter() {
             </div>
 
             {emailLogsLoading ? (
-              <div className="flex justify-center py-12"><RefreshCw className="w-6 h-6 text-black animate-spin" /></div>
+              <div className="flex justify-center py-12"><LoadingSpinner size="md" text="Loading email activity logs..." /></div>
             ) : filteredLogs.length === 0 ? (
               <div className="text-center py-12 text-black text-sm">
                 <List className="w-8 h-8 mx-auto mb-3 opacity-60 text-primary" />
                 <p className="font-extrabold">No automatic email log records found.</p>
               </div>
             ) : (
-              <div className="bg-dark-900 border border-dark-800 rounded-xl overflow-hidden shadow-sm">
+              <div className="bg-dark-900 border border-dark-800 rounded-xl overflow-x-auto shadow-sm">
                 <table className="w-full text-xs">
                   <thead className="bg-dark-800/40 border-b border-dark-800">
                     <tr>
@@ -558,7 +570,7 @@ export default function NotificationCenter() {
               Built-in automatic notification templates triggered by CRM events (Task Assigned, Status Updated, Due Reminders, Overdue Alerts, Comments, etc.).
             </p>
             {previewLoading && (
-              <div className="flex justify-center py-6"><RefreshCw className="w-5 h-5 text-black animate-spin" /></div>
+              <div className="flex justify-center py-6"><LoadingSpinner size="sm" /></div>
             )}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {autoTemplates.map(tpl => (
@@ -597,7 +609,7 @@ export default function NotificationCenter() {
                   disabled={prefSaving}
                   className="flex items-center gap-1.5 text-xs font-extrabold text-white bg-primary px-4 py-2 rounded-xl cursor-pointer hover:bg-primary/90 disabled:opacity-50"
                 >
-                  {prefSaving ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
+                  {prefSaving ? <LoadingSpinner size="xs" color="white" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
                   Save Preferences
                 </button>
               </div>
@@ -642,7 +654,7 @@ export default function NotificationCenter() {
                   />
                 </div>
               ) : (
-                <div className="flex justify-center py-8"><RefreshCw className="w-5 h-5 text-black animate-spin" /></div>
+                <div className="flex justify-center py-8"><LoadingSpinner size="md" /></div>
               )}
             </div>
           </div>
@@ -659,7 +671,7 @@ export default function NotificationCenter() {
                   disabled={smtpLoading}
                   className="flex items-center gap-1.5 text-xs font-black text-primary border border-primary/20 bg-primary/5 px-3 py-1.5 rounded-lg cursor-pointer hover:bg-primary/10 disabled:opacity-50"
                 >
-                  {smtpLoading ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Wifi className="w-3.5 h-3.5" />}
+                  {smtpLoading ? <LoadingSpinner size="xs" /> : <Wifi className="w-3.5 h-3.5" />}
                   Test Connection
                 </button>
               </div>
@@ -667,11 +679,11 @@ export default function NotificationCenter() {
               <div className="space-y-3 text-sm">
                 <div className="flex items-center gap-3">
                   <span className="text-[10px] font-black uppercase tracking-widest text-black w-28 shrink-0">SMTP Host</span>
-                  <span className="font-extrabold text-black font-mono">10.45.0.12</span>
+                  <span className="font-extrabold text-black">10.45.0.12</span>
                 </div>
                 <div className="flex items-center gap-3">
                   <span className="text-[10px] font-black uppercase tracking-widest text-black w-28 shrink-0">Port</span>
-                  <span className="font-extrabold text-black font-mono">25</span>
+                  <span className="font-extrabold text-black">25</span>
                 </div>
                 <div className="flex items-center gap-3">
                   <span className="text-[10px] font-black uppercase tracking-widest text-black w-28 shrink-0">Authentication</span>
@@ -679,7 +691,7 @@ export default function NotificationCenter() {
                 </div>
                 <div className="flex items-center gap-3">
                   <span className="text-[10px] font-black uppercase tracking-widest text-black w-28 shrink-0">Sender Email</span>
-                  <span className="font-extrabold text-black font-mono">test@nestgroup.net</span>
+                  <span className="font-extrabold text-black">test@nestgroup.net</span>
                 </div>
                 <div className="flex items-center gap-3">
                   <span className="text-[10px] font-black uppercase tracking-widest text-black w-28 shrink-0">Network Access</span>
@@ -722,7 +734,7 @@ export default function NotificationCenter() {
                   <span className="text-[10px] font-black uppercase tracking-widest px-2.5 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
                     Template Preview
                   </span>
-                  <span className="text-xs font-bold text-black font-mono">
+                  <span className="text-xs font-bold text-black">
                     {previewModal.templateId}
                   </span>
                 </div>

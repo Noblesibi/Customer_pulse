@@ -11,7 +11,8 @@ const config = {
   port: parseInt(process.env.DB_PORT) || 5432,
   user: process.env.DB_USER || 'postgres',
   password: process.env.DB_PASSWORD || 'postgres',
-  database: process.env.DB_DATABASE || 'customer_pulse'
+  database: process.env.DB_DATABASE || 'customer_pulse',
+  options: '-c timezone=UTC'
 };
 
 let pool;
@@ -27,6 +28,7 @@ const tableMap = {
   risks: 'Risks',
   notifications: 'Notifications',
   healthscores: 'HealthScores',
+  accountsignals: 'AccountSignals',
   summaries: 'Summaries',
   activitylogs: 'ActivityLogs',
   tasks: 'Tasks',
@@ -34,7 +36,21 @@ const tableMap = {
   emailqueue: 'EmailQueue',
   emailtemplates: 'EmailTemplates',
   emaillogs: 'EmailLogs',
-  notificationpreferences: 'NotificationPreferences'
+  notificationpreferences: 'NotificationPreferences',
+  synchistory: 'SyncHistory',
+  celebrationevents: 'CelebrationEvents',
+  userintegrations: 'UserIntegrations',
+  healthscoreconfigs: 'HealthScoreConfigs',
+  scoring_profiles: 'scoring_profiles',
+  scoring_rules: 'scoring_rules',
+  account_scoring_overrides: 'account_scoring_overrides',
+  custom_signals: 'custom_signals',
+  account_scores_history: 'account_scores_history',
+  risk_rules: 'risk_rules',
+  risk_flags: 'risk_flags',
+  journeyhistory: 'JourneyHistory',
+  risk_notifications: 'risk_notifications',
+  teamsmeetings: 'TeamsMeetings'
 };
 
 // Map collection names to primary key fields
@@ -43,10 +59,12 @@ const keyFields = {
   accounts: 'accountId',
   contacts: 'contactId',
   interactions: 'interactionId',
+  teamsmeetings: 'meetingId',
   replies: 'replyId',
   risks: 'riskId',
   notifications: 'notificationId',
   healthscores: 'id',
+  accountsignals: 'accountId',
   summaries: 'summaryId',
   activitylogs: 'logId',
   tasks: 'taskId',
@@ -54,7 +72,20 @@ const keyFields = {
   emailqueue: 'queueId',
   emailtemplates: 'templateId',
   emaillogs: 'logId',
-  notificationpreferences: 'uid'
+  notificationpreferences: 'uid',
+  synchistory: 'syncId',
+  celebrationevents: 'id',
+  userintegrations: 'id',
+  healthscoreconfigs: 'id',
+  scoring_profiles: 'id',
+  scoring_rules: 'id',
+  account_scoring_overrides: 'id',
+  custom_signals: 'id',
+  account_scores_history: 'id',
+  risk_rules: 'id',
+  risk_flags: 'id',
+  journeyhistory: 'id',
+  risk_notifications: 'id'
 };
 
 /**
@@ -80,6 +111,15 @@ function parseRow(tableName, row) {
     }
     if (typeof data.attachments === 'string') {
       try { data.attachments = JSON.parse(data.attachments); } catch (e) { data.attachments = []; }
+    }
+    if (typeof data.businessOpportunities === 'string') {
+      try { data.businessOpportunities = JSON.parse(data.businessOpportunities); } catch (e) { data.businessOpportunities = []; }
+    }
+    if (typeof data.commitments === 'string') {
+      try { data.commitments = JSON.parse(data.commitments); } catch (e) { data.commitments = []; }
+    }
+    if (typeof data.followUpSignals === 'string') {
+      try { data.followUpSignals = JSON.parse(data.followUpSignals); } catch (e) { data.followUpSignals = []; }
     }
     data.riskDetected = !!data.riskDetected;
   }
@@ -339,7 +379,15 @@ class PostgreSQLQuery {
       params.push(parseInt(this.limitNum));
     }
     
-    const res = await connection.query(queryStr, params);
+    let res;
+    try {
+      res = await connection.query(queryStr, params);
+    } catch (err) {
+      if (err.message && err.message.includes('does not exist')) {
+        return { docs: [], size: 0, forEach: () => {}, empty: true };
+      }
+      throw err;
+    }
     const tableName = this.tableName;
     const keyCol = keyFields[this.collectionName.toLowerCase()] || 'id';
     
@@ -366,6 +414,7 @@ class PostgreSQLQuery {
     return { 
       docs, 
       size: docs.length,
+      empty: docs.length === 0,
       forEach(callback) {
         docs.forEach(callback);
       }
@@ -553,8 +602,8 @@ async function ensureDatabaseExists() {
 async function getPool() {
   if (!isConnected) {
     pool = new pg.Pool(config);
-    pool.on('connect', (client) => {
-      client.query("SET TIMEZONE = 'UTC'").catch(() => {});
+    pool.on('error', (err) => {
+      console.error('Unexpected PostgreSQL idle client error:', err.message);
     });
     isConnected = true;
   }
@@ -609,11 +658,30 @@ async function initializeDatabase() {
       `ALTER TABLE "Users" ALTER COLUMN "reportingTo" TYPE VARCHAR(150)`,
       `ALTER TABLE "Accounts" ADD COLUMN IF NOT EXISTS "ownerId" VARCHAR(50) NULL`,
       `ALTER TABLE "Accounts" ADD COLUMN IF NOT EXISTS "ownerName" VARCHAR(150) NULL`,
+      `ALTER TABLE "Accounts" ADD COLUMN IF NOT EXISTS "journeyStage" VARCHAR(50) DEFAULT 'Awareness'`,
+      `ALTER TABLE "Accounts" ADD COLUMN IF NOT EXISTS "previousJourneyStage" VARCHAR(50) NULL`,
+      `ALTER TABLE "Accounts" ADD COLUMN IF NOT EXISTS "journeyUpdatedAt" TIMESTAMP NULL`,
+      `ALTER TABLE "Accounts" ADD COLUMN IF NOT EXISTS "journeyReason" TEXT NULL`,
+      `ALTER TABLE "Accounts" ADD COLUMN IF NOT EXISTS "journeyTrigger" VARCHAR(50) NULL`,
+      `ALTER TABLE "Accounts" ADD COLUMN IF NOT EXISTS "journeyManualOverrideAt" TIMESTAMP NULL`,
+      `CREATE TABLE IF NOT EXISTS "JourneyHistory" (
+        "id" VARCHAR(100) PRIMARY KEY,
+        "accountId" VARCHAR(50) NOT NULL,
+        "fromStage" VARCHAR(50),
+        "toStage" VARCHAR(50) NOT NULL,
+        "reason" TEXT,
+        "triggerType" VARCHAR(50),
+        "changedBy" VARCHAR(100),
+        "changedByName" VARCHAR(150),
+        "timestamp" TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )`,
       `ALTER TABLE "Contacts" ADD COLUMN IF NOT EXISTS "ownerId" VARCHAR(50) NULL`,
       `ALTER TABLE "Contacts" ADD COLUMN IF NOT EXISTS "ownerName" VARCHAR(150) NULL`,
       `ALTER TABLE "Contacts" ADD COLUMN IF NOT EXISTS "birthday" VARCHAR(50) NULL`,
       `ALTER TABLE "Contacts" ADD COLUMN IF NOT EXISTS "projectType" VARCHAR(100) NULL`,
       `ALTER TABLE "Interactions" ADD COLUMN IF NOT EXISTS "attachments" TEXT NULL`,
+      `ALTER TABLE "Interactions" ADD COLUMN IF NOT EXISTS "internetMessageId" VARCHAR(250) NULL`,
+      `ALTER TABLE "Interactions" ADD COLUMN IF NOT EXISTS "isManual" BOOLEAN NULL`,
       `ALTER TABLE "Tasks" ADD COLUMN IF NOT EXISTS "accountId" VARCHAR(50) NULL`,
       `ALTER TABLE "Tasks" ADD COLUMN IF NOT EXISTS "contactId" VARCHAR(50) NULL`,
       `ALTER TABLE "Notifications" ADD COLUMN IF NOT EXISTS "taskId" VARCHAR(100) NULL`,
@@ -655,7 +723,98 @@ async function initializeDatabase() {
         "sentAt" VARCHAR(50),
         "error" TEXT,
         "timestamp" TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )`
+      )`,
+      `CREATE TABLE IF NOT EXISTS "SyncHistory" (
+        "syncId" VARCHAR(50) PRIMARY KEY,
+        "provider" VARCHAR(100),
+        "mailbox" VARCHAR(150),
+        "triggeredByUid" VARCHAR(50),
+        "triggeredByName" VARCHAR(150),
+        "results" TEXT,
+        "timestamp" TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )`,
+      `ALTER TABLE "HealthScores" ADD COLUMN IF NOT EXISTS "factors" JSONB NULL`,
+      `CREATE TABLE IF NOT EXISTS "AccountSignals" (
+        "accountId" VARCHAR(50) PRIMARY KEY REFERENCES "Accounts"("accountId") ON DELETE CASCADE,
+        "customerInitiatedCount" INT DEFAULT 0,
+        "employeeInitiatedCount" INT DEFAULT 0,
+        "avgResponseTimeMs" BIGINT DEFAULT 0,
+        "unansweredFollowUps" INT DEFAULT 0,
+        "commitmentsCompletedOnTime" INT DEFAULT 0,
+        "commitmentsOverdue" INT DEFAULT 0,
+        "expansionSignalsCount" INT DEFAULT 0,
+        "referralSignalsCount" INT DEFAULT 0,
+        "lastCalculated" TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )`,
+      `CREATE TABLE IF NOT EXISTS "CelebrationEvents" (
+        "id" VARCHAR(255) PRIMARY KEY,
+        "accountId" VARCHAR(255) NOT NULL,
+        "contactId" VARCHAR(255) NOT NULL,
+        "eventType" VARCHAR(100) NOT NULL,
+        "eventTitle" TEXT,
+        "eventDescription" TEXT,
+        "eventDate" VARCHAR(100),
+        "sourceType" VARCHAR(100),
+        "sourceName" VARCHAR(255),
+        "sourceUrl" TEXT,
+        "sourceReference" TEXT,
+        "sourceDate" VARCHAR(100),
+        "sourceEventId" VARCHAR(255),
+        "lastSyncStatus" VARCHAR(50),
+        "syncError" TEXT,
+        "lastSyncedAt" TIMESTAMP,
+        "confidence" VARCHAR(50),
+        "verificationStatus" VARCHAR(50),
+        "status" VARCHAR(50),
+        "detectedAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        "lastCheckedAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        "reminderDate" TIMESTAMP,
+        "draftedAt" TIMESTAMP,
+        "approvedAt" TIMESTAMP,
+        "scheduledAt" TIMESTAMP,
+        "sentAt" TIMESTAMP,
+        "dismissedAt" TIMESTAMP,
+        "createdBy" VARCHAR(255),
+        "updatedBy" VARCHAR(255),
+        "createdAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        "updatedAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )`,
+      `CREATE INDEX IF NOT EXISTS idx_celeb_account ON "CelebrationEvents"("accountId")`,
+      `CREATE INDEX IF NOT EXISTS idx_celeb_contact ON "CelebrationEvents"("contactId")`,
+      `CREATE INDEX IF NOT EXISTS idx_celeb_date ON "CelebrationEvents"("eventDate")`,
+      `ALTER TABLE "CelebrationEvents" ADD COLUMN IF NOT EXISTS "sourceEventId" VARCHAR(255) NULL`,
+      `ALTER TABLE "CelebrationEvents" ADD COLUMN IF NOT EXISTS "lastSyncStatus" VARCHAR(50) NULL`,
+      `ALTER TABLE "CelebrationEvents" ADD COLUMN IF NOT EXISTS "syncError" TEXT NULL`,
+      `ALTER TABLE "CelebrationEvents" ADD COLUMN IF NOT EXISTS "lastSyncedAt" TIMESTAMP NULL`,
+      `ALTER TABLE "CelebrationEvents" ALTER COLUMN "contactId" DROP NOT NULL`,
+      `ALTER TABLE "CelebrationEvents" ADD COLUMN IF NOT EXISTS "evidenceSummary" TEXT NULL`,
+      `ALTER TABLE "CelebrationEvents" ADD COLUMN IF NOT EXISTS "matchedEntity" VARCHAR(255) NULL`,
+      `ALTER TABLE "CelebrationEvents" ADD COLUMN IF NOT EXISTS "verifiedByUid" VARCHAR(100) NULL`,
+      `ALTER TABLE "CelebrationEvents" ADD COLUMN IF NOT EXISTS "verifiedByName" VARCHAR(150) NULL`,
+      `ALTER TABLE "Accounts" ADD COLUMN IF NOT EXISTS "website" VARCHAR(255) NULL`,
+      `ALTER TABLE "Accounts" ADD COLUMN IF NOT EXISTS "aliases" TEXT NULL`,
+      `CREATE UNIQUE INDEX IF NOT EXISTS idx_celeb_source_event ON "CelebrationEvents"("sourceType", "sourceEventId") WHERE "sourceEventId" IS NOT NULL`,
+      `CREATE TABLE IF NOT EXISTS "TeamsMeetings" (
+        "meetingId" VARCHAR(150) PRIMARY KEY,
+        "organizerEmail" VARCHAR(150) NOT NULL,
+        "subject" VARCHAR(300),
+        "startDateTime" TIMESTAMP WITH TIME ZONE,
+        "endDateTime" TIMESTAMP WITH TIME ZONE,
+        "joinWebUrl" TEXT,
+        "transcriptId" VARCHAR(150),
+        "rawTranscript" TEXT,
+        "parsedDialogue" JSONB,
+        "speakers" JSONB,
+        "attendees" JSONB,
+        "accountId" VARCHAR(50) REFERENCES "Accounts"("accountId") ON DELETE SET NULL,
+        "contactId" VARCHAR(50) REFERENCES "Contacts"("contactId") ON DELETE SET NULL,
+        "interactionId" VARCHAR(50) REFERENCES "Interactions"("interactionId") ON DELETE SET NULL,
+        "syncStatus" VARCHAR(50) DEFAULT 'SYNCED',
+        "createdAt" TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+        "updatedAt" TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+      )`,
+      `CREATE INDEX IF NOT EXISTS idx_teamsmeetings_account ON "TeamsMeetings"("accountId")`,
+      `CREATE INDEX IF NOT EXISTS idx_teamsmeetings_organizer ON "TeamsMeetings"("organizerEmail")`
     ];
     for (const migration of migrations) {
       try {
@@ -676,73 +835,7 @@ async function initializeDatabase() {
       console.log(`\uD83D\uDCC2 Database ready — ${userCount} existing user(s) found, skipping seed.`);
     }
 
-    // Check if the dummy task already exists
-    const dummyCheck = await connection.query('SELECT COUNT(*) as count FROM "Interactions" WHERE "interactionId" = $1', ['int-dummy-all-users']);
-    const dummyExists = parseInt(dummyCheck.rows[0].count, 10) > 0;
-    
-    if (!dummyExists) {
-      console.log('🌱 Seeding dummy task for all 14 users in PostgreSQL...');
-      
-      const getKolkataDateString = (d = new Date()) => {
-        const dateObj = d instanceof Date ? d : new Date(d);
-        const yyyy = dateObj.getFullYear();
-        const mm = String(dateObj.getMonth() + 1).padStart(2, '0');
-        const dd = String(dateObj.getDate()).padStart(2, '0');
-        return `${yyyy}-${mm}-${dd}`;
-      };
-      
-      const getKolkataTimeString = (d = new Date()) => {
-        const dateObj = d instanceof Date ? d : new Date(d);
-        const hh = String(dateObj.getHours()).padStart(2, '0');
-        const min = String(dateObj.getMinutes()).padStart(2, '0');
-        return `${hh}:${min}`;
-      };
 
-      const taskDueDate = new Date();
-      taskDueDate.setDate(taskDueDate.getDate() + 7);
-      const taskDueDateStr = getKolkataDateString(taskDueDate);
-
-      const dummyAllUsersMentions = [
-        { uid: 'mock-admin-uid', name: 'Admin User', task: 'Review all accounts and verify global access permissions', taskHeader: 'Review Admin Access', status: 'Task Assigned', dueDate: taskDueDateStr, priority: 'High', comments: '', completionDate: null },
-        { uid: 'mock-nazneen-ceo-uid', name: 'Nazneen Jahangir', task: 'Review high-level executive dashboard and quarterly risk report', taskHeader: 'Review Exec Dashboard', status: 'Task Assigned', dueDate: taskDueDateStr, priority: 'High', comments: '', completionDate: null },
-        { uid: 'mock-exec-uid', name: 'Executive User', task: 'Approve project budget and review overall alignment', taskHeader: 'Approve Budget', status: 'Task Assigned', dueDate: taskDueDateStr, priority: 'High', comments: '', completionDate: null },
-        { uid: 'mock-finance-head-uid', name: 'Finance Head', task: 'Perform finance audit for Apex Financial Services and billing integration', taskHeader: 'Finance Audit', status: 'Task Assigned', dueDate: taskDueDateStr, priority: 'Medium', comments: '', completionDate: null },
-        { uid: 'mock-global-hr-head-uid', name: 'Global HR Head', task: 'Initiate performance appraisals and review Acme Corporation HR roadmap', taskHeader: 'Appraisal Review', status: 'Task Assigned', dueDate: taskDueDateStr, priority: 'Medium', comments: '', completionDate: null },
-        { uid: 'mock-itg-head-uid', name: 'ITG Head', task: 'Audit cybersecurity protocol and IT infrastructure on Global Logistics Inc', taskHeader: 'Security Audit', status: 'Task Assigned', dueDate: taskDueDateStr, priority: 'High', comments: '', completionDate: null },
-        { uid: 'mock-nda-head-uid', name: 'NDA Head', task: 'Review NDA agreements and compliance training roadmap', taskHeader: 'NDA Review', status: 'Task Assigned', dueDate: taskDueDateStr, priority: 'High', comments: '', completionDate: null },
-        { uid: 'mock-tc-head-uid', name: 'TC Head', task: 'Evaluate AI/ML platform R&D roadmap and quality gates', taskHeader: 'Evaluate Platform', status: 'Task Assigned', dueDate: taskDueDateStr, priority: 'Medium', comments: '', completionDate: null },
-        { uid: 'mock-quality-head-uid', name: 'Quality Head', task: 'Oversee performance regression suite results and quality audit', taskHeader: 'Quality Audit', status: 'Task Assigned', dueDate: taskDueDateStr, priority: 'Medium', comments: '', completionDate: null },
-        { uid: 'mock-manager-uid', name: 'Manager User', task: 'Sync with employee on frontend milestones and verify deliverables', taskHeader: 'Manager Sync', status: 'Task Assigned', dueDate: taskDueDateStr, priority: 'Medium', comments: '', completionDate: null },
-        { uid: 'mock-employee-uid', name: 'Employee User', task: 'Implement frontend components and run regression tests', taskHeader: 'Implement UI', status: 'Task Assigned', dueDate: taskDueDateStr, priority: 'Medium', comments: '', completionDate: null },
-        { uid: 'ldap-3cm36onhw', name: 'Albert S Joseph', task: 'Coordinate load testing and API stability check for dashboard widgets', taskHeader: 'Dashboard Load Test', status: 'Task Assigned', dueDate: taskDueDateStr, priority: 'High', comments: '', completionDate: null },
-        { uid: 'ldap-rhkufekom', name: 'Amina Rashad', task: 'Perform regression suite execution and validation of CRM flows', taskHeader: 'Run Regression', status: 'Task Assigned', dueDate: taskDueDateStr, priority: 'High', comments: '', completionDate: null },
-        { uid: 'ldap-2jm2pvhe0', name: 'Noble Sibi', task: 'Evaluate CRM security posture and RBAC policy definitions', taskHeader: 'Verify Security', status: 'Task Assigned', dueDate: taskDueDateStr, priority: 'High', comments: '', completionDate: null }
-      ];
-
-      await connection.query(`
-        INSERT INTO "Interactions" ("interactionId", "accountId", "contactId", source, subject, "messageText", date, time, "loggedByUid", "loggedByName", sentiment, "riskDetected", "riskCategory", "actionMentions", timestamp)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
-      `, [
-        'int-dummy-all-users',
-        'acc-1',
-        'con-1',
-        'Meeting',
-        'All-Hands Portfolio Review',
-        'We held a portfolio review meeting with Acme Corporation. All team members must review their client updates and key deliverables.',
-        getKolkataDateString(),
-        getKolkataTimeString(),
-        'mock-admin-uid',
-        'Admin User',
-        'Neutral',
-        false,
-        '',
-        JSON.stringify(dummyAllUsersMentions),
-        new Date().toISOString()
-      ]);
-      console.log('✅ Dummy task for all 14 users seeded successfully.');
-    } else {
-      console.log('🌱 Dummy task "int-dummy-all-users" already exists in PostgreSQL, skipping seed.');
-    }
 
 
   } catch (err) {
@@ -760,12 +853,9 @@ async function initializeDatabase() {
  * Seeds initial CRM dataset.
  */
 async function seedPostgresData(connection) {
-  // 1. Users
+  // Only insert the baseline system admin if empty
   const users = [
-    { uid: 'mock-admin-uid', email: 'admin@pulse.com', role: 'Admin', position: 'System Administrator', userType: 'Admin', name: 'Admin User', password: 'admin123' },
-    { uid: 'mock-exec-uid', email: 'executive@pulse.com', role: 'Executive', position: 'Chief Executive Officer', userType: 'CEO', name: 'Executive User', password: 'exec123' },
-    { uid: 'mock-manager-uid', email: 'manager@pulse.com', role: 'Sales Manager', position: 'Logistics Division Lead', userType: 'BU Head', name: 'Manager User', password: 'manager123' },
-    { uid: 'mock-employee-uid', email: 'employee@pulse.com', role: 'Employee', position: 'Frontend Engineer', userType: 'Employee', name: 'Employee User', password: 'employee123' }
+    { uid: 'mock-admin-uid', email: 'admin@pulse.com', role: 'Admin', position: 'System Administrator', userType: 'Admin', name: 'Admin User', password: 'Admin123' }
   ];
   
   for (const u of users) {
@@ -783,215 +873,6 @@ async function seedPostgresData(connection) {
       u.password || null,
       u.projects || '[]',
       u.employees || '[]'
-    ]);
-  }
-  
-  // 2. Accounts
-  const abcAnniv = new Date();
-  abcAnniv.setFullYear(abcAnniv.getFullYear() - 5);
-  abcAnniv.setDate(abcAnniv.getDate() + 3);
-  const abcCreated = abcAnniv.toISOString();
-
-  const accounts = [
-    { accountId: 'acc-1', companyName: 'Acme Corporation', industry: 'Technology', region: 'USA', healthScore: 88, status: 'Healthy', email: 'info@acme.com', phone: '+1 555-0199', ceoName: 'Sarah Jenkins', domain: 'acme.com', ownerId: 'mock-admin-uid', ownerName: 'Admin User', createdAt: new Date().toISOString() },
-    { accountId: 'acc-2', companyName: 'Global Logistics Inc', industry: 'Logistics', region: 'UK', healthScore: 42, status: 'Critical', email: 'support@globallogistics.com', phone: '+44 20 7946 0958', ceoName: 'Robert Miller', domain: 'globallogistics.com', ownerId: 'mock-manager-uid', ownerName: 'Manager User', createdAt: new Date().toISOString() },
-    { accountId: 'acc-3', companyName: 'Apex Financial Services', industry: 'Finance', region: 'Singapore', healthScore: 68, status: 'Warning', email: 'contact@apex.com', phone: '+65 6789 0123', ceoName: 'Alan Turing', domain: 'apex.com', ownerId: 'mock-employee-uid', ownerName: 'Employee User', createdAt: new Date().toISOString() },
-    { accountId: 'acc-abc', companyName: 'ABC Bank', industry: 'Finance', region: 'USA', healthScore: 78, status: 'Healthy', email: 'corporate@abcbank.com', phone: '+1 555-9876', ceoName: 'John Pierpont', domain: 'abcbank.com', ownerId: 'mock-admin-uid', ownerName: 'Admin User', createdAt: abcCreated }
-  ];
-  for (const a of accounts) {
-    await connection.query(`
-      INSERT INTO "Accounts" ("accountId", "companyName", industry, region, "healthScore", status, email, phone, "ceoName", domain, "ownerId", "ownerName", "createdAt")
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
-    `, [
-      a.accountId,
-      a.companyName,
-      a.industry,
-      a.region,
-      a.healthScore,
-      a.status,
-      a.email,
-      a.phone,
-      a.ceoName,
-      a.domain,
-      a.ownerId,
-      a.ownerName,
-      a.createdAt
-    ]);
-  }
-  
-  // 3. Contacts
-  const bday = new Date();
-  bday.setDate(bday.getDate() + 7);
-  const bdayStr = bday.toISOString().split('T')[0];
-
-  const contacts = [
-    { contactId: 'con-1', accountId: 'acc-1', name: 'Sarah Jenkins', email: 's.jenkins@acme.com', designation: 'VP of Engineering', hierarchyTag: 'VP', influenceTag: 'Decision Maker', phone: '+1 555-0199', department: 'Engineering', projectName: 'Acme Portal', projectIndustry: 'Technology', ownerId: 'mock-admin-uid', ownerName: 'Admin User', birthday: null, createdAt: new Date().toISOString() },
-    { contactId: 'con-2', accountId: 'acc-2', name: 'Robert Miller', email: 'r.miller@globallogistics.com', designation: 'IT Director', hierarchyTag: 'Director', influenceTag: 'Champion', phone: '+44 20 7946 0958', department: 'IT', projectName: 'Logistics Pipeline', projectIndustry: 'Logistics', ownerId: 'mock-manager-uid', ownerName: 'Manager User', birthday: null, createdAt: new Date().toISOString() },
-    { contactId: 'con-cio', accountId: 'acc-1', name: 'John Doe', email: 'j.doe@acme.com', designation: 'CIO', hierarchyTag: 'CXO', influenceTag: 'Decision Maker', phone: '+1 555-0155', department: 'IT', projectName: 'Acme Portal', projectIndustry: 'Technology', ownerId: 'mock-admin-uid', ownerName: 'Admin User', birthday: bdayStr, createdAt: new Date().toISOString() },
-    { contactId: 'con-abc-cio', accountId: 'acc-abc', name: 'David Vance', email: 'd.vance@abcbank.com', designation: 'Chief Information Officer', hierarchyTag: 'CXO', influenceTag: 'Decision Maker', phone: '+1 555-0255', department: 'IT', projectName: 'Banking App Core', projectIndustry: 'Finance', ownerId: 'mock-admin-uid', ownerName: 'Admin User', birthday: null, createdAt: new Date().toISOString() }
-  ];
-  for (const c of contacts) {
-    await connection.query(`
-      INSERT INTO "Contacts" ("contactId", "accountId", name, email, phone, designation, department, "projectName", "projectIndustry", "hierarchyTag", "influenceTag", "ownerId", "ownerName", "birthday", "createdAt")
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
-    `, [
-      c.contactId,
-      c.accountId,
-      c.name,
-      c.email,
-      c.phone,
-      c.designation,
-      c.department,
-      c.projectName,
-      c.projectIndustry,
-      c.hierarchyTag,
-      c.influenceTag,
-      c.ownerId,
-      c.ownerName,
-      c.birthday,
-      c.createdAt
-    ]);
-  }
-  
-  // 4. Interactions
-  const interactions = [
-    {
-      interactionId: 'int-1',
-      accountId: 'acc-1',
-      contactId: 'con-1',
-      source: 'Email',
-      subject: 'Platform Stability Feedback',
-      messageText: "We are extremely pleased with the platform's stability. Our onboarding went incredibly well.",
-      date: new Date().toISOString().split('T')[0],
-      time: new Date().toTimeString().slice(0, 5),
-      loggedByUid: 'mock-admin-uid',
-      loggedByName: 'System Admin',
-      sentiment: 'Positive',
-      riskDetected: false,
-      riskCategory: '',
-      actionMentions: '[]',
-      timestamp: new Date(Date.now() - 1000 * 60 * 60 * 2)
-    },
-    {
-      interactionId: 'int-2',
-      accountId: 'acc-2',
-      contactId: 'con-2',
-      source: 'Meeting',
-      subject: 'Cargo Reports Issue',
-      messageText: "The system has been experiencing major downtime, which delayed our cargo reports. We are actively reviewing competitor packages.",
-      date: new Date().toISOString().split('T')[0],
-      time: new Date().toTimeString().slice(0, 5),
-      loggedByUid: 'mock-admin-uid',
-      loggedByName: 'System Admin',
-      sentiment: 'Negative',
-      riskDetected: true,
-      riskCategory: 'Competitor Mentions',
-      actionMentions: '[]',
-      timestamp: new Date(Date.now() - 1000 * 60 * 60 * 24)
-    },
-    {
-      interactionId: 'int-dummy-all-users',
-      accountId: 'acc-1',
-      contactId: 'con-1',
-      source: 'Meeting',
-      subject: 'All-Hands Portfolio Review',
-      messageText: 'We held a portfolio review meeting with Acme Corporation. All team members must review their client updates and key deliverables.',
-      date: new Date().toISOString().split('T')[0],
-      time: new Date().toTimeString().slice(0, 5),
-      loggedByUid: 'mock-admin-uid',
-      loggedByName: 'Admin User',
-      sentiment: 'Neutral',
-      riskDetected: false,
-      riskCategory: '',
-      actionMentions: (() => {
-        const taskDueDate = new Date();
-        taskDueDate.setDate(taskDueDate.getDate() + 7);
-        const taskDueDateStr = taskDueDate.toISOString().split('T')[0];
-        return JSON.stringify([
-          { uid: 'mock-admin-uid', name: 'Admin User', task: 'Review all accounts and verify global access permissions', taskHeader: 'Review Admin Access', status: 'Task Assigned', dueDate: taskDueDateStr, priority: 'High', comments: '', completionDate: null },
-          { uid: 'mock-nazneen-ceo-uid', name: 'Nazneen Jahangir', task: 'Review high-level executive dashboard and quarterly risk report', taskHeader: 'Review Exec Dashboard', status: 'Task Assigned', dueDate: taskDueDateStr, priority: 'High', comments: '', completionDate: null },
-          { uid: 'mock-exec-uid', name: 'Executive User', task: 'Approve project budget and review overall alignment', taskHeader: 'Approve Budget', status: 'Task Assigned', dueDate: taskDueDateStr, priority: 'High', comments: '', completionDate: null },
-          { uid: 'mock-finance-head-uid', name: 'Finance Head', task: 'Perform finance audit for Apex Financial Services and billing integration', taskHeader: 'Finance Audit', status: 'Task Assigned', dueDate: taskDueDateStr, priority: 'Medium', comments: '', completionDate: null },
-          { uid: 'mock-global-hr-head-uid', name: 'Global HR Head', task: 'Initiate performance appraisals and review Acme Corporation HR roadmap', taskHeader: 'Appraisal Review', status: 'Task Assigned', dueDate: taskDueDateStr, priority: 'Medium', comments: '', completionDate: null },
-          { uid: 'mock-itg-head-uid', name: 'ITG Head', task: 'Audit cybersecurity protocol and IT infrastructure on Global Logistics Inc', taskHeader: 'Security Audit', status: 'Task Assigned', dueDate: taskDueDateStr, priority: 'High', comments: '', completionDate: null },
-          { uid: 'mock-nda-head-uid', name: 'NDA Head', task: 'Review NDA agreements and compliance training roadmap', taskHeader: 'NDA Review', status: 'Task Assigned', dueDate: taskDueDateStr, priority: 'High', comments: '', completionDate: null },
-          { uid: 'mock-tc-head-uid', name: 'TC Head', task: 'Evaluate AI/ML platform R&D roadmap and quality gates', taskHeader: 'Evaluate Platform', status: 'Task Assigned', dueDate: taskDueDateStr, priority: 'Medium', comments: '', completionDate: null },
-          { uid: 'mock-quality-head-uid', name: 'Quality Head', task: 'Oversee performance regression suite results and quality audit', taskHeader: 'Quality Audit', status: 'Task Assigned', dueDate: taskDueDateStr, priority: 'Medium', comments: '', completionDate: null },
-          { uid: 'mock-manager-uid', name: 'Manager User', task: 'Sync with employee on frontend milestones and verify deliverables', taskHeader: 'Manager Sync', status: 'Task Assigned', dueDate: taskDueDateStr, priority: 'Medium', comments: '', completionDate: null },
-          { uid: 'mock-employee-uid', name: 'Employee User', task: 'Implement frontend components and run regression tests', taskHeader: 'Implement UI', status: 'Task Assigned', dueDate: taskDueDateStr, priority: 'Medium', comments: '', completionDate: null },
-          { uid: 'ldap-3cm36onhw', name: 'Albert S Joseph', task: 'Coordinate load testing and API stability check for dashboard widgets', taskHeader: 'Dashboard Load Test', status: 'Task Assigned', dueDate: taskDueDateStr, priority: 'High', comments: '', completionDate: null },
-          { uid: 'ldap-rhkufekom', name: 'Amina Rashad', task: 'Perform regression suite execution and validation of CRM flows', taskHeader: 'Run Regression', status: 'Task Assigned', dueDate: taskDueDateStr, priority: 'High', comments: '', completionDate: null },
-          { uid: 'ldap-2jm2pvhe0', name: 'Noble Sibi', task: 'Evaluate CRM security posture and RBAC policy definitions', taskHeader: 'Verify Security', status: 'Task Assigned', dueDate: taskDueDateStr, priority: 'High', comments: '', completionDate: null }
-        ]);
-      })(),
-      timestamp: new Date().toISOString()
-    }
-  ];
-  for (const i of interactions) {
-    await connection.query(`
-      INSERT INTO "Interactions" ("interactionId", "accountId", "contactId", source, subject, "messageText", date, time, "loggedByUid", "loggedByName", sentiment, "riskDetected", "riskCategory", "actionMentions", timestamp)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
-    `, [
-      i.interactionId,
-      i.accountId,
-      i.contactId,
-      i.source,
-      i.subject,
-      i.messageText,
-      i.date,
-      i.time,
-      i.loggedByUid,
-      i.loggedByName,
-      i.sentiment,
-      i.riskDetected,
-      i.riskCategory,
-      i.actionMentions,
-      i.timestamp
-    ]);
-  }
-  
-  // 5. Risks
-  const risks = [
-    { riskId: 'risk-1', accountId: 'acc-2', category: 'Competitor Mentions', severity: 'High', description: 'Client is actively reviewing competitor packages due to repeated downtime issues.', status: 'Open' }
-  ];
-  for (const r of risks) {
-    await connection.query(`
-      INSERT INTO "Risks" ("riskId", "accountId", category, severity, description, status)
-      VALUES ($1, $2, $3, $4, $5, $6)
-    `, [
-      r.riskId,
-      r.accountId,
-      r.category,
-      r.severity,
-      r.description,
-      r.status
-    ]);
-  }
-  
-  // 6. Seed default Notifications
-  const notifications = [
-    {
-      notificationId: 'notif-1',
-      accountId: 'acc-2',
-      type: 'New Risk',
-      message: 'New risk alert detected: [Competitor Mentions] - Client is actively reviewing competitor packages due to repeated downtime issues.',
-      severity: 'High',
-      read: false,
-      timestamp: new Date()
-    }
-  ];
-  for (const n of notifications) {
-    await connection.query(`
-      INSERT INTO "Notifications" ("notificationId", "accountId", type, message, severity, read, timestamp)
-      VALUES ($1, $2, $3, $4, $5, $6, $7)
-    `, [
-      n.notificationId,
-      n.accountId,
-      n.type,
-      n.message,
-      n.severity,
-      n.read,
-      n.timestamp
     ]);
   }
 }

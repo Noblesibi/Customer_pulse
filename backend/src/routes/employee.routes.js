@@ -142,9 +142,15 @@ router.post('/sync', async (req, res) => {
     }
 
     let successCount = 0;
+    let consecutiveFailures = 0;
 
-    // 2. BFS Traversal Loop
+    // 2. BFS Traversal Loop (gracefully skips if external HR API is offline or returns consecutive errors)
     while (emailQueue.size > 0) {
+      if (consecutiveFailures >= 3) {
+        console.log('[HR Crawl] HR API returned consecutive errors or is currently unavailable. Preserving existing database records.');
+        break;
+      }
+
       const email = Array.from(emailQueue)[0];
       emailQueue.delete(email);
       processedEmails.add(email);
@@ -154,6 +160,7 @@ router.post('/sync', async (req, res) => {
         const result = await fetchEmployeeFromHR({ username: email });
         
         if (result && result.success && result.data) {
+          consecutiveFailures = 0;
           const hr = result.data;
           
           const name = typeof hr["Employee Name"] === 'string' ? hr["Employee Name"] : '';
@@ -211,8 +218,11 @@ router.post('/sync', async (req, res) => {
 
           await db.collection('users').doc(uid).set(updatedData);
           successCount++;
+        } else {
+          consecutiveFailures++;
         }
       } catch (err) {
+        consecutiveFailures++;
         console.error(`[HR Crawl] Failed to process ${email}:`, err.message);
       }
     }

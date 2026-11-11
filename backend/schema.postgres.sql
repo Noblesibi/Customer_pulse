@@ -16,6 +16,12 @@ CREATE TABLE IF NOT EXISTS "Accounts" (
     "ceoName" VARCHAR(150),
     "domain" VARCHAR(150),
     "projectName" VARCHAR(150),
+    "journeyStage" VARCHAR(50) DEFAULT 'Awareness',
+    "previousJourneyStage" VARCHAR(50) NULL,
+    "journeyUpdatedAt" TIMESTAMP NULL,
+    "journeyReason" TEXT NULL,
+    "journeyTrigger" VARCHAR(50) NULL,
+    "journeyManualOverrideAt" TIMESTAMP NULL,
     "createdAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -55,6 +61,12 @@ CREATE TABLE IF NOT EXISTS "Contacts" (
     "designation" VARCHAR(150),
     "department" VARCHAR(100),
     "projectName" VARCHAR(150),
+    "journeyStage" VARCHAR(50) DEFAULT 'Awareness',
+    "previousJourneyStage" VARCHAR(50) NULL,
+    "journeyUpdatedAt" TIMESTAMP NULL,
+    "journeyReason" TEXT NULL,
+    "journeyTrigger" VARCHAR(50) NULL,
+    "journeyManualOverrideAt" TIMESTAMP NULL,
     "projectIndustry" VARCHAR(100),
     "projectType" VARCHAR(100),
     "hierarchyTag" VARCHAR(50),
@@ -82,6 +94,7 @@ CREATE TABLE IF NOT EXISTS "Interactions" (
     "riskCategory" VARCHAR(150),
     "actionMentions" TEXT,
     "attachments" TEXT NULL,
+    "internetMessageId" VARCHAR(250) NULL,
     "timestamp" TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -94,6 +107,29 @@ CREATE TABLE IF NOT EXISTS "Replies" (
     "text" TEXT NOT NULL,
     "timestamp" TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+-- Teams Meetings & Transcripts Table
+CREATE TABLE IF NOT EXISTS "TeamsMeetings" (
+    "meetingId" VARCHAR(150) PRIMARY KEY,
+    "organizerEmail" VARCHAR(150) NOT NULL,
+    "subject" VARCHAR(300),
+    "startDateTime" TIMESTAMP WITH TIME ZONE,
+    "endDateTime" TIMESTAMP WITH TIME ZONE,
+    "joinWebUrl" TEXT,
+    "transcriptId" VARCHAR(150),
+    "rawTranscript" TEXT,
+    "parsedDialogue" JSONB,
+    "speakers" JSONB,
+    "attendees" JSONB,
+    "accountId" VARCHAR(50) REFERENCES "Accounts"("accountId") ON DELETE SET NULL,
+    "contactId" VARCHAR(50) REFERENCES "Contacts"("contactId") ON DELETE SET NULL,
+    "interactionId" VARCHAR(50) REFERENCES "Interactions"("interactionId") ON DELETE SET NULL,
+    "syncStatus" VARCHAR(50) DEFAULT 'SYNCED',
+    "createdAt" TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    "updatedAt" TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_teamsmeetings_account ON "TeamsMeetings"("accountId");
+CREATE INDEX IF NOT EXISTS idx_teamsmeetings_organizer ON "TeamsMeetings"("organizerEmail");
 
 -- Risks Table
 CREATE TABLE IF NOT EXISTS "Risks" (
@@ -252,3 +288,21 @@ CREATE TABLE IF NOT EXISTS "NotificationPreferences" (
     "customerFollowups" BOOLEAN DEFAULT TRUE,
     "updatedAt" VARCHAR(50) DEFAULT CURRENT_TIMESTAMP
 );
+
+-- Risk Notifications Audit Table
+CREATE TABLE IF NOT EXISTS risk_notifications (
+    id VARCHAR(255) PRIMARY KEY,
+    "accountId" VARCHAR(255),
+    "riskKey" VARCHAR(255),
+    "riskTitle" VARCHAR(255),
+    severity VARCHAR(50),
+    "senderUid" VARCHAR(255),
+    "senderName" VARCHAR(255),
+    "senderRole" VARCHAR(255),
+    recipients TEXT,
+    date VARCHAR(50),
+    time VARCHAR(50),
+    "createdAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_risk_notifications_account ON risk_notifications("accountId");
+CREATE INDEX IF NOT EXISTS idx_risk_notifications_riskkey ON risk_notifications("riskKey");

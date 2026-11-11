@@ -17,13 +17,19 @@ import notificationRouter from './routes/notification.routes.js';
 import activityRouter from './routes/activity.routes.js';
 import aiRouter from './routes/ai.routes.js';
 import employeeRouter from './routes/employee.routes.js';
-
+import integrationRouter from './routes/integration.routes.js';
+import userAccountActivityRouter from './routes/user-account-activity.routes.js';
+import celebrationRouter from './routes/celebration.routes.js';
+import scoringAdminRouter from './routes/scoringAdmin.routes.js';
 // Webhook imports
 import { handleOutlookWebhook, handleTeamsWebhook } from './controllers/webhook.controller.js';
 
 // Sync scheduler import
 import { startSyncScheduler } from './services/userSync.service.js';
+import { startCelebrationSyncCron } from './services/celebration.service.js';
 import { startEmailScheduler } from './services/notification/EmailScheduler.js';
+import { startEmailTrackingScheduler } from './services/emailTracking.service.js';
+import { startCustomerIntelligenceScheduler } from './services/customerIntelligenceScheduler.service.js';
 import emailEngineRouter from './routes/email-engine.routes.js';
 
 import helmet from 'helmet';
@@ -52,7 +58,8 @@ app.use(helmet({
 // ── Rate Limiting (Brute-force & DoS protection) ───────────
 const generalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 1000, // Limit each IP to 1000 requests per windowMs
+  max: 5000, // Limit each IP to 5000 requests per windowMs
+  skip: (req) => req.ip === '127.0.0.1' || req.ip === '::1' || req.ip === '::ffff:127.0.0.1' || process.env.NODE_ENV !== 'production',
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Too many requests from this IP, please try again later.' }
@@ -113,7 +120,10 @@ app.use('/api/activity-logs', activityRouter);
 app.use('/api/ai', aiRouter);
 app.use('/api/employees', employeeRouter);
 app.use('/api/email-engine', emailEngineRouter);
-
+app.use('/api/integrations', integrationRouter);
+app.use('/api/user-account', userAccountActivityRouter);
+app.use('/api/celebrations', celebrationRouter);
+app.use('/api/admin/scoring', scoringAdminRouter);
 // Service Health check
 app.get('/api/health', (req, res) => {
   const ldapEnabled = process.env.LDAP_ENABLED || 'false';
@@ -154,6 +164,12 @@ app.listen(PORT, () => {
   
   // Start the background employee sync scheduler
   startSyncScheduler();
+  // Start the celebration sync scheduler
+  startCelebrationSyncCron();
   // Start the email notification engine scheduler
   startEmailScheduler();
+  // Start the automated email tracking scheduler
+  startEmailTrackingScheduler();
+  // Start the customer intelligence background scheduler (Phase 2)
+  startCustomerIntelligenceScheduler();
 });

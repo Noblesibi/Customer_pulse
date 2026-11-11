@@ -21,6 +21,8 @@ export default {
       },
       fontFamily: {
         sans: ['Montserrat', 'sans-serif'],
+        mono: ['Montserrat', 'sans-serif'],
+        serif: ['Montserrat', 'sans-serif'],
       }
     },
   },

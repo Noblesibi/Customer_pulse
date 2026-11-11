@@ -34,17 +34,27 @@ router.get('/', async (req, res) => {
     const isCeo = userProfile && userProfile.userType === 'CEO';
 
     if (!isTrueAdmin && !isCeo) {
+      const userEmail = req.user.email?.toLowerCase();
+      const userName = req.user.name?.toLowerCase();
+
+      const isMatch = (entity) => {
+        if (entity.ownerId === req.user.uid) return true;
+        if (userEmail && entity.ownerEmail?.toLowerCase() === userEmail) return true;
+        if (userName && entity.ownerName?.toLowerCase().includes(userName.split(' ')[0])) return true;
+        return false;
+      };
+
       const accountsSnap = await db.collection('accounts').get();
       let accounts = accountsSnap.docs.map(doc => doc.data());
 
       // 1. Contacts where user is the Stakeholder Owner directly
       const ownedContactIds = new Set(
-        contacts.filter(c => c.ownerId === req.user.uid).map(c => c.contactId)
+        contacts.filter(c => isMatch(c)).map(c => c.contactId)
       );
 
       // 2. Contacts belonging to accounts the user owns
       const ownedAccountIds = new Set(
-        accounts.filter(a => a.ownerId === req.user.uid).map(a => a.accountId || a.id)
+        accounts.filter(a => isMatch(a)).map(a => a.accountId || a.id)
       );
 
       if (userProfile && userProfile.userType === 'BU Head') {
@@ -292,6 +302,23 @@ router.delete('/:id', requireRole(['Admin', 'Sales Manager', 'Executive']), asyn
     }
 
     const accountId = doc.data().accountId;
+
+    // Disassociate interactions from this contact to prevent foreign key errors (keep interactions intact)
+    const interactionsSnap = await db.collection('interactions').where('contactId', '==', id).get();
+    if (interactionsSnap.docs && interactionsSnap.docs.length > 0) {
+      for (const interactionDoc of interactionsSnap.docs) {
+        await db.collection('interactions').doc(interactionDoc.id).update({ contactId: null });
+      }
+    }
+
+    // Disassociate tasks from this contact as well (good practice, even if not strictly a foreign key)
+    const tasksSnap = await db.collection('tasks').where('contactId', '==', id).get();
+    if (tasksSnap.docs && tasksSnap.docs.length > 0) {
+      for (const taskDoc of tasksSnap.docs) {
+        await db.collection('tasks').doc(taskDoc.id).update({ contactId: null });
+      }
+    }
+
     await docRef.delete();
 
     // Recalculate health

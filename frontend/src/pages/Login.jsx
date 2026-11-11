@@ -7,8 +7,8 @@ import { useStore } from '../store/index.js';
 export default function Login() {
   const { login, authLoading, authError } = useStore();
 
-  const [email, setEmail]       = useState('');
-  const [password, setPassword] = useState('');
+  const [email, setEmail]       = useState('admin@pulse.com');
+  const [password, setPassword] = useState('Admin123');
   const [validationError, setValidationError] = useState('');
 
   const navigate  = useNavigate();
@@ -165,7 +165,8 @@ const styles = {
   card: {
     background: '#ffffff',
     borderRadius: '16px',
-    padding: '36px 40px',
+    padding: '28px 20px',
+    boxSizing: 'border-box',
     width: '100%',
     maxWidth: '420px',
     boxShadow: '0 4px 24px rgba(0,0,0,0.07)',
