@@ -1648,7 +1648,9 @@ export default function Users() {
                   <span className="text-black font-medium block">Reporting To</span>
                   <span className="text-black font-bold">
                     {selectedDirUser.reportingManagerName 
-                      ? `${selectedDirUser.reportingManagerName} (${selectedDirUser.reportingTo})` 
+                      ? (selectedDirUser.reportingTo && selectedDirUser.reportingTo !== selectedDirUser.reportingManagerName
+                          ? `${selectedDirUser.reportingManagerName} (${selectedDirUser.reportingTo})` 
+                          : selectedDirUser.reportingManagerName)
                       : (selectedDirUser.reportingTo || '—')}
                   </span>
                 </div>
