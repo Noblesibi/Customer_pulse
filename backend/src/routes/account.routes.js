@@ -7,6 +7,7 @@ import { runRiskEngine } from '../services/riskEngine.service.js';
 import { NotificationEngine } from '../services/notification/NotificationEngine.js';
 import { getSystemDateString, getSystemTimeString } from '../utils/dateUtils.js';
 import { generateNextBestActions } from '../services/nba.service.js';
+import { sendNewAccountsTechTeamNotification } from '../services/email.service.js';
 
 const router = Router();
 
@@ -354,14 +355,20 @@ router.post('/', (req, res, next) => {
 
     let finalOwnerId = ownerId || req.user.uid;
     let finalOwnerName = ownerName;
-    if (ownerId && !ownerName) {
+    let finalOwnerEmail = '';
+    if (ownerId) {
       const ownerUserDoc = await db.collection('users').doc(ownerId).get();
       if (ownerUserDoc.exists) {
-        finalOwnerName = ownerUserDoc.data().name;
+        const ownerData = ownerUserDoc.data();
+        if (!finalOwnerName) finalOwnerName = ownerData.name;
+        finalOwnerEmail = ownerData.email || '';
       }
     }
     if (!finalOwnerName) {
       finalOwnerName = req.user.name || 'System User';
+    }
+    if (!finalOwnerEmail && (!ownerId || ownerId === req.user.uid)) {
+      finalOwnerEmail = req.user.email || '';
     }
 
     const accountId = 'acc-' + Math.random().toString(36).substring(2, 11);
@@ -399,6 +406,7 @@ router.post('/', (req, res, next) => {
     });
 
     // If contacts array is provided, create multiple contacts
+    const createdContacts = [];
     if (contacts && Array.isArray(contacts)) {
       for (const contact of contacts) {
         if (contact.name) {
@@ -421,7 +429,7 @@ router.post('/', (req, res, next) => {
             name: contact.name,
             email: contact.email || '',
             phone: contact.phone || '',
-            designation: contact.position || '',
+            designation: contact.position || contact.designation || '',
             department: contact.department || '',
             projectName: contact.projectName || '',
             projectIndustry: contact.projectIndustry || '',
@@ -433,6 +441,7 @@ router.post('/', (req, res, next) => {
             createdAt: new Date().toISOString()
           };
           await db.collection('contacts').doc(contactId).set(newContact);
+          createdContacts.push(newContact);
         }
       }
     } else if (contactName) {
@@ -455,6 +464,7 @@ router.post('/', (req, res, next) => {
         createdAt: new Date().toISOString()
       };
       await db.collection('contacts').doc(contactId).set(newContact);
+      createdContacts.push(newContact);
     }
 
     // Run initial health calculation
@@ -476,6 +486,30 @@ router.post('/', (req, res, next) => {
 
     const doc = await db.collection('accounts').doc(accountId).get();
     await logActivity(req.user.uid, req.user.name, 'Create Account', `Created account ${companyName} (ID: ${accountId})`);
+
+    // Automatically notify tech team & tech head for Outlook & Teams permissions
+    sendNewAccountsTechTeamNotification({
+      accounts: [{
+        accountId,
+        companyName,
+        industry: industry || 'Technology',
+        domain: domain || 'General',
+        region: region || 'Unknown',
+        email: email || '',
+        phone: phone || '',
+        ceoName: ceoName || '',
+        ownerName: finalOwnerName,
+        ownerEmail: finalOwnerEmail,
+        contacts: createdContacts,
+        contactsCount: createdContacts.length
+      }],
+      uploadedBy: {
+        name: req.user?.name || req.user?.displayName || 'Administrator',
+        email: req.user?.email || 'admin@pulse.com'
+      },
+      source: 'Account Creation'
+    }).catch(err => console.error('Error triggering tech team notification for new account:', err));
+
     return res.status(201).json(doc.data());
   } catch (error) {
     console.error('Error creating account:', error);
@@ -1126,6 +1160,8 @@ router.post('/bulk-import', requireRole(['Admin', 'Sales Manager']), async (req,
       });
     }
 
+    const newlyCreatedAccounts = [];
+
     // Process actual insertions
     for (const acc of accountsArr) {
       let finalAccountId = acc.existingAccountId;
@@ -1150,6 +1186,11 @@ router.post('/bulk-import', requireRole(['Admin', 'Sales Manager']), async (req,
         };
         await db.collection('accounts').doc(finalAccountId).set(newAccount);
         accountsCreated++;
+        newlyCreatedAccounts.push({
+          ...newAccount,
+          contacts: acc.contacts || [],
+          contactsCount: acc.contacts?.length || 0
+        });
       } else {
         // Update existing account
         await db.collection('accounts').doc(finalAccountId).update({
@@ -1192,6 +1233,18 @@ router.post('/bulk-import', requireRole(['Admin', 'Sales Manager']), async (req,
 
     if (accountsCreated > 0 || contactsCreated > 0) {
       await logActivity(req.user.uid, req.user.name, 'Bulk Import Accounts', `Processed ${accountsCreated} new accounts and ${contactsCreated} contacts`);
+    }
+
+    // Automatically trigger email notification to technical team and tech head for Outlook & Teams permissions
+    if (newlyCreatedAccounts.length > 0) {
+      sendNewAccountsTechTeamNotification({
+        accounts: newlyCreatedAccounts,
+        uploadedBy: {
+          name: req.user?.name || req.user?.displayName || 'Administrator',
+          email: req.user?.email || 'admin@pulse.com'
+        },
+        source: 'Bulk NeST BU Excel Importer'
+      }).catch(err => console.error('Error triggering tech team notification for bulk accounts:', err));
     }
 
     return res.json({ 

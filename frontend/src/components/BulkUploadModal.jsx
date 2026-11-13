@@ -687,25 +687,25 @@ export default function BulkUploadModal({ isOpen, onClose }) {
 
   return ReactDOM.createPortal(
     <div 
-      className="fixed inset-0 flex items-center justify-center bg-black/80 backdrop-blur-sm animate-in fade-in p-4 sm:p-6"
+      className="fixed inset-0 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm animate-in fade-in p-4 sm:p-6"
       style={{ zIndex: 999999 }}
     >
-      <div className="bg-slate-900 w-full max-w-4xl max-h-[92vh] rounded-2xl shadow-2xl border border-slate-700/60 flex flex-col overflow-hidden my-auto">
+      <div className="bg-white w-full max-w-4xl max-h-[92vh] rounded-2xl shadow-2xl border border-slate-200 flex flex-col overflow-hidden my-auto">
         
         {/* Header */}
-        <div className="px-6 py-4 border-b border-slate-800 flex items-center justify-between bg-slate-900/90">
+        <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-white">
           <div className="flex items-center space-x-3">
-            <div className="p-2.5 bg-indigo-500/10 rounded-xl border border-indigo-500/20">
-              <FileSpreadsheet className="w-5 h-5 text-indigo-400" />
+            <div className="p-2.5 bg-indigo-50 rounded-xl border border-indigo-100">
+              <FileSpreadsheet className="w-5 h-5 text-indigo-600" />
             </div>
             <div>
-              <h2 className="text-lg font-bold text-white flex items-center space-x-2">
+              <h2 className="text-lg font-bold text-slate-900 flex items-center space-x-2">
                 <span>Intelligent NeST BU Excel Importer</span>
-                <span className="text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                <span className="text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200">
                   Step {step} of 4
                 </span>
               </h2>
-              <p className="text-xs text-slate-400">
+              <p className="text-xs text-slate-500">
                 {step === 1 && "Upload your customer account spreadsheet (.xlsx, .xls, .csv)"}
                 {step === 2 && "Intelligently detects NeST Business Units from sheets and maps accounts automatically."}
                 {step === 3 && "Verify parsed accounts, NeST BU mapping, and duplicate detection before saving."}
@@ -715,41 +715,41 @@ export default function BulkUploadModal({ isOpen, onClose }) {
           </div>
           <button 
             onClick={handleClose}
-            className="text-slate-400 hover:text-white p-2 rounded-xl hover:bg-slate-800 transition-colors"
+            className="text-slate-400 hover:text-slate-700 p-2 rounded-xl hover:bg-slate-100 transition-colors"
           >
             <XCircle className="w-5 h-5" />
           </button>
         </div>
 
         {/* Body Content */}
-        <div className="p-6 overflow-y-auto custom-scrollbar flex-1">
+        <div className="p-6 overflow-y-auto custom-scrollbar flex-1 bg-slate-50/50">
           {/* STEP 1: File Upload */}
           {step === 1 && (
             <div className="space-y-6">
               <div 
                 onClick={() => fileInputRef.current?.click()}
-                className="border-2 border-dashed border-slate-700 hover:border-indigo-500/80 rounded-2xl p-10 flex flex-col items-center justify-center cursor-pointer bg-slate-800/30 hover:bg-slate-800/60 transition-all group"
+                className="border-2 border-dashed border-slate-300 hover:border-indigo-500 rounded-2xl p-10 flex flex-col items-center justify-center cursor-pointer bg-white hover:bg-indigo-50/30 transition-all group shadow-sm"
               >
-                <div className="p-4 bg-indigo-500/10 rounded-2xl border border-indigo-500/20 text-indigo-400 group-hover:scale-110 transition-transform mb-4 shadow-lg shadow-indigo-500/5">
+                <div className="p-4 bg-indigo-50 rounded-2xl border border-indigo-100 text-indigo-600 group-hover:scale-110 transition-transform mb-4 shadow-sm">
                   <Upload className="w-8 h-8" />
                 </div>
-                <h3 className="text-base font-semibold text-white mb-1">Click to select a spreadsheet</h3>
-                <p className="text-xs text-slate-400 mb-4">Supports .xlsx, .xls, .csv files up to 20MB</p>
+                <h3 className="text-base font-bold text-slate-900 mb-1">Click to select a spreadsheet</h3>
+                <p className="text-xs text-slate-500 mb-4">Supports .xlsx, .xls, .csv files up to 20MB</p>
                 
-                <div className="flex items-center space-x-2 text-xs text-indigo-400 bg-indigo-500/10 px-3 py-1.5 rounded-full border border-indigo-500/20">
+                <div className="flex items-center space-x-2 text-xs text-indigo-700 bg-indigo-50 px-3.5 py-1.5 rounded-full border border-indigo-200 font-medium">
                   <Sparkles className="w-3.5 h-3.5" />
                   <span>Auto-detects multi-BU sheets (ABU, Healthcare, GIS, IBU, MBU, BFS, INS, SAS)</span>
                 </div>
                 
                 <button 
                   onClick={handleDownloadTemplate}
-                  className="mt-4 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white text-sm font-semibold rounded-lg border border-slate-600 transition-colors flex items-center gap-2 z-10 relative"
+                  className="mt-4 px-4 py-2 bg-white hover:bg-slate-50 text-slate-800 text-sm font-semibold rounded-lg border border-slate-300 hover:border-slate-400 transition-colors flex items-center gap-2 z-10 relative shadow-sm"
                 >
-                  <Download className="w-4 h-4" /> Download Sample Template
+                  <Download className="w-4 h-4 text-slate-600" /> Download Sample Template
                 </button>
                 
-                <p className="mt-3 text-[11px] text-slate-400 max-w-sm text-center">
-                  <strong className="text-slate-300">Note:</strong> When uploading the sample template, all fields are required except Phone Number.
+                <p className="mt-3 text-[11px] text-slate-500 max-w-sm text-center">
+                  <strong className="text-slate-700">Note:</strong> When uploading the sample template, all fields are required except Phone Number.
                 </p>
                 
                 <input 
@@ -762,9 +762,9 @@ export default function BulkUploadModal({ isOpen, onClose }) {
               </div>
 
               {isProcessing && (
-                <div className="flex items-center justify-center space-x-3 text-slate-400 py-4">
-                  <Loader2 className="w-5 h-5 text-indigo-400 animate-spin" />
-                  <span className="text-sm">Analyzing sheets and headers across Business Units...</span>
+                <div className="flex items-center justify-center space-x-3 text-slate-600 py-4">
+                  <Loader2 className="w-5 h-5 text-indigo-600 animate-spin" />
+                  <span className="text-sm font-medium">Analyzing sheets and headers across Business Units...</span>
                 </div>
               )}
             </div>
@@ -774,31 +774,31 @@ export default function BulkUploadModal({ isOpen, onClose }) {
           {step === 2 && (
             <div className="space-y-5 animate-in slide-in-from-right-4">
               {/* Import Mode Switcher */}
-              <div className="flex flex-wrap items-center justify-between gap-3 p-1.5 bg-slate-800/80 rounded-2xl border border-slate-700/60">
+              <div className="flex flex-wrap items-center justify-between gap-3 p-1.5 bg-slate-100 rounded-2xl border border-slate-200">
                 <div className="flex items-center space-x-1">
                   <button
                     onClick={() => setImportMode('single')}
-                    className={`px-4 py-2 rounded-xl text-xs font-semibold uppercase tracking-wider transition-all ${
+                    className={`px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-all ${
                       importMode === 'single'
-                        ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30'
-                        : 'bg-slate-800 text-slate-400 hover:text-white'
+                        ? 'bg-white text-indigo-700 shadow-sm border border-slate-200'
+                        : 'bg-transparent text-slate-600 hover:text-slate-900'
                     }`}
                   >
                     Import Single BU Sheet
                   </button>
                   <button
                     onClick={() => setImportMode('batch')}
-                    className={`px-4 py-2 rounded-xl text-xs font-semibold uppercase tracking-wider transition-all ${
+                    className={`px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-all ${
                       importMode === 'batch'
-                        ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30'
-                        : 'bg-slate-800 text-slate-400 hover:text-white'
+                        ? 'bg-white text-indigo-700 shadow-sm border border-slate-200'
+                        : 'bg-transparent text-slate-600 hover:text-slate-900'
                     }`}
                   >
                     Batch Import Multiple BUs ({selectedBatchSheets.length} selected)
                   </button>
                 </div>
 
-                <span className="text-xs text-slate-400">
+                <span className="text-xs text-slate-600 font-medium px-2">
                   Total {sheetNames.filter(s => !/guidelines|instruction/i.test(s)).length} NeST BUs in File
                 </span>
               </div>
@@ -806,12 +806,12 @@ export default function BulkUploadModal({ isOpen, onClose }) {
               {/* BATCH MODE VIEW */}
               {importMode === 'batch' ? (
                 <div className="space-y-4">
-                  <div className="bg-indigo-500/10 border border-indigo-500/20 p-4 rounded-xl text-xs text-indigo-300">
-                    <p className="font-semibold mb-1 flex items-center">
-                      <Building2 className="w-4 h-4 mr-1.5 text-indigo-400" />
+                  <div className="bg-indigo-50/80 border border-indigo-200 p-4 rounded-xl text-xs text-indigo-900">
+                    <p className="font-bold mb-1 flex items-center text-indigo-950">
+                      <Building2 className="w-4 h-4 mr-1.5 text-indigo-600" />
                       Select Which NeST Business Units to Upload
                     </p>
-                    <p className="text-slate-300">
+                    <p className="text-slate-700">
                       Uncheck any sheet you don't need. CustomerPulse will automatically assign accounts from each selected sheet to their respective NeST Business Unit and auto-detected BU Head!
                     </p>
                   </div>
@@ -828,37 +828,37 @@ export default function BulkUploadModal({ isOpen, onClose }) {
                           onClick={() => !isInfo && toggleBatchSheet(sheetName)}
                           className={`p-3.5 rounded-xl border transition-all cursor-pointer flex items-center justify-between ${
                             isInfo 
-                              ? 'opacity-40 border-slate-800 bg-slate-900/40 cursor-not-allowed'
+                              ? 'opacity-40 border-slate-200 bg-slate-100 cursor-not-allowed'
                               : isSelected
-                              ? 'border-indigo-500/60 bg-indigo-500/10 text-white shadow-sm'
-                              : 'border-slate-800 bg-slate-800/40 text-slate-400 hover:border-slate-700 hover:bg-slate-800/80'
+                              ? 'border-indigo-400 bg-indigo-50/60 text-slate-900 shadow-sm'
+                              : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50'
                           }`}
                         >
                           <div className="flex items-center space-x-3">
                             {!isInfo && (
-                              <div className={isSelected ? 'text-indigo-400' : 'text-slate-600'}>
+                              <div className={isSelected ? 'text-indigo-600' : 'text-slate-400'}>
                                 {isSelected ? <CheckSquare className="w-5 h-5" /> : <Square className="w-5 h-5" />}
                               </div>
                             )}
                             <div>
                               <div className="font-semibold text-sm flex items-center space-x-2">
-                                <span className="text-white">{sheetName}</span>
+                                <span className="text-slate-900">{sheetName}</span>
                                 {summary.bu && !isInfo && (
-                                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-800 text-indigo-300 border border-indigo-500/30">
+                                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200">
                                     {summary.bu}
                                   </span>
                                 )}
                               </div>
-                              <div className="text-xs text-slate-400 mt-0.5 flex items-center space-x-1.5">
+                              <div className="text-xs text-slate-500 mt-0.5 flex items-center space-x-1.5">
                                 {isInfo ? (
                                   <span>Instructions / Guidelines (Skipped)</span>
                                 ) : (
                                   <>
                                     <span>{summary.accountCount || 0} Accounts</span>
-                                    <span className="text-pink-400 ml-1 text-[10px]">(R:{summary.rawRowsCount}, D:{summary.dataRowsCount}, P:{summary.rowCount})</span>
+                                    <span className="text-pink-600 ml-1 text-[10px]">(R:{summary.rawRowsCount}, D:{summary.dataRowsCount}, P:{summary.rowCount})</span>
                                     <span>•</span>
                                     {summary.owner ? (
-                                      <span className="text-emerald-400 font-medium">Owner: {summary.owner.name}</span>
+                                      <span className="text-emerald-700 font-semibold">Owner: {summary.owner.name}</span>
                                     ) : (
                                       <span>Owner: Default User</span>
                                     )}
@@ -876,21 +876,21 @@ export default function BulkUploadModal({ isOpen, onClose }) {
                 /* SINGLE SHEET MODE VIEW */
                 <div className="space-y-5">
                   {/* NeST BU & Account Owner Intelligence Banner */}
-                  <div className="bg-gradient-to-r from-indigo-950/80 via-slate-800 to-slate-900 border border-indigo-500/40 p-4 rounded-xl space-y-3.5 shadow-lg">
+                  <div className="bg-white border border-slate-200 p-4 rounded-xl space-y-3.5 shadow-sm">
                     <div className="flex flex-wrap items-center justify-between gap-3">
                       <div className="flex items-center space-x-3">
-                        <div className="p-2 bg-indigo-500/20 rounded-lg text-indigo-400">
+                        <div className="p-2 bg-indigo-50 rounded-lg text-indigo-600 border border-indigo-100">
                           <Building2 className="w-5 h-5" />
                         </div>
                         <div>
-                          <div className="text-[11px] font-semibold text-indigo-300 uppercase tracking-wider">
+                          <div className="text-[11px] font-bold text-indigo-700 uppercase tracking-wider">
                             Active NeST BU Sheet
                           </div>
                           <select
                             value={selectedSheet}
                             onChange={(e) => handleSheetSwitch(e.target.value)}
                             disabled={isProcessing}
-                            className="bg-slate-900 border border-indigo-500/40 rounded-lg px-3 py-1.5 text-sm text-white font-medium focus:outline-none focus:border-indigo-400 mt-1 cursor-pointer"
+                            className="bg-white border border-slate-300 rounded-lg px-3 py-1.5 text-sm text-slate-900 font-medium focus:outline-none focus:border-indigo-500 mt-1 cursor-pointer shadow-sm"
                           >
                             {sheetNames.map(name => {
                               const isInfo = /guidelines|instruction/i.test(name);
@@ -909,20 +909,20 @@ export default function BulkUploadModal({ isOpen, onClose }) {
                       <div className="flex flex-wrap items-center gap-2.5">
                         {/* NeST BU chips - one per unique BU found in Excel */}
                         <div className="flex flex-wrap items-center gap-1.5">
-                          <span className="text-xs text-slate-400 flex items-center gap-1 mr-0.5">
-                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                          <span className="text-xs text-slate-600 font-medium flex items-center gap-1 mr-0.5">
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
                             NeST BU:
                           </span>
                           {currentBu.isMulti ? (
                             // Show each BU as its own chip
                             currentBu.values.map((buVal, idx) => {
                               const colors = [
-                                'bg-indigo-500/20 text-indigo-200 border-indigo-500/40',
-                                'bg-violet-500/20 text-violet-200 border-violet-500/40',
-                                'bg-cyan-500/20 text-cyan-200 border-cyan-500/40',
-                                'bg-emerald-500/20 text-emerald-200 border-emerald-500/40',
-                                'bg-amber-500/20 text-amber-200 border-amber-500/40',
-                                'bg-pink-500/20 text-pink-200 border-pink-500/40',
+                                'bg-indigo-50 text-indigo-700 border-indigo-200',
+                                'bg-violet-50 text-violet-700 border-violet-200',
+                                'bg-cyan-50 text-cyan-800 border-cyan-200',
+                                'bg-emerald-50 text-emerald-800 border-emerald-200',
+                                'bg-amber-50 text-amber-800 border-amber-200',
+                                'bg-pink-50 text-pink-700 border-pink-200',
                               ];
                               const color = colors[idx % colors.length];
                               return (
@@ -932,14 +932,14 @@ export default function BulkUploadModal({ isOpen, onClose }) {
                                   title={`${rawData.filter(r => r[domainCol] && String(r[domainCol]).trim() === buVal).length} rows`}
                                 >
                                   {buVal}
-                                  <span className="ml-1 text-[9px] opacity-60 font-normal">
+                                  <span className="ml-1 text-[9px] opacity-75 font-normal">
                                     ×{rawData.filter(r => r[domainCol] && String(r[domainCol]).trim() === buVal).length}
                                   </span>
                                 </span>
                               );
                             })
                           ) : (
-                            <span className="inline-flex items-center text-[11px] font-semibold px-2 py-0.5 rounded-full border bg-indigo-500/20 text-indigo-200 border-indigo-500/40">
+                            <span className="inline-flex items-center text-[11px] font-semibold px-2 py-0.5 rounded-full border bg-indigo-50 text-indigo-700 border-indigo-200">
                               {currentBu.canonical || (currentBu.isGeneric ? 'Read From Excel Rows' : currentBu.label)}
                             </span>
                           )}
@@ -947,8 +947,8 @@ export default function BulkUploadModal({ isOpen, onClose }) {
 
                         {/* Account Owner chips */}
                         <div className="flex flex-wrap items-center gap-1.5">
-                          <span className="text-xs text-slate-400 flex items-center gap-1 mr-0.5">
-                            <UserCheck className="w-3.5 h-3.5 text-emerald-400" />
+                          <span className="text-xs text-slate-600 font-medium flex items-center gap-1 mr-0.5">
+                            <UserCheck className="w-3.5 h-3.5 text-emerald-600" />
                             Account Owner:
                           </span>
                           {columnOwnerValues.length > 0 ? (
@@ -958,28 +958,28 @@ export default function BulkUploadModal({ isOpen, onClose }) {
                               return (
                                 <span
                                   key={ownerVal}
-                                  className="inline-flex items-center text-[11px] font-semibold px-2 py-0.5 rounded-full border bg-emerald-500/15 text-emerald-200 border-emerald-500/40"
+                                  className="inline-flex items-center text-[11px] font-semibold px-2 py-0.5 rounded-full border bg-emerald-50 text-emerald-800 border-emerald-200"
                                   title={`${rowCount} account${rowCount !== 1 ? 's' : ''} assigned to ${ownerVal}`}
                                 >
                                   {ownerVal}
                                   {columnOwnerValues.length > 1 && (
-                                    <span className="ml-1 text-[9px] opacity-60 font-normal">×{rowCount}</span>
+                                    <span className="ml-1 text-[9px] opacity-75 font-normal">×{rowCount}</span>
                                   )}
                                 </span>
                               );
                             })
                           ) : detectedSheetOwner ? (
                             // Fallback: sheet-level detected owner (from NeST email scan)
-                            <span className="inline-flex items-center text-[11px] font-semibold px-2 py-0.5 rounded-full border bg-emerald-500/15 text-emerald-200 border-emerald-500/40">
+                            <span className="inline-flex items-center text-[11px] font-semibold px-2 py-0.5 rounded-full border bg-emerald-50 text-emerald-800 border-emerald-200">
                               {detectedSheetOwner}
-                              {sheetOwner?.email ? <span className="ml-1 text-[9px] opacity-60 font-normal">({sheetOwner.email})</span> : null}
+                              {sheetOwner?.email ? <span className="ml-1 text-[9px] opacity-75 font-normal">({sheetOwner.email})</span> : null}
                             </span>
                           ) : defaultFallbackOwner ? (
-                            <span className="inline-flex items-center text-[11px] font-semibold px-2 py-0.5 rounded-full border bg-slate-500/20 text-slate-300 border-slate-500/40">
+                            <span className="inline-flex items-center text-[11px] font-semibold px-2 py-0.5 rounded-full border bg-slate-100 text-slate-700 border-slate-300">
                               Fallback: {defaultFallbackOwner}
                             </span>
                           ) : (
-                            <span className="inline-flex items-center text-[11px] font-semibold px-2 py-0.5 rounded-full border bg-slate-500/20 text-slate-300 border-slate-500/40">
+                            <span className="inline-flex items-center text-[11px] font-semibold px-2 py-0.5 rounded-full border bg-slate-100 text-slate-700 border-slate-300">
                               Current User ({user?.name || 'Admin User'})
                             </span>
                           )}
@@ -988,11 +988,9 @@ export default function BulkUploadModal({ isOpen, onClose }) {
                     </div>
 
                     {/* Explanatory notes & Fallback Owner setting */}
-                    <div className="pt-2 border-t border-indigo-500/10 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs text-indigo-200/90">
-
-
-                      <div className="flex items-center space-x-2 self-end sm:self-auto bg-slate-900/80 px-2.5 py-1 rounded-lg border border-slate-700/70 relative">
-                        <span className="text-slate-400">Default/Fallback Owner:</span>
+                    <div className="pt-2 border-t border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs text-slate-600">
+                      <div className="flex items-center space-x-2 self-end sm:self-auto bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-200 relative">
+                        <span className="text-slate-600 font-medium">Default/Fallback Owner:</span>
                         <div className="relative">
                           <input
                             type="text"
@@ -1004,17 +1002,17 @@ export default function BulkUploadModal({ isOpen, onClose }) {
                             onChange={(e) => setFallbackOwnerSearch(e.target.value)}
                             onBlur={() => setTimeout(() => setShowFallbackOwnerDropdown(false), 200)}
                             placeholder="Search owner..."
-                            className="bg-slate-900 text-white font-medium text-xs rounded border border-slate-700 px-2 py-0.5 focus:outline-none focus:border-indigo-400 w-48"
+                            className="bg-white text-slate-900 font-medium text-xs rounded border border-slate-300 px-2 py-0.5 focus:outline-none focus:border-indigo-500 w-48 shadow-sm"
                           />
                           {showFallbackOwnerDropdown && (
-                            <div className="absolute z-50 w-full top-full mt-1 bg-slate-800 border border-slate-600 rounded shadow-xl max-h-48 overflow-y-auto">
+                            <div className="absolute z-50 w-full top-full mt-1 bg-white border border-slate-200 rounded-lg shadow-xl max-h-48 overflow-y-auto">
                               <button
                                 type="button"
                                 onMouseDown={() => {
                                   setDefaultFallbackOwner('');
                                   setShowFallbackOwnerDropdown(false);
                                 }}
-                                className="w-full text-left px-3 py-2 text-xs text-slate-300 hover:bg-indigo-500/20"
+                                className="w-full text-left px-3 py-2 text-xs text-slate-700 hover:bg-indigo-50"
                               >
                                 Current User ({user?.name || 'Admin User'})
                               </button>
@@ -1028,7 +1026,7 @@ export default function BulkUploadModal({ isOpen, onClose }) {
                                       setDefaultFallbackOwner(s.name);
                                       setShowFallbackOwnerDropdown(false);
                                     }}
-                                    className="w-full text-left px-3 py-2 text-xs text-white hover:bg-indigo-500/20 truncate"
+                                    className="w-full text-left px-3 py-2 text-xs text-slate-800 hover:bg-indigo-50 truncate font-medium"
                                   >
                                     {s.name}
                                   </button>
@@ -1044,42 +1042,42 @@ export default function BulkUploadModal({ isOpen, onClose }) {
                   {/* Header Row & Columns count */}
                   <div className="flex items-center justify-between">
                     <div>
-                      <h3 className="text-sm font-semibold text-white flex items-center">
+                      <h3 className="text-sm font-bold text-slate-800 flex items-center">
                         Column Mapping
                       </h3>
-                      <p className="text-xs text-slate-400">
-                        Header detected at <strong className="text-slate-200">Row {headerRowIdx + 1}</strong>. Please confirm the mapped CRM fields.
+                      <p className="text-xs text-slate-500">
+                        Header detected at <strong className="text-slate-800">Row {headerRowIdx + 1}</strong>. Please confirm the mapped CRM fields.
                       </p>
                     </div>
-                    <div className="text-xs font-medium text-indigo-400 bg-indigo-500/10 px-3 py-1 rounded-full border border-indigo-500/20">
+                    <div className="text-xs font-semibold text-indigo-700 bg-indigo-50 px-3 py-1 rounded-full border border-indigo-200">
                       {meaningfulHeaders.length} Named Columns Found
                     </div>
                   </div>
 
                   {/* Mapping Table */}
-                  <div className="bg-slate-800/40 rounded-xl border border-slate-700/60 overflow-hidden">
+                  <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
                     <div className="max-h-[340px] overflow-auto custom-scrollbar">
                       <table className="w-full text-left text-sm">
-                        <thead className="bg-slate-800 text-slate-300 border-b border-slate-700 sticky top-0 z-10 text-xs uppercase tracking-wider">
+                        <thead className="bg-slate-50 text-slate-700 border-b border-slate-200 sticky top-0 z-10 text-xs uppercase tracking-wider font-semibold">
                           <tr>
                             <th className="px-4 py-3 font-semibold w-1/3">Your Excel Column</th>
                             <th className="px-4 py-3 font-semibold w-1/3">
                               <div className="flex items-center justify-between pr-4">
                                 <span>Sample Data {uniqueSampleRows.length > 0 ? sampleRowIndex + 1 : ''}</span>
                                 {uniqueSampleRows.length > 0 && (
-                                  <div className="flex bg-slate-800 rounded border border-slate-700 overflow-hidden ml-2">
+                                  <div className="flex bg-white rounded border border-slate-300 overflow-hidden ml-2 shadow-sm">
                                     <button 
                                       onClick={() => setSampleRowIndex(Math.max(0, sampleRowIndex - 1))}
                                       disabled={sampleRowIndex === 0}
-                                      className="p-1 hover:bg-slate-700 disabled:opacity-30 disabled:hover:bg-transparent text-slate-300 transition-colors"
+                                      className="p-1 hover:bg-slate-100 disabled:opacity-30 disabled:hover:bg-transparent text-slate-600 transition-colors"
                                     >
                                       <ArrowLeft className="w-3 h-3" />
                                     </button>
-                                    <div className="w-px bg-slate-700"></div>
+                                    <div className="w-px bg-slate-300"></div>
                                     <button 
                                       onClick={() => setSampleRowIndex(Math.min(uniqueSampleRows.length - 1, sampleRowIndex + 1))}
                                       disabled={sampleRowIndex === uniqueSampleRows.length - 1}
-                                      className="p-1 hover:bg-slate-700 disabled:opacity-30 disabled:hover:bg-transparent text-slate-300 transition-colors"
+                                      className="p-1 hover:bg-slate-100 disabled:opacity-30 disabled:hover:bg-transparent text-slate-600 transition-colors"
                                     >
                                       <ArrowRight className="w-3 h-3" />
                                     </button>
@@ -1090,7 +1088,7 @@ export default function BulkUploadModal({ isOpen, onClose }) {
                             <th className="px-4 py-3 font-semibold w-1/3">Maps to CRM Field</th>
                           </tr>
                         </thead>
-                        <tbody className="divide-y divide-slate-700/50">
+                        <tbody className="divide-y divide-slate-100">
                           {displayHeaders.map((header, idx) => {
                             const sampleVal = uniqueSampleRows[sampleRowIndex]?.[header];
                             const targetField = columnMapping[header];
@@ -1098,23 +1096,23 @@ export default function BulkUploadModal({ isOpen, onClose }) {
                             const isAutoEmpty = header.startsWith('__empty_');
                             
                             return (
-                              <tr key={idx} className={`transition-colors ${isMapped ? 'bg-indigo-500/5 hover:bg-indigo-500/10' : 'hover:bg-slate-800/50'}`}>
-                                <td className="px-4 py-3 text-slate-200 font-medium">
+                              <tr key={idx} className={`transition-colors ${isMapped ? 'bg-indigo-50/40 hover:bg-indigo-50/70' : 'hover:bg-slate-50'}`}>
+                                <td className="px-4 py-3 text-slate-900 font-medium">
                                   <div className="flex items-center space-x-2">
-                                    {isMapped && <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />}
-                                    <span className={isAutoEmpty ? 'text-slate-500 italic text-xs' : 'text-slate-200'}>
+                                    {isMapped && <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0" />}
+                                    <span className={isAutoEmpty ? 'text-slate-400 italic text-xs' : 'text-slate-800'}>
                                       {isAutoEmpty ? `(Blank Header Col ${header.replace('__empty_', '')})` : header}
                                     </span>
                                   </div>
                                 </td>
-                                <td className="px-4 py-3 text-slate-400 truncate max-w-[220px]" title={sampleVal}>
-                                  {sampleVal || <span className="text-slate-600 italic">Empty</span>}
+                                <td className="px-4 py-3 text-slate-600 truncate max-w-[220px]" title={sampleVal}>
+                                  {sampleVal || <span className="text-slate-400 italic">Empty</span>}
                                 </td>
                                 <td className="px-4 py-3">
                                   <select
                                     value={targetField || 'unmapped'}
                                     onChange={(e) => handleMappingChange(header, e.target.value)}
-                                    className={`w-full bg-slate-900 border ${targetField ? 'border-indigo-500/60 text-indigo-200 font-medium' : 'border-slate-700 text-slate-500'} rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-indigo-400 transition-colors`}
+                                    className={`w-full bg-white border ${targetField ? 'border-indigo-400 text-indigo-900 font-semibold' : 'border-slate-300 text-slate-600'} rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-indigo-500 transition-colors shadow-sm`}
                                   >
                                     <option value="unmapped">-- Unmapped (Ignore) --</option>
                                     {TARGET_FIELDS.map(f => (
@@ -1141,68 +1139,68 @@ export default function BulkUploadModal({ isOpen, onClose }) {
             <div className="space-y-6 animate-in slide-in-from-right-4">
               {isProcessing ? (
                 <div className="flex flex-col items-center justify-center py-20">
-                  <Loader2 className="w-10 h-10 text-indigo-500 animate-spin mb-4" />
-                  <p className="text-slate-300">Grouping records by company and checking duplicates...</p>
+                  <Loader2 className="w-10 h-10 text-indigo-600 animate-spin mb-4" />
+                  <p className="text-slate-600 font-medium">Grouping records by company and checking duplicates...</p>
                 </div>
               ) : previewResult ? (
                 <>
                   <div className="grid grid-cols-3 gap-4">
-                    <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-4 flex flex-col items-center justify-center text-center">
-                      <div className="text-2xl font-bold text-white mb-1">{previewResult.readyAccounts}</div>
-                      <div className="text-xs text-slate-400 uppercase tracking-wider">Accounts to Import</div>
+                    <div className="bg-white border border-slate-200 rounded-xl p-4 flex flex-col items-center justify-center text-center shadow-sm">
+                      <div className="text-2xl font-bold text-slate-900 mb-1">{previewResult.readyAccounts}</div>
+                      <div className="text-xs text-slate-500 font-semibold uppercase tracking-wider">Accounts to Import</div>
                     </div>
-                    <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-4 flex flex-col items-center justify-center text-center">
-                      <div className="text-2xl font-bold text-white mb-1">{previewResult.readyContacts}</div>
-                      <div className="text-xs text-slate-400 uppercase tracking-wider">Contacts Attached</div>
+                    <div className="bg-white border border-slate-200 rounded-xl p-4 flex flex-col items-center justify-center text-center shadow-sm">
+                      <div className="text-2xl font-bold text-slate-900 mb-1">{previewResult.readyContacts}</div>
+                      <div className="text-xs text-slate-500 font-semibold uppercase tracking-wider">Contacts Attached</div>
                     </div>
-                    <div className={`border rounded-xl p-4 flex flex-col items-center justify-center text-center ${previewResult.warnings?.length > 0 ? 'bg-amber-500/10 border-amber-500/30' : 'bg-emerald-500/10 border-emerald-500/30'}`}>
-                      <div className={`text-2xl font-bold mb-1 ${previewResult.warnings?.length > 0 ? 'text-amber-400' : 'text-emerald-400'}`}>
+                    <div className={`border rounded-xl p-4 flex flex-col items-center justify-center text-center shadow-sm ${previewResult.warnings?.length > 0 ? 'bg-amber-50 border-amber-200' : 'bg-emerald-50 border-emerald-200'}`}>
+                      <div className={`text-2xl font-bold mb-1 ${previewResult.warnings?.length > 0 ? 'text-amber-700' : 'text-emerald-700'}`}>
                         {previewResult.warnings?.length || 0}
                       </div>
-                      <div className={`text-xs uppercase tracking-wider ${previewResult.warnings?.length > 0 ? 'text-amber-500' : 'text-emerald-500'}`}>Warnings / Duplicates</div>
+                      <div className={`text-xs uppercase tracking-wider font-semibold ${previewResult.warnings?.length > 0 ? 'text-amber-700' : 'text-emerald-700'}`}>Warnings / Duplicates</div>
                     </div>
                   </div>
 
                   {previewResult.warnings && previewResult.warnings.length > 0 && (
-                    <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-4">
-                      <h4 className="text-amber-400 font-medium flex items-center mb-2">
-                        <AlertTriangle className="w-4 h-4 mr-2" />
+                    <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+                      <h4 className="text-amber-800 font-bold flex items-center mb-2">
+                        <AlertTriangle className="w-4 h-4 mr-2 text-amber-600" />
                         Warnings detected ({previewResult.warnings.length})
                       </h4>
-                      <ul className="list-disc list-inside text-sm text-amber-200/80 space-y-1 max-h-48 overflow-y-auto custom-scrollbar">
+                      <ul className="list-disc list-inside text-sm text-amber-900/90 space-y-1 max-h-48 overflow-y-auto custom-scrollbar">
                         {previewResult.warnings.map((w, i) => <li key={i}>{w}</li>)}
                       </ul>
-                      <p className="text-xs text-amber-400/60 mt-3 italic">Existing accounts will be updated and contacts will be merged cleanly.</p>
+                      <p className="text-xs text-amber-700 mt-3 italic font-medium">Existing accounts will be updated and contacts will be merged cleanly.</p>
                     </div>
                   )}
 
-                  <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 overflow-hidden">
-                    <div className="px-4 py-3 border-b border-slate-700/50 bg-slate-800 flex items-center justify-between">
-                      <h4 className="text-sm font-medium text-slate-200">Account Summary & NeST BU Breakdown</h4>
-                      <span className="text-xs text-indigo-400 font-medium">{previewResult.accounts?.length || 0} Companies</span>
+                  <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
+                    <div className="px-4 py-3 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
+                      <h4 className="text-sm font-bold text-slate-800">Account Summary & NeST BU Breakdown</h4>
+                      <span className="text-xs text-indigo-700 font-semibold">{previewResult.accounts?.length || 0} Companies</span>
                     </div>
                     <div className="max-h-[300px] overflow-y-auto custom-scrollbar">
                       {previewResult.accounts?.map((acc, i) => (
-                        <div key={i} className="px-4 py-3 border-b border-slate-700/50 last:border-0 hover:bg-slate-800/30 group">
+                        <div key={i} className="px-4 py-3 border-b border-slate-100 last:border-0 hover:bg-slate-50/80 group">
                           {editingAccountIdx === i ? (
-                            <div className="space-y-3 bg-slate-900/50 p-3 rounded-lg border border-indigo-500/30">
+                            <div className="space-y-3 bg-slate-50 p-3 rounded-lg border border-indigo-200">
                               <div className="grid grid-cols-2 gap-3">
                                 <div>
-                                  <label className="text-[10px] uppercase tracking-wider text-slate-400 mb-1 block">Company Name</label>
-                                  <input type="text" value={editForm.companyName} onChange={e => setEditForm({...editForm, companyName: e.target.value})} className="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1 text-sm text-white focus:border-indigo-400 focus:outline-none" />
+                                  <label className="text-[10px] uppercase tracking-wider text-slate-600 font-bold mb-1 block">Company Name</label>
+                                  <input type="text" value={editForm.companyName} onChange={e => setEditForm({...editForm, companyName: e.target.value})} className="w-full bg-white border border-slate-300 rounded px-2 py-1 text-sm text-slate-900 focus:border-indigo-500 focus:outline-none shadow-sm" />
                                 </div>
                                 <div>
-                                  <label className="text-[10px] uppercase tracking-wider text-slate-400 mb-1 block">NeST BU</label>
-                                  <input type="text" value={editForm.domain} onChange={e => setEditForm({...editForm, domain: e.target.value})} className="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1 text-sm text-white focus:border-indigo-400 focus:outline-none" />
+                                  <label className="text-[10px] uppercase tracking-wider text-slate-600 font-bold mb-1 block">NeST BU</label>
+                                  <input type="text" value={editForm.domain} onChange={e => setEditForm({...editForm, domain: e.target.value})} className="w-full bg-white border border-slate-300 rounded px-2 py-1 text-sm text-slate-900 focus:border-indigo-500 focus:outline-none shadow-sm" />
                                 </div>
                                 <div>
-                                  <label className="text-[10px] uppercase tracking-wider text-slate-400 mb-1 block">Account Owner</label>
-                                  <input type="text" value={editForm.ownerName} onChange={e => setEditForm({...editForm, ownerName: e.target.value})} className="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1 text-sm text-white focus:border-indigo-400 focus:outline-none" />
+                                  <label className="text-[10px] uppercase tracking-wider text-slate-600 font-bold mb-1 block">Account Owner</label>
+                                  <input type="text" value={editForm.ownerName} onChange={e => setEditForm({...editForm, ownerName: e.target.value})} className="w-full bg-white border border-slate-300 rounded px-2 py-1 text-sm text-slate-900 focus:border-indigo-500 focus:outline-none shadow-sm" />
                                 </div>
                               </div>
                               {editForm.contacts && editForm.contacts.length > 0 && (
                                 <div className="mt-1">
-                                  <label className="text-[10px] uppercase tracking-wider text-slate-400 mb-1 block">Key Contacts</label>
+                                  <label className="text-[10px] uppercase tracking-wider text-slate-600 font-bold mb-1 block">Key Contacts</label>
                                   <div className="space-y-2">
                                     {editForm.contacts.map((c, cIdx) => (
                                       <input 
@@ -1214,7 +1212,7 @@ export default function BulkUploadModal({ isOpen, onClose }) {
                                           newContacts[cIdx].name = e.target.value;
                                           setEditForm({...editForm, contacts: newContacts});
                                         }} 
-                                        className="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1 text-sm text-white focus:border-indigo-400 focus:outline-none" 
+                                        className="w-full bg-white border border-slate-300 rounded px-2 py-1 text-sm text-slate-900 focus:border-indigo-500 focus:outline-none shadow-sm" 
                                         placeholder="Contact Name"
                                       />
                                     ))}
@@ -1222,14 +1220,14 @@ export default function BulkUploadModal({ isOpen, onClose }) {
                                 </div>
                               )}
                               <div className="flex justify-end space-x-2">
-                                <button onClick={() => setEditingAccountIdx(null)} className="px-3 py-1 text-xs text-slate-400 hover:text-white">Cancel</button>
-                                <button onClick={() => handleSaveEdit(i)} className="px-3 py-1 text-xs bg-indigo-500 hover:bg-indigo-600 text-white rounded">Save</button>
+                                <button onClick={() => setEditingAccountIdx(null)} className="px-3 py-1 text-xs text-slate-600 hover:text-slate-900">Cancel</button>
+                                <button onClick={() => handleSaveEdit(i)} className="px-3 py-1 text-xs bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded shadow-sm">Save</button>
                               </div>
                             </div>
                           ) : (
                             <>
                               <div className="flex items-center justify-between mb-1.5">
-                                <span className="font-semibold text-white">{acc.companyName}</span>
+                                <span className="font-bold text-slate-900">{acc.companyName}</span>
                                 <div className="flex items-center space-x-2">
                                   <button onClick={() => { 
                                     setEditingAccountIdx(i); 
@@ -1239,25 +1237,25 @@ export default function BulkUploadModal({ isOpen, onClose }) {
                                       ownerName: acc.ownerName || '',
                                       contacts: acc.contacts ? acc.contacts.map(c => ({ ...c, originalName: c.name })) : []
                                     }); 
-                                  }} className="opacity-0 group-hover:opacity-100 p-1 bg-slate-700/50 hover:bg-slate-700 rounded text-slate-300 transition-opacity">
+                                  }} className="opacity-0 group-hover:opacity-100 p-1 bg-slate-100 hover:bg-slate-200 rounded text-slate-600 transition-opacity">
                                     <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path></svg>
                                   </button>
-                                  <span className="text-[10px] font-bold px-2 py-0.5 bg-indigo-500/20 text-indigo-300 rounded-full border border-indigo-500/30">
+                                  <span className="text-[10px] font-bold px-2 py-0.5 bg-indigo-50 text-indigo-700 rounded-full border border-indigo-200">
                                     {acc.domain || 'NeST Digital'}
                                   </span>
                                   {acc.existingAccountId && (
-                                    <span className="text-[10px] font-medium px-2 py-0.5 bg-amber-500/20 text-amber-300 rounded-full border border-amber-500/30">
+                                    <span className="text-[10px] font-medium px-2 py-0.5 bg-amber-50 text-amber-700 rounded-full border border-amber-200">
                                       Existing (Will Update)
                                     </span>
                                   )}
                                 </div>
                               </div>
-                              <div className="text-xs text-slate-400 grid grid-cols-2 gap-2">
-                                <div>NeST BU: <span className="text-slate-300 font-medium">{acc.domain || 'NeST Digital'}</span></div>
-                                <div>Account Owner: <span className="font-semibold text-emerald-400">{acc.ownerName || 'Auto-Assigned Admin'}</span></div>
-                                <div>Address / Region: <span className="text-slate-300">{acc.region || 'None'}</span></div>
-                                <div>Contacts: <span className="text-slate-300 font-medium">{acc.contacts?.length || 0}</span></div>
-                                <div className="col-span-2 mt-0.5 text-slate-300 truncate">
+                              <div className="text-xs text-slate-500 grid grid-cols-2 gap-2">
+                                <div>NeST BU: <span className="text-slate-800 font-medium">{acc.domain || 'NeST Digital'}</span></div>
+                                <div>Account Owner: <span className="font-semibold text-emerald-700">{acc.ownerName || 'Auto-Assigned Admin'}</span></div>
+                                <div>Address / Region: <span className="text-slate-800">{acc.region || 'None'}</span></div>
+                                <div>Contacts: <span className="text-slate-800 font-medium">{acc.contacts?.length || 0}</span></div>
+                                <div className="col-span-2 mt-0.5 text-slate-700 truncate font-medium">
                                   {acc.contacts?.map(c => `${c.name} (${c.designation || 'Staff'})`).join(', ')}
                                 </div>
                               </div>
@@ -1275,37 +1273,37 @@ export default function BulkUploadModal({ isOpen, onClose }) {
           {/* STEP 4: Success Summary */}
           {step === 4 && importResult && (
             <div className="h-full flex flex-col items-center justify-center text-center animate-in zoom-in-95 duration-500 py-10">
-              <div className="w-20 h-20 bg-emerald-500/20 rounded-full flex items-center justify-center mb-6 border-2 border-emerald-500/30 relative">
-                <CheckCircle2 className="w-10 h-10 text-emerald-400 absolute animate-ping opacity-20" />
-                <CheckCircle2 className="w-10 h-10 text-emerald-400 relative z-10" />
+              <div className="w-20 h-20 bg-emerald-50 rounded-full flex items-center justify-center mb-6 border-2 border-emerald-200 relative">
+                <CheckCircle2 className="w-10 h-10 text-emerald-600 absolute animate-ping opacity-20" />
+                <CheckCircle2 className="w-10 h-10 text-emerald-600 relative z-10" />
               </div>
-              <h3 className="text-2xl font-bold text-white mb-2">NeST BU Import Successful!</h3>
-              <p className="text-slate-400 mb-6 max-w-md">
+              <h3 className="text-2xl font-bold text-slate-900 mb-2">NeST BU Import Successful!</h3>
+              <p className="text-slate-600 mb-6 max-w-md">
                 Successfully processed and imported accounts and contacts into CustomerPulse with their assigned NeST Business Units.
               </p>
               
-              <div className="bg-slate-800/50 border border-slate-700 rounded-xl p-4 w-full max-w-sm mb-6 flex justify-around">
+              <div className="bg-white border border-slate-200 rounded-xl p-4 w-full max-w-sm mb-6 flex justify-around shadow-sm">
                 <div className="text-center">
-                  <div className="text-3xl font-bold text-white mb-1">{importResult.result?.readyAccounts || 0}</div>
-                  <div className="text-[10px] uppercase tracking-wider text-slate-400">Accounts</div>
+                  <div className="text-3xl font-extrabold text-slate-900 mb-1">{importResult.result?.readyAccounts || 0}</div>
+                  <div className="text-[10px] uppercase tracking-wider text-slate-500 font-semibold">Accounts</div>
                 </div>
-                <div className="w-px bg-slate-700"></div>
+                <div className="w-px bg-slate-200"></div>
                 <div className="text-center">
-                  <div className="text-3xl font-bold text-white mb-1">{importResult.result?.readyContacts || 0}</div>
-                  <div className="text-[10px] uppercase tracking-wider text-slate-400">Contacts</div>
+                  <div className="text-3xl font-extrabold text-slate-900 mb-1">{importResult.result?.readyContacts || 0}</div>
+                  <div className="text-[10px] uppercase tracking-wider text-slate-500 font-semibold">Contacts</div>
                 </div>
               </div>
               
-              <div className="w-full max-w-2xl bg-slate-800/50 rounded-xl border border-slate-700/50 overflow-hidden">
-                <div className="px-4 py-3 border-b border-slate-700/50 bg-slate-800 text-left">
-                  <h4 className="text-sm font-medium text-slate-200">Imported Accounts</h4>
+              <div className="w-full max-w-2xl bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
+                <div className="px-4 py-3 border-b border-slate-200 bg-slate-50 text-left">
+                  <h4 className="text-sm font-bold text-slate-800">Imported Accounts</h4>
                 </div>
                 <div className="max-h-[200px] overflow-y-auto custom-scrollbar text-left">
                   {previewResult?.accounts?.map((acc, i) => (
-                    <div key={i} className="px-4 py-3 border-b border-slate-700/50 last:border-0 hover:bg-slate-800/30 flex justify-between items-center group">
+                    <div key={i} className="px-4 py-3 border-b border-slate-100 last:border-0 hover:bg-slate-50 flex justify-between items-center group">
                       <div>
-                        <div className="font-semibold text-white text-sm">{acc.companyName}</div>
-                        <div className="text-xs text-slate-400">{acc.domain} • {acc.contacts?.length || 0} Contacts</div>
+                        <div className="font-bold text-slate-900 text-sm">{acc.companyName}</div>
+                        <div className="text-xs text-slate-500">{acc.domain} • {acc.contacts?.length || 0} Contacts</div>
                       </div>
                     </div>
                   ))}
@@ -1317,13 +1315,13 @@ export default function BulkUploadModal({ isOpen, onClose }) {
         </div>
 
         {/* Footer Actions */}
-        <div className="px-6 py-4 border-t border-slate-800 bg-slate-900/95 flex items-center justify-between">
+        <div className="px-6 py-4 border-t border-slate-200 bg-white flex items-center justify-between">
           <div>
             {step === 2 && (
               <button 
                 onClick={() => setStep(1)}
                 disabled={isProcessing}
-                className="px-3 py-2 text-sm text-slate-400 hover:text-white flex items-center transition-colors"
+                className="px-3 py-2 text-sm text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg flex items-center transition-colors font-medium"
               >
                 <ArrowLeft className="w-4 h-4 mr-1.5" />
                 Choose Different File
@@ -1333,7 +1331,7 @@ export default function BulkUploadModal({ isOpen, onClose }) {
               <button 
                 onClick={() => setStep(2)}
                 disabled={isProcessing}
-                className="px-3 py-2 text-sm text-slate-400 hover:text-white flex items-center transition-colors"
+                className="px-3 py-2 text-sm text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg flex items-center transition-colors font-medium"
               >
                 <ArrowLeft className="w-4 h-4 mr-1.5" />
                 Back to Selection
@@ -1346,7 +1344,7 @@ export default function BulkUploadModal({ isOpen, onClose }) {
               <button 
                 onClick={handleClose}
                 disabled={isProcessing}
-                className="px-4 py-2 text-sm font-medium text-slate-300 hover:text-white hover:bg-slate-800 rounded-lg transition-colors disabled:opacity-50"
+                className="px-4 py-2 text-sm font-semibold text-slate-700 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors disabled:opacity-50"
               >
                 Cancel
               </button>
@@ -1356,7 +1354,7 @@ export default function BulkUploadModal({ isOpen, onClose }) {
               <button 
                 onClick={handleConfirmMapping}
                 disabled={isProcessing}
-                className="px-6 py-2 bg-indigo-500 hover:bg-indigo-600 text-white text-sm font-medium rounded-lg flex items-center transition-colors disabled:opacity-50 shadow-lg shadow-indigo-500/20"
+                className="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-lg flex items-center transition-colors disabled:opacity-50 shadow-md shadow-indigo-500/20"
               >
                 {isProcessing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
                 {importMode === 'batch' 
@@ -1370,7 +1368,7 @@ export default function BulkUploadModal({ isOpen, onClose }) {
               <button 
                 onClick={handleFinalImport}
                 disabled={isProcessing}
-                className="px-6 py-2 bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-medium rounded-lg flex items-center transition-colors shadow-lg shadow-emerald-500/20 disabled:opacity-50"
+                className="px-6 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-lg flex items-center transition-colors shadow-md shadow-emerald-500/20 disabled:opacity-50"
               >
                 {isProcessing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
                 Confirm & Import {previewResult?.readyAccounts || 0} Accounts
@@ -1380,7 +1378,7 @@ export default function BulkUploadModal({ isOpen, onClose }) {
             {step === 4 && (
               <button 
                 onClick={handleClose}
-                className="px-6 py-2 bg-indigo-500 hover:bg-indigo-600 text-white text-sm font-medium rounded-lg transition-colors"
+                className="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-lg transition-colors shadow-md shadow-indigo-500/20"
               >
                 Back to Accounts
               </button>
