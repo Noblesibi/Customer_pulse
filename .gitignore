@@ -4,12 +4,17 @@ node_modules/
 
 # Environment files (NEVER commit these!)
 .env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
+.env.*
+.env*.backup
 **/.env
-**/.env.local
+**/.env.*
+**/.env*.backup
+
+# Scratch and temporary backup files
+scratch/
+**/scratch*
+**/*.old
+**/*.backup
 
 # Build output
 dist/

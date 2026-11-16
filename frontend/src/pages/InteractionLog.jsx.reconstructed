@@ -1,0 +1,276 @@
+
+
+
+
+      {/* Accept Task Modal */}
+      {acceptModalState.isOpen && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
+          <div className="bg-dark-900 border border-slate-800 w-full max-w-md rounded-2xl p-6 shadow-2xl relative">
+            <button
+              onClick={() => {
+                setAcceptModalState({ isOpen: false, task: null });
+                setAcceptNote('');
+              }}
+              className="absolute top-4 right-4 p-1.5 rounded-lg bg-slate-800 text-slate-400 hover:text-slate-200"
+            >
+              <X className="w-4 h-4" />
+            </button>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-full bg-amber-500/20 flex items-center justify-center">
+                <ThumbsUp className="w-5 h-5 text-amber-400" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-white">Accept Task</h3>
+                <p className="text-xs text-slate-400">Confirm acceptance and optionally add a note</p>
+              </div>
+            </div>
+
+            <form
+              onSubmit={async (e) => {
+                e.preventDefault();
+                const { task } = acceptModalState;
+                const ok = await updateTaskStatus(task.interactionId, task.uid, 'Accept');
+                if (ok) {
+                  if (acceptNote.trim()) {
+                    await replyToInteraction(task.interactionId, `Acceptance Note: ${acceptNote}`);
+                  }
+                  fetchInteractions();
+                }
+                updateTaskStatuses(prev => ({ ...prev, [`${task.interactionId}-${task.uid}`]: 'Accept', [`${task.interactionId}-${task.uid}-note`]: acceptNote.trim() }));
+                if (selectedLog && selectedLog.interactionId === task.interactionId) {
+                  setSelectedLog(prev => {
+                    const updatedMentions = (prev.actionMentions || []).map(m =>
+                      m.uid === task.uid ? { ...m, status: 'Accept' } : m
+                    );
+                    return { ...prev, actionMentions: updatedMentions };
+                  });
+                }
+                setAcceptModalState({ isOpen: false, task: null });
+                setAcceptNote('');
+              }}
+              className="space-y-4"
+            >
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1.5">Acceptance Note (Optional)</label>
+                <textarea
+                  value={acceptNote}
+                  onChange={(e) => setAcceptNote(e.target.value)}
+                  className="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-sm text-slate-200 outline-none focus:border-amber-500 min-h-[100px]"
+                  placeholder="E.g., I will begin working on this task immediately."
+                />
+              </div>
+              <div className="flex justify-end pt-2">
+                <button
+                  type="submit"
+                  className="px-5 py-2 bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold rounded-xl transition-all"
+                >
+                  Accept Task
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Completion Note Modal */}
+
+      {completionModalState.isOpen && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
+          <div className="bg-dark-900 border border-slate-800 w-full max-w-md rounded-2xl p-6 shadow-2xl relative">
+            <button 
+              onClick={() => {
+                setCompletionModalState({ isOpen: false, task: null, newStatus: '' });
+                setCompletionNote('');
+                setCompletionFile(null);
+              }}
+              className="absolute top-4 right-4 p-1.5 rounded-lg bg-slate-800 text-slate-400 hover:text-slate-200"
+            >
+              <X className="w-4 h-4" />
+            </button>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-full bg-emerald-500/20 flex items-center justify-center">
+                <CheckSquare className="w-5 h-5 text-emerald-400" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-white">Complete Task</h3>
+                <p className="text-xs text-slate-400">Send a note back to {completionModalState.task?.loggedByName}</p>
+              </div>
+            </div>
+            
+            <form onSubmit={async (e) => {
+              e.preventDefault();
+              const { task, newStatus } = completionModalState;
+              const ok = await updateTaskStatus(task.interactionId, task.uid, newStatus);
+              if (ok) {
+                if (completionNote.trim()) {
+                  await replyToInteraction(task.interactionId, `Task Completion Note: ${completionNote}`);
+                }
+                fetchInteractions();
+              }
+              updateTaskStatuses(prev => ({ ...prev, [`${task.interactionId}-${task.uid}`]: newStatus, [`${task.interactionId}-${task.uid}-note`]: completionNote.trim() }));
+              // Update details panel selectedLog state as well
+              if (selectedLog && selectedLog.interactionId === task.interactionId) {
+                setSelectedLog(prev => {
+                  const updatedMentions = (prev.actionMentions || []).map(m =>
+                    m.uid === task.uid ? { ...m, status: newStatus } : m
+                  );
+                  return { ...prev, actionMentions: updatedMentions };
+                });
+              }
+              setCompletionModalState({ isOpen: false, task: null, newStatus: '' });
+              setCompletionNote('');
+              setCompletionFile(null);
+            }} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1.5">Completion Note</label>
+                <textarea
+                  value={completionNote}
+                  onChange={(e) => setCompletionNote(e.target.value)}
+                  className="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-sm text-slate-200 outline-none focus:border-indigo-500 min-h-[100px]"
+                  placeholder="E.g., Task completed successfully. Attached the required files."
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1.5">Attachments (Optional)</label>
+                <input
+                  type="file"
+                  onChange={(e) => setCompletionFile(e.target.files[0])}
+                  className="w-full text-sm text-slate-400 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-bold file:bg-slate-800 file:text-slate-300 hover:file:bg-slate-700"
+                />
+              </div>
+              <div className="flex justify-end pt-2">
+                <button
+                  type="submit"
+                  className="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl transition-all"
+                >
+                  Mark Completed
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Forward Task Modal */}
+      {forwardModalState.isOpen && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
+          <div className="bg-dark-900 border border-slate-800 w-full max-w-md rounded-2xl p-6 shadow-2xl relative">
+            <button 
+              onClick={() => {
+                setForwardModalState({ isOpen: false, task: null, newStatus: 'Forwarded' });
+                setForwardToUid('');
+                setForwardReason('');
+              }}
+              className="absolute top-4 right-4 p-1.5 rounded-lg bg-slate-800 text-slate-400 hover:text-slate-200"
+            >
+              <X className="w-4 h-4" />
+            </button>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-full bg-blue-500/20 flex items-center justify-center">
+                <Send className="w-5 h-5 text-blue-400" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-white">Forward Task</h3>
+                <p className="text-xs text-slate-400">Select a team member to forward this task to</p>
+              </div>
+            </div>
+            
+            <form onSubmit={handleForwardSubmit} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1.5">Forward To</label>
+                <select
+                  value={forwardToUid}
+                  onChange={(e) => setForwardToUid(e.target.value)}
+                  className="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-sm text-slate-200 outline-none focus:border-indigo-500 cursor-pointer"
+                  required
+                >
+                  <option value="">Select Team Member</option>
+                  {(staffList || [])
+                    .filter(s => s.uid !== user?.uid)
+                    .map(s => (
+                      <option key={s.uid} value={s.uid}>
+                        {s.name} ({s.role || s.position || 'Team Member'})
+                      </option>
+                    ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1.5">Forwarding Note / Reason</label>
+                <textarea
+                  value={forwardReason}
+                  onChange={(e) => setForwardReason(e.target.value)}
+                  className="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-sm text-slate-200 outline-none focus:border-indigo-500 min-h-[100px]"
+                  placeholder="E.g., Forwarding to you as you are leading the deployment module."
+                />
+              </div>
+              <div className="flex justify-end pt-2">
+                <button
+                  type="submit"
+                  disabled={!forwardToUid}
+                  className="px-5 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-bold rounded-xl transition-all"
+                >
+                  Forward Task
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Decline Task Modal */}
+      {declineModalState.isOpen && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
+          <div className="bg-dark-900 border border-slate-800 w-full max-w-md rounded-2xl p-6 shadow-2xl relative">
+            <button
+              onClick={() => {
+                setDeclineModalState({ isOpen: false, task: null });
+                setDeclineReason('');
+              }}
+              className="absolute top-4 right-4 p-1.5 rounded-lg bg-slate-800 text-slate-400 hover:text-slate-200"
+            >
+              <X className="w-4 h-4" />
+            </button>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-full bg-rose-500/20 flex items-center justify-center">
+                <ShieldAlert className="w-5 h-5 text-rose-400" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-white">Decline Task</h3>
+                <p className="text-xs text-slate-400">Provide a reason for declining this task</p>
+              </div>
+            </div>
+
+            <form
+              onSubmit={async (e) => {
+                e.preventDefault();
+                const { task } = declineModalState;
+                const ok = await updateTaskStatus(task.interactionId, task.uid, 'Decline');
+                if (ok) {
+                  if (declineReason.trim()) {
+                    await replyToInteraction(task.interactionId, `Decline Reason: ${declineReason}`);
+                  }
+                  fetchInteractions();
+                }
+                updateTaskStatuses(prev => ({ ...prev, [`${task.interactionId}-${task.uid}`]: 'Decline', [`${task.interactionId}-${task.uid}-note`]: declineReason.trim() }));
+                if (selectedLog && selectedLog.interactionId === task.interactionId) {
+                  setSelectedLog(prev => {
+                    const updatedMentions = (prev.actionMentions || []).map(m =>
+                      m.uid === task.uid ? { ...m, status: 'Decline' } : m
+                    );
+                    return { ...prev, actionMentions: updatedMentions };
+                  });
+                }
+                setDeclineModalState({ isOpen: false, task: null });
+                setDeclineReason('');
+              }}
+              className="space-y-4"
+            >
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1.5">Reason for Declining</label>
+                <textarea
+                  value={declineReason}
+                  onChange={(e) => setDeclineReason(e.target.value)}
+                  className="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-sm text-slate-200 outline-none focus:border-rose-500 min-h-[100px]"
+                  placeholder="E.g., Unable to complete due to conflicting priorities or missing resources."
+                  required

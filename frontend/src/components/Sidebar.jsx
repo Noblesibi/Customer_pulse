@@ -1,11 +1,18 @@
 import React from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Users, UserSquare2, AlertOctagon, Terminal, LogOut, Shield } from 'lucide-react';
+import { LayoutDashboard, Users, UserSquare2, AlertOctagon, Terminal, LogOut, Shield, CheckSquare, Settings } from 'lucide-react';
+import nestLogo from '../assets/nest-digital-logo.png';
 import { useStore } from '../store/index.js';
 
 export default function Sidebar() {
-  const { user, logout } = useStore();
+  const { user, logout, staffList } = useStore();
   const navigate = useNavigate();
+
+  const directoryUser = (staffList || []).find(s => 
+    (s.uid && user?.uid && s.uid === user?.uid) ||
+    (s.email && user?.email && s.email.toLowerCase().trim() === user?.email.toLowerCase().trim())
+  );
+  const userDisplayTag = directoryUser?.position || directoryUser?.userType || directoryUser?.jobRole || user?.position || user?.userType || user?.role || 'Employee';
 
   const handleLogout = () => {
     logout();
@@ -17,10 +24,12 @@ export default function Sidebar() {
     const links = [
       { path: '/dashboard', label: 'Executive Dashboard', icon: <LayoutDashboard className="w-5 h-5" />, roles: ['Admin', 'Executive', 'Sales Manager', 'Employee'] },
       { path: '/accounts', label: 'Accounts CRM', icon: <Users className="w-5 h-5" />, roles: ['Admin', 'Executive', 'Sales Manager', 'Employee'] },
-      { path: '/contacts', label: 'Contact Mapping', icon: <UserSquare2 className="w-5 h-5" />, roles: ['Admin', 'Executive', 'Sales Manager', 'Employee'] },
-      { path: '/risks', label: 'Risk Center', icon: <AlertOctagon className="w-5 h-5" />, roles: ['Admin', 'Executive', 'Sales Manager'] },
-      { path: '/webhooks-demo', label: 'Email Ingestion', icon: <Terminal className="w-5 h-5" />, roles: ['Admin', 'Executive', 'Sales Manager'] },
-      { path: '/users', label: 'User Directory', icon: <Shield className="w-5 h-5" />, roles: ['Admin', 'Executive'] }
+      { path: '/contacts', label: 'Contact Relationship Mapping', icon: <UserSquare2 className="w-5 h-5" />, roles: ['Admin', 'Executive', 'Sales Manager', 'Employee'] },
+      { path: '/staff-tasks', label: 'Tasks', icon: <CheckSquare className="w-5 h-5" />, roles: ['Admin', 'Executive', 'Sales Manager', 'Employee'] },
+      { path: '/risks', label: 'Account Health', icon: <AlertOctagon className="w-5 h-5" />, roles: ['Admin', 'Executive', 'Sales Manager'] },
+      { path: '/webhooks-demo', label: 'Greetings Sender', icon: <Terminal className="w-5 h-5" />, roles: ['Admin', 'Executive', 'Sales Manager'] },
+      { path: '/users', label: 'User Directory', icon: <Shield className="w-5 h-5" />, roles: ['Admin', 'Executive', 'Sales Manager', 'Employee'] },
+      { path: '/admin/scoring', label: 'Scoring Config', icon: <Settings className="w-5 h-5" />, roles: ['Admin'] }
     ];
 
     return links.filter(link => link.roles.includes(role));
@@ -33,14 +42,18 @@ export default function Sidebar() {
         <div className="flex flex-col items-start gap-2 px-2">
           <div className="bg-[#0f172a] rounded-xl px-3 py-1.5">
             <img
-              src="/nest-digital-logo.png"
-              alt="Nest Digital"
+              src={nestLogo}
+              alt="NeST Digital"
               className="h-8 w-auto object-contain"
+              onError={(e) => {
+                e.currentTarget.onerror = null;
+                e.currentTarget.src = '/CustomerPulse/nest-digital-logo.png';
+              }}
             />
           </div>
           <div className="border-t border-slate-200/60 pt-2 w-full">
             <span className="font-extrabold text-lg text-slate-800 tracking-wide block">CustomerPulse</span>
-            <span className="text-[10px] text-primary font-semibold tracking-wider uppercase">Rel Intelligence</span>
+            <span className="text-xs text-primary font-semibold tracking-wider uppercase">Relationships, measured</span>
           </div>
         </div>
 
@@ -53,7 +66,7 @@ export default function Sidebar() {
             <h4 className="text-sm font-semibold text-white truncate">{user?.name}</h4>
             <div className="flex items-center gap-1 mt-0.5">
               <Shield className="w-3 h-3 text-emerald-400" />
-              <span className="text-[11px] text-emerald-400 font-medium">{user?.userType || user?.role}</span>
+              <span className="text-xs text-emerald-400 font-medium">{userDisplayTag}</span>
             </div>
           </div>
         </div>

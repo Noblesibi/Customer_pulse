@@ -1,543 +1,497 @@
 import { Router } from 'express';
-import { db, auth, isMock } from '../config/firebase.js';
+import { db, isMock, logActivity } from '../config/database.js';
+import { PERMISSIONS, ROLES, userTypeToRole } from '../config/rbac.js';
+import { authenticateToken, requirePermission } from '../middleware/auth.middleware.js';
+import { authenticateLdapUser } from '../services/ldap.service.js';
+import { ensureNestGroupEmployees } from '../services/nestgroup.seed.js';
 import jwt from 'jsonwebtoken';
 
 const router = Router();
 const JWT_SECRET = process.env.JWT_SECRET || 'customer-pulse-super-secret-key';
 
-// Mock password map for local database simplicity
-const MOCK_PASSWORDS = {
-  'admin@pulse.com': 'admin123',
-  'executive@pulse.com': 'exec123',
-  'manager@pulse.com': 'manager123',
-  'employee@pulse.com': 'employee123',
-  'nj@gmail.com': 'nj123',
-  'financehead@gmail.com': 'financehead123',
-  'globalhrhead@gmail.com': 'globalhrhead123',
-  'itghead@gmail.com': 'itghead123',
-  'ndahead@gmail.com': 'ndahead123',
-  'tchead@gmail.com': 'tchead123',
-  'qualityhead@gmail.com': 'qualityhead123'
-};
+// ─────────────────────────────────────────────────────────
+// Helpers
+// ─────────────────────────────────────────────────────────
 
-const HARDCODED_HEADS = {
-  'nj@gmail.com': {
-    uid: 'mock-nazneen-ceo-uid',
-    email: 'nj@gmail.com',
-    role: 'Executive',
-    position: 'CEO',
-    userType: 'CEO',
-    name: 'Nazneen Jahangir',
-    department: 'Executive Office',
-    password: 'nj123'
-  },
-  'financehead@gmail.com': {
-    uid: 'mock-finance-head-uid',
-    email: 'financehead@gmail.com',
-    role: 'Executive',
-    position: 'Finance Head',
-    userType: 'Functional Head',
-    name: 'Finance Head',
-    department: 'Finance',
-    projects: [
-      { name: 'Apex Financial Services', projectManagers: [], employees: ['John Smith', 'Alice Cooper'] },
-      { name: 'Quarterly Financial Planning', projectManagers: [], employees: ['John Smith'] },
-      { name: 'Billing Integration', projectManagers: [], employees: ['Alice Cooper'] }
-    ],
-    employees: ['John Smith', 'Alice Cooper'],
-    password: 'financehead123'
-  },
-  'globalhrhead@gmail.com': {
-    uid: 'mock-global-hr-head-uid',
-    email: 'globalhrhead@gmail.com',
-    role: 'Executive',
-    position: 'Global HR Head',
-    userType: 'Functional Head',
-    name: 'Global HR Head',
-    department: 'HR',
-    projects: [
-      { name: 'Acme Corporation', projectManagers: [], employees: ['Jane Doe'] },
-      { name: 'Annual Appraisal System', projectManagers: [], employees: ['Bob Marley'] }
-    ],
-    employees: ['Jane Doe', 'Bob Marley'],
-    password: 'globalhrhead123'
-  },
-  'itghead@gmail.com': {
-    uid: 'mock-itg-head-uid',
-    email: 'itghead@gmail.com',
-    role: 'Executive',
-    position: 'ITG Head',
-    userType: 'Functional Head',
-    name: 'ITG Head',
-    department: 'ITG',
-    projects: [
-      { name: 'Global Logistics Inc', projectManagers: [], employees: ['Linus Torvalds'] },
-      { name: 'Cybersecurity Audit', projectManagers: [], employees: ['Steve Wozniak'] }
-    ],
-    employees: ['Linus Torvalds', 'Steve Wozniak'],
-    password: 'itghead123'
-  },
-  'ndahead@gmail.com': {
-    uid: 'mock-nda-head-uid',
-    email: 'ndahead@gmail.com',
-    role: 'Executive',
-    position: 'NDA Head',
-    userType: 'Functional Head',
-    name: 'NDA Head',
-    department: 'Legal',
-    projects: [
-      { name: 'Acme Corporation', projectManagers: [], employees: ['Harvey Specter'] },
-      { name: 'Compliance Training', projectManagers: [], employees: ['Mike Ross'] }
-    ],
-    employees: ['Harvey Specter', 'Mike Ross'],
-    password: 'ndahead123'
-  },
-  'tchead@gmail.com': {
-    uid: 'mock-tc-head-uid',
-    email: 'tchead@gmail.com',
-    role: 'Executive',
-    position: 'TC Head',
-    userType: 'Functional Head',
-    name: 'TC Head',
-    department: 'TC',
-    projects: [
-      { name: 'Global Logistics Inc', projectManagers: [], employees: ['Alan Turing'] },
-      { name: 'AI/ML Platform R&D', projectManagers: [], employees: ['Grace Hopper'] }
-    ],
-    employees: ['Alan Turing', 'Grace Hopper'],
-    password: 'tchead123'
-  },
-  'qualityhead@gmail.com': {
-    uid: 'mock-quality-head-uid',
-    email: 'qualityhead@gmail.com',
-    role: 'Executive',
-    position: 'Quality Head',
-    userType: 'Functional Head',
-    name: 'Quality Head',
-    department: 'Quality',
-    projects: [
-      { name: 'Apex Financial Services', projectManagers: [], employees: ['Dennis Ritchie'] },
-      { name: 'Performance Regression Suite', projectManagers: [], employees: ['Ken Thompson'] }
-    ],
-    employees: ['Dennis Ritchie', 'Ken Thompson'],
-    password: 'qualityhead123'
-  }
-};
-
-/**
- * Helper to generate JWT token for mockup
- */
-function generateMockToken(user) {
+/** Issues a signed JWT valid for 24 hours */
+function issueToken(user) {
   return jwt.sign(
-    { uid: user.uid, email: user.email, role: user.role, name: user.name },
+    { 
+      uid: user.uid, 
+      email: user.email, 
+      role: user.role, 
+      name: user.name, 
+      userType: user.userType || user.position || user.role 
+    },
     JWT_SECRET,
     { expiresIn: '24h' }
   );
 }
 
-/**
- * POST /api/auth/signup
- */
-router.post('/signup', async (req, res) => {
-  const { email, password, name, role } = req.body;
+/** Strips sensitive fields before sending to the client */
+function sanitizeUser(user) {
+  const safe = { ...user };
+  delete safe.password;
+  return safe;
+}
 
-  if (!email || !password || !name) {
-    return res.status(400).json({ error: 'Missing required signup fields' });
-  }
+/** Looks up a user by email across the Users collection */
+async function findUserByEmail(email) {
+  const snap = await db.collection('users').get();
+  const doc = snap.docs.find(d => d.data().email?.toLowerCase() === email.toLowerCase().trim());
+  return doc ? doc.data() : null;
+}
 
-  // Ensure role is a valid CRM role
-  const selectedRole = ['Admin', 'Executive', 'Sales Manager', 'Employee'].includes(role) ? role : 'Employee';
-
+/** Updates the last_login timestamp for a user record */
+async function touchLastLogin(uid) {
   try {
-    if (isMock) {
-      // Check if user exists
-      const usersSnap = await db.collection('users').get();
-      const userExists = usersSnap.docs.some(doc => doc.data().email === email);
-      if (userExists) {
-        return res.status(400).json({ error: 'User already exists' });
-      }
-
-      const uid = 'user-' + Math.random().toString(36).substring(2, 11);
-      const newUser = { uid, email, name, role: selectedRole, password, createdAt: new Date().toISOString() };
-      
-      // Save to mock database
-      await db.collection('users').doc(uid).set(newUser);
-      MOCK_PASSWORDS[email] = password; // store temporarily in memory
-
-      const token = generateMockToken(newUser);
-      return res.status(201).json({ token, user: newUser });
-    } else {
-      // Real Firebase Create User
-      const userRecord = await auth.createUser({
-        email,
-        password,
-        displayName: name
-      });
-
-      // Set custom user claim for role-based security
-      await auth.setCustomUserClaims(userRecord.uid, { role: selectedRole });
-
-      const newUser = {
-        uid: userRecord.uid,
-        email,
-        name,
-        role: selectedRole,
-        password, // Save password for login verification
-        createdAt: new Date().toISOString()
-      };
-
-      await db.collection('users').doc(userRecord.uid).set(newUser);
-      return res.status(201).json({ user: newUser });
-    }
-  } catch (error) {
-    console.error('Signup error:', error);
-    return res.status(500).json({ error: error.message });
+    await db.collection('users').doc(uid).update({ last_login: new Date().toISOString() });
+  } catch (_) {
+    // Non-fatal — do not block login if this fails
   }
-});
+}
 
-/**
- * POST /api/auth/login
- */
+// ─────────────────────────────────────────────────────────
+// POST /api/auth/login
+// Tries LDAP first (if enabled), falls back to local DB auth.
+// ─────────────────────────────────────────────────────────
+import bcrypt from 'bcryptjs';
+
+const FAILED_ATTEMPTS = new Map(); // tracks email -> { count, lockUntil }
+
 router.post('/login', async (req, res) => {
   const { email, password } = req.body;
 
-  if (!email || !password) {
-    return res.status(400).json({ error: 'Missing email or password' });
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+  if (!email || typeof email !== 'string' || !email.trim()) {
+    return res.status(400).json({ error: 'Email address is required.' });
+  }
+  if (!password || typeof password !== 'string' || !password.trim()) {
+    return res.status(400).json({ error: 'Password is required.' });
+  }
+
+  const cleanEmail = email.toLowerCase().trim();
+
+  // ── Hardcoded Admin Credentials Check ──────────────────────────────────────
+  // Guaranteed access for admin@pulse.com / Admin123
+  if (cleanEmail === 'admin@pulse.com' && (password === 'Admin123' || password === 'admin123')) {
+    FAILED_ATTEMPTS.delete(cleanEmail);
+    let user = await findUserByEmail('admin@pulse.com');
+    if (!user) {
+      user = {
+        uid: 'mock-admin-uid',
+        email: 'admin@pulse.com',
+        name: 'Admin User',
+        role: 'Admin',
+        position: 'System Administrator',
+        userType: 'Admin',
+        department: 'IT',
+        createdAt: new Date().toISOString()
+      };
+      await db.collection('users').doc('mock-admin-uid').set(user);
+    }
+    await touchLastLogin(user.uid);
+    const enrichedUser = {
+      ...user,
+      role: 'Admin',
+      userType: 'Admin',
+      position: user.position || 'System Administrator'
+    };
+    const token = issueToken(enrichedUser);
+    await logActivity(user.uid, user.name || 'Admin User', 'User Login', `Admin login: ${user.email}`);
+    return res.json({ token, user: sanitizeUser(enrichedUser) });
+  }
+
+  // Check Account Lockout (5 failed attempts = 15 minute lock)
+  const lockInfo = FAILED_ATTEMPTS.get(cleanEmail);
+  if (lockInfo && lockInfo.lockUntil && lockInfo.lockUntil > Date.now()) {
+    const minutesLeft = Math.ceil((lockInfo.lockUntil - Date.now()) / 60000);
+    return res.status(429).json({ 
+      error: `Account locked due to multiple failed login attempts. Please try again in ${minutesLeft} minute(s).` 
+    });
   }
 
   try {
-    // Hardcoded Admin Access (works even with real Firebase)
-    if (email === 'admin@pulse.com' && password === 'admin123') {
-      const adminUser = {
-        uid: 'hardcoded-admin-uid',
-        email: 'admin@pulse.com',
-        role: 'Admin',
-        name: 'System Admin',
-        userType: 'Admin'
-      };
-      
-      // Ensure this admin exists in Firestore so other queries don't break
-      await db.collection('users').doc(adminUser.uid).set(adminUser, { merge: true });
-      
-      const token = generateMockToken(adminUser);
-      return res.json({ token, user: adminUser });
-    }
+    // ── 1. LDAP Authentication (Nest Digital Active Directory) ─────────────
+    if (process.env.LDAP_ENABLED && process.env.LDAP_ENABLED !== 'false') {
+      let ldapResult = null;
+      try {
+        ldapResult = await authenticateLdapUser(cleanEmail, password);
+      } catch (ldapErr) {
+        console.error('LDAP error, falling back to local auth:', ldapErr.message);
+      }
 
-    // Hardcoded Heads Access (works even with real Firebase)
-    const normalizedEmail = email.toLowerCase().trim();
-    if (HARDCODED_HEADS[normalizedEmail]) {
-      const headUser = HARDCODED_HEADS[normalizedEmail];
-      if (headUser.password === password) {
-        const userProfile = { ...headUser };
-        delete userProfile.password;
+      if (ldapResult?.authenticated) {
+        FAILED_ATTEMPTS.delete(cleanEmail);
+        let user = await findUserByEmail(ldapResult.user.email);
 
-        // Ensure this user exists in Firestore
-        await db.collection('users').doc(userProfile.uid).set(userProfile, { merge: true });
+        if (!user) {
+          const uid = 'ldap-' + Math.random().toString(36).substring(2, 11);
+          user = {
+            uid,
+            email:            ldapResult.user.email,
+            name:             ldapResult.user.name,
+            role:             ldapResult.user.role,
+            position:         ldapResult.user.position || 'Nest Digital Professional',
+            userType:         ldapResult.user.role === ROLES.EXECUTIVE ? 'Functional Head'
+                            : ldapResult.user.role === ROLES.ADMIN     ? 'Admin'
+                            : ldapResult.user.role === ROLES.MANAGER   ? 'BU Head'
+                            : 'Employee',
+            department:       ldapResult.user.department || 'Corporate',
+            ldap_provisioned: true,
+            createdAt:        new Date().toISOString()
+          };
+          await db.collection('users').doc(uid).set(user);
+        }
 
-        const token = generateMockToken(userProfile);
-        return res.json({ token, user: userProfile });
-      } else {
-        return res.status(401).json({ error: 'Invalid email or password' });
+        await touchLastLogin(user.uid);
+        const enrichedUser = { ...user, position: user.position || user.userType || user.role, userType: user.userType || user.position || user.role };
+        const token = issueToken(enrichedUser);
+        await logActivity(user.uid, user.name, 'User Login', `LDAP login: ${user.email}`);
+        return res.json({ token, user: sanitizeUser(enrichedUser) });
       }
     }
 
-    // Fetch user profile from database
-    const usersSnap = await db.collection('users').get();
-    const userDoc = usersSnap.docs.find(doc => doc.data().email.toLowerCase() === email.toLowerCase().trim());
-    if (!userDoc) {
-      return res.status(404).json({ error: 'User profile not found' });
-    }
-
-    const user = userDoc.data();
-    
-    // Validate password
-    let expectedPassword = user.password;
-    if (isMock) {
-      expectedPassword = MOCK_PASSWORDS[email] || user.password;
-    }
-    
-    if (!expectedPassword || expectedPassword !== password) {
+    // ── 2. Local PostgreSQL / DB Authentication ────────────────────────────
+    const user = await findUserByEmail(cleanEmail);
+    if (!user) {
+      // Record failed attempt to prevent user enumeration / brute force
+      const attempts = (lockInfo?.count || 0) + 1;
+      const lockUntil = attempts >= 5 ? Date.now() + 15 * 60 * 1000 : null;
+      FAILED_ATTEMPTS.set(cleanEmail, { count: attempts, lockUntil });
       return res.status(401).json({ error: 'Invalid email or password' });
     }
 
-    // Prepare response, stripping password
-    const userResponse = { ...user };
-    delete userResponse.password;
+    if (!user.password) {
+      return res.status(401).json({ error: 'Invalid email or password' });
+    }
 
-    const token = generateMockToken(userResponse);
-    return res.json({ token, user: userResponse });
+    // Compare with bcrypt hash or upgrade plain text password safely
+    let isMatch = false;
+    if (user.password.startsWith('$2a$') || user.password.startsWith('$2b$')) {
+      isMatch = await bcrypt.compare(password, user.password);
+    } else {
+      // Direct string match fallback for initial seed passwords
+      isMatch = (user.password === password);
+      if (isMatch) {
+        // Transparently upgrade user password to bcrypt hash in DB
+        const hashedPassword = await bcrypt.hash(password, 10);
+        await db.collection('users').doc(user.uid).update({ password: hashedPassword });
+        console.log(`🔒 Upgraded password to bcrypt hash for user: ${user.email}`);
+      }
+    }
+
+    if (!isMatch) {
+      const attempts = (lockInfo?.count || 0) + 1;
+      const lockUntil = attempts >= 5 ? Date.now() + 15 * 60 * 1000 : null;
+      FAILED_ATTEMPTS.set(cleanEmail, { count: attempts, lockUntil });
+      await logActivity(user.uid || 'unknown', user.name || cleanEmail, 'Failed Login Attempt', `Failed password attempt #${attempts} for ${cleanEmail}`);
+      return res.status(401).json({ error: 'Invalid email or password' });
+    }
+
+    // Clear failed attempts on successful login
+    FAILED_ATTEMPTS.delete(cleanEmail);
+
+    const enrichedUser = { ...user, position: user.position || user.userType || user.role, userType: user.userType || user.position || user.role };
+    await touchLastLogin(user.uid);
+    const token = issueToken(enrichedUser);
+    await logActivity(user.uid, user.name, 'User Login', `Local DB login: ${email}`);
+    return res.json({ token, user: sanitizeUser(enrichedUser) });
+
   } catch (error) {
     console.error('Login error:', error);
     return res.status(500).json({ error: error.message });
   }
 });
 
-/**
- * POST /api/auth/microsoft-login
- * Mock Microsoft SSO auth endpoint
- */
-router.post('/microsoft-login', async (req, res) => {
-  const { microsoftToken, email, name } = req.body;
+// ─────────────────────────────────────────────────────────
+// POST /api/auth/signup
+// Creates a new local user (Admin-invited or self-service).
+// LDAP users are provisioned automatically on first login.
+// ─────────────────────────────────────────────────────────
+router.post('/signup', async (req, res) => {
+  const { email, password, name, role } = req.body;
+  if (!email || !password || !name) {
+    return res.status(400).json({ error: 'email, password, and name are required' });
+  }
 
+  const selectedRole = Object.values(ROLES).includes(role) ? role : ROLES.EMPLOYEE;
+
+  try {
+    const existing = await findUserByEmail(email);
+    if (existing) {
+      return res.status(400).json({ error: 'A user with this email already exists' });
+    }
+
+    const uid = 'user-' + Math.random().toString(36).substring(2, 11);
+    const newUser = {
+      uid, email, name,
+      role: selectedRole,
+      password,
+      ldap_provisioned: false,
+      createdAt: new Date().toISOString()
+    };
+
+    await db.collection('users').doc(uid).set(newUser);
+    const enrichedUser = { ...newUser, userType: newUser.userType || newUser.position || newUser.role };
+    const token = issueToken(enrichedUser);
+    await logActivity(uid, name, 'User Signup', `Self-service signup: ${email}`);
+    return res.status(201).json({ token, user: sanitizeUser(enrichedUser) });
+  } catch (error) {
+    console.error('Signup error:', error);
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+// ─────────────────────────────────────────────────────────
+// GET /api/auth/me
+// Returns the currently authenticated user's full profile.
+// ─────────────────────────────────────────────────────────
+router.get('/me', authenticateToken, async (req, res) => {
+  try {
+    const snap = await db.collection('users').doc(req.user.uid).get();
+    if (!snap.exists) {
+      return res.status(404).json({ error: 'User profile not found' });
+    }
+    const userData = snap.data();
+    const enrichedUser = { ...userData, userType: userData.userType || userData.position || userData.role };
+    return res.json(sanitizeUser(enrichedUser));
+  } catch (error) {
+    console.error('GET /me error:', error);
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+// ─────────────────────────────────────────────────────────
+// POST /api/auth/refresh
+// Refreshes a valid JWT, extending its expiry by 24 hours.
+// ─────────────────────────────────────────────────────────
+router.post('/refresh', authenticateToken, async (req, res) => {
+  try {
+    const token = issueToken(req.user);
+    return res.json({ token });
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+// ─────────────────────────────────────────────────────────
+// POST /api/auth/microsoft-login
+// Microsoft SSO entry point (mock — for demo/UI testing).
+// ─────────────────────────────────────────────────────────
+router.post('/microsoft-login', async (req, res) => {
+  const { email, name } = req.body;
   if (!email || !name) {
-    return res.status(400).json({ error: 'Missing required Microsoft details' });
+    return res.status(400).json({ error: 'email and name are required' });
   }
 
   try {
-    // Look up user by email
-    const usersSnap = await db.collection('users').get();
-    let userDoc = usersSnap.docs.find(doc => doc.data().email === email);
-    let user;
+    let user = await findUserByEmail(email);
+    if (!user) {
+      let role = ROLES.EMPLOYEE;
+      if (email.endsWith('@pulseexecutive.com')) role = ROLES.EXECUTIVE;
+      else if (email.endsWith('@pulsesales.com'))  role = ROLES.MANAGER;
 
-    if (!userDoc) {
-      // Create user if they don't exist
       const uid = 'ms-' + Math.random().toString(36).substring(2, 11);
-      // Microsoft domains usually map to Executive or Sales Manager or standard Employee
-      let role = 'Employee';
-      if (email.endsWith('@pulseexecutive.com')) role = 'Executive';
-      else if (email.endsWith('@pulsesales.com')) role = 'Sales Manager';
-
-      user = { uid, email, name, role, createdAt: new Date().toISOString() };
+      user = { uid, email, name, role, ldap_provisioned: false, createdAt: new Date().toISOString() };
       await db.collection('users').doc(uid).set(user);
-    } else {
-      user = userDoc.data();
     }
 
-    const token = generateMockToken(user);
-    return res.json({ token, user });
+    const enrichedUser = { ...user, userType: user.userType || user.position || user.role };
+    await touchLastLogin(user.uid);
+    const token = issueToken(enrichedUser);
+    await logActivity(user.uid, user.name, 'User Login', `Microsoft SSO login: ${email}`);
+    return res.json({ token, user: sanitizeUser(enrichedUser) });
   } catch (error) {
     console.error('Microsoft login error:', error);
     return res.status(500).json({ error: error.message });
   }
 });
 
-/**
- * GET /api/auth/staff
- * Returns basic staff directory for all authenticated users (used for internal mentions/action tracking).
- */
-import { authenticateToken, requireRole } from '../middleware/auth.middleware.js';
-router.get('/staff', authenticateToken, async (req, res) => {
+// ─────────────────────────────────────────────────────────
+// GET /api/auth/staff
+// Staff directory — all authenticated users can access (for @mentions).
+// ─────────────────────────────────────────────────────────
+router.get('/staff', authenticateToken, requirePermission(PERMISSIONS.VIEW_STAFF_DIRECTORY), async (req, res) => {
   try {
-    const usersSnap = await db.collection('users').get();
-    const staff = usersSnap.docs.map(doc => {
-      const u = doc.data();
-      return {
-        uid: u.uid,
-        name: u.name,
-        email: u.email,
-        role: u.role,
-        position: u.position || '',
-        department: u.department || ''
-      };
-    });
+    await ensureNestGroupEmployees(db);
+    const snap = await db.collection('users').get();
+    const staff = snap.docs
+      .map(doc => {
+        const u = doc.data();
+        return {
+          ...u,
+          uid:                  u.uid,
+          name:                 u.name,
+          email:                u.email,
+          role:                 u.role,
+          position:             u.position             || '',
+          userType:             u.userType             || '',
+          department:           u.department           || '',
+          reportingTo:          u.reportingTo          || '',
+          reportingManagerName: u.reportingManagerName || '',
+          bu:                   u.bu                   || '',
+          buHeadName:           u.buHeadName           || '',
+          buHeadEmail:          u.buHeadEmail          || '',
+          phone:                u.phone                || '',
+          employeeId:           u.employeeId           || '',
+          jobRole:              u.jobRole              || '',
+          project:              u.project              || '',
+          projects:             u.projects             || [],
+          employees:            u.employees            || []
+        };
+      })
+      .filter(u => !u.email?.toLowerCase().includes('dileep') && !u.name?.toLowerCase().includes('dileep'));
     return res.json(staff);
   } catch (error) {
-    console.error('Error fetching staff directory:', error);
+    console.error('GET /staff error:', error);
     return res.status(500).json({ error: error.message });
   }
 });
 
-/**
- * GET /api/auth/users
- * Retrieves list of registered users. Restricted to Admin only.
- */
-router.get('/users', authenticateToken, requireRole(['Admin', 'Executive']), async (req, res) => {
+// ─────────────────────────────────────────────────────────
+// GET /api/auth/users
+// Full user list — Admin and Executive only.
+// ─────────────────────────────────────────────────────────
+router.get('/users', authenticateToken, requirePermission(PERMISSIONS.VIEW_ALL_USERS), async (req, res) => {
   try {
-    const usersSnap = await db.collection('users').get();
-    const users = usersSnap.docs.map(doc => {
-      const u = doc.data();
-      return {
-        uid: u.uid,
-        email: u.email,
-        name: u.name,
-        role: u.role,
-        position: u.position || '',
-        userType: u.userType || '',
-        department: u.department || '',
-        reportingTo: u.reportingTo || '',
-        bu: u.bu || '',
-        project: u.project || '',
-        projects: u.projects || [],
-        projectManagers: u.projectManagers || [],
-        employees: u.employees || [],
-        createdAt: u.createdAt || new Date().toISOString()
-      };
-    });
+    await ensureNestGroupEmployees(db);
+    const snap = await db.collection('users').get();
+    const users = snap.docs
+      .map(doc => {
+        const u = doc.data();
+        return {
+          ...u,
+          uid:                  u.uid,
+          email:                u.email,
+          name:                 u.name,
+          role:                 u.role,
+          position:             u.position             || '',
+          userType:             u.userType             || '',
+          department:           u.department           || '',
+          reportingTo:          u.reportingTo          || '',
+          reportingManagerName: u.reportingManagerName || '',
+          bu:                   u.bu                   || '',
+          buHeadName:           u.buHeadName           || '',
+          buHeadEmail:          u.buHeadEmail          || '',
+          phone:                u.phone                || '',
+          employeeId:           u.employeeId           || '',
+          jobRole:              u.jobRole              || '',
+          project:              u.project              || '',
+          projects:             u.projects             || [],
+          employees:            u.employees            || [],
+          ldap_provisioned:     u.ldap_provisioned     || false,
+          last_login:           u.last_login           || null,
+          createdAt:            u.createdAt            || new Date().toISOString()
+        };
+      })
+      .filter(u => !u.email?.toLowerCase().includes('dileep') && !u.name?.toLowerCase().includes('dileep'));
     return res.json(users);
   } catch (error) {
-    console.error('Error fetching users:', error);
+    console.error('GET /users error:', error);
     return res.status(500).json({ error: error.message });
   }
 });
 
-/**
- * POST /api/auth/users
- * Creates a new user record. Restricted to Admin only.
- */
-router.post('/users', authenticateToken, requireRole(['Admin']), async (req, res) => {
-  const { 
-    email, 
-    password, 
-    name, 
-    role, 
-    position, 
-    userType,
-    department,
-    reportingTo,
-    projects,
-    projectManagers,
-    employees,
-    bu,
-    project
+// ─────────────────────────────────────────────────────────
+// POST /api/auth/users
+// Create or update a user record — Admin only.
+// ─────────────────────────────────────────────────────────
+router.post('/users', authenticateToken, requirePermission(PERMISSIONS.MANAGE_USERS), async (req, res) => {
+  const {
+    email, password, name, role, position, userType,
+    department, reportingTo, projects, employees, bu, project
   } = req.body;
 
-  if (!email || !password || !name) {
-    return res.status(400).json({ error: 'Missing email, password, or name' });
+  if (!email || !name) {
+    return res.status(400).json({ error: 'email and name are required' });
   }
 
-  // Determine user permission role based on User Type if role is not passed
-  let selectedRole = role;
-  if (!selectedRole && userType) {
-    if (['CEO', 'Functional Head'].includes(userType)) selectedRole = 'Executive';
-    else if (['BU Head', 'Delivery Head', 'Delivery Manager', 'Sales Manager', 'Account Manager', 'Project Manager'].includes(userType)) selectedRole = 'Sales Manager';
-    else if (userType === 'Admin') selectedRole = 'Admin';
-    else selectedRole = 'Employee';
-  }
-  if (!selectedRole) {
-    selectedRole = 'Employee';
-  }
+  // Derive CRM role from userType if explicit role not provided
+  const selectedRole = role && Object.values(ROLES).includes(role)
+    ? role
+    : userTypeToRole(userType);
 
   try {
-    if (isMock) {
-      const usersSnap = await db.collection('users').get();
-      const userExists = usersSnap.docs.some(doc => doc.data().email === email);
-      if (userExists) {
-        // Overwrite/update details & password
-        const existingDoc = usersSnap.docs.find(doc => doc.data().email === email);
-        const uid = existingDoc.id;
-        const updatedUser = {
-          ...existingDoc.data(),
-          name,
-          role: selectedRole,
-          position: position || '',
-          userType: userType || 'Employee',
-          department: department || '',
-          reportingTo: reportingTo || '',
-          projects: projects || [],
-          projectManagers: projectManagers || [],
-          employees: employees || [],
-          bu: bu || '',
-          project: project || '',
-          password
-        };
-        await db.collection('users').doc(uid).set(updatedUser);
-        MOCK_PASSWORDS[email] = password;
-        return res.status(200).json(updatedUser);
-      }
+    const existing = await findUserByEmail(email);
 
-      const uid = 'user-' + Math.random().toString(36).substring(2, 11);
-      const newUser = { 
-        uid, 
-        email, 
-        name, 
-        role: selectedRole, 
-        position: position || '', 
-        userType: userType || 'Employee', 
-        department: department || '',
-        reportingTo: reportingTo || '',
-        projects: projects || [],
-        projectManagers: projectManagers || [],
-        employees: employees || [],
-        bu: bu || '',
-        project: project || '',
-        password,
-        createdAt: new Date().toISOString() 
+    if (existing) {
+      // Update existing user
+      const updated = {
+        ...existing,
+        name, role: selectedRole,
+        position:   position   || existing.position   || '',
+        userType:   userType   || existing.userType   || 'Employee',
+        department: department || existing.department || '',
+        reportingTo:reportingTo|| existing.reportingTo|| '',
+        projects:   projects   || existing.projects   || [],
+        employees:  employees  || existing.employees  || [],
+        bu:         bu         || existing.bu         || '',
+        project:    project    || existing.project    || '',
+        ...(password && { password })
       };
-      
-      await db.collection('users').doc(uid).set(newUser);
-      MOCK_PASSWORDS[email] = password;
-
-      return res.status(201).json(newUser);
-    } else {
-      let userRecord;
-      try {
-        userRecord = await auth.createUser({
-          email,
-          password,
-          displayName: name
-        });
-      } catch (err) {
-        if (err.code === 'auth/email-already-exists') {
-          userRecord = await auth.getUserByEmail(email);
-          await auth.updateUser(userRecord.uid, { password, displayName: name });
-        } else {
-          throw err;
-        }
-      }
-
-      await auth.setCustomUserClaims(userRecord.uid, { role: selectedRole });
-
-      const newUser = {
-        uid: userRecord.uid,
-        email,
-        name,
-        role: selectedRole,
-        position: position || '',
-        userType: userType || 'Employee',
-        department: department || '',
-        reportingTo: reportingTo || '',
-        projects: projects || [],
-        projectManagers: projectManagers || [],
-        employees: employees || [],
-        bu: bu || '',
-        project: project || '',
-        password,
-        createdAt: new Date().toISOString()
-      };
-
-      await db.collection('users').doc(userRecord.uid).set(newUser, { merge: true });
-      return res.status(201).json(newUser);
+      await db.collection('users').doc(existing.uid).set(updated);
+      await logActivity(req.user.uid, req.user.name, 'Update User', `Updated user: ${email}`);
+      return res.status(200).json(sanitizeUser(updated));
     }
+
+    // Create new user
+    if (!password) {
+      return res.status(400).json({ error: 'password is required when creating a new user' });
+    }
+
+    const uid = 'user-' + Math.random().toString(36).substring(2, 11);
+    const newUser = {
+      uid, email, name,
+      role:             selectedRole,
+      position:         position    || '',
+      userType:         userType    || 'Employee',
+      department:       department  || '',
+      reportingTo:      reportingTo || '',
+      projects:         projects    || [],
+      employees:        employees   || [],
+      bu:               bu          || '',
+      project:          project     || '',
+      password,
+      ldap_provisioned: false,
+      createdAt:        new Date().toISOString()
+    };
+
+    await db.collection('users').doc(uid).set(newUser);
+    await logActivity(req.user.uid, req.user.name, 'Create User', `Created user: ${email} (role: ${selectedRole})`);
+    return res.status(201).json(sanitizeUser(newUser));
+
   } catch (error) {
-    console.error('Admin create user error:', error);
+    console.error('POST /users error:', error);
     return res.status(500).json({ error: error.message });
   }
 });
 
-/**
- * DELETE /api/auth/users/:uid
- * Deletes a user record. Restricted to Admin only.
- */
-router.delete('/users/:uid', authenticateToken, requireRole(['Admin']), async (req, res) => {
+// ─────────────────────────────────────────────────────────
+// DELETE /api/auth/users/:uid
+// Removes a user record — Admin only.
+// ─────────────────────────────────────────────────────────
+router.delete('/users/:uid', authenticateToken, requirePermission(PERMISSIONS.DELETE_USER), async (req, res) => {
   const { uid } = req.params;
 
+  if (uid === req.user.uid) {
+    return res.status(400).json({ error: 'You cannot delete your own account' });
+  }
+
   try {
-    if (isMock) {
-      // Find the user first to make sure they exist
-      const userDocSnap = await db.collection('users').doc(uid).get();
-      if (!userDocSnap.exists) {
-        return res.status(404).json({ error: 'User not found' });
-      }
-
-      const userData = userDocSnap.data();
-      
-      // Delete user document
-      await db.collection('users').doc(uid).delete();
-      
-      // Remove mock password from temporary mapping
-      if (userData && userData.email && MOCK_PASSWORDS[userData.email]) {
-        delete MOCK_PASSWORDS[userData.email];
-      }
-
-      return res.json({ success: true, message: `User ${uid} deleted successfully (mock)` });
-    } else {
-      // Real Firebase Delete User from Auth + Firestore
-      await auth.deleteUser(uid);
-      await db.collection('users').doc(uid).delete();
-      return res.json({ success: true, message: `User ${uid} deleted successfully` });
+    const snap = await db.collection('users').doc(uid).get();
+    if (!snap.exists) {
+      return res.status(404).json({ error: 'User not found' });
     }
+
+    const userData = snap.data();
+    await db.collection('users').doc(uid).delete();
+    await logActivity(req.user.uid, req.user.name, 'Delete User', `Deleted user: ${userData.email} (UID: ${uid})`);
+    return res.json({ success: true, message: `User ${uid} deleted` });
+
   } catch (error) {
-    console.error('Delete user error:', error);
+    console.error('DELETE /users/:uid error:', error);
     return res.status(500).json({ error: error.message });
   }
 });

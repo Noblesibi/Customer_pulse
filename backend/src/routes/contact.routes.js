@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { db } from '../config/firebase.js';
+import { db, logActivity } from '../config/database.js';
 import { authenticateToken, requireRole } from '../middleware/auth.middleware.js';
 import { calculateAccountHealth } from '../services/health.service.js';
 
@@ -29,12 +29,33 @@ router.get('/', async (req, res) => {
     const userDoc = await db.collection('users').doc(req.user.uid).get();
     const userProfile = userDoc.exists ? userDoc.data() : null;
 
-    const isAdmin = req.user.role === 'Admin' || (userProfile && (userProfile.userType === 'Admin' || userProfile.role === 'Admin'));
+    // Use DB userProfile (not JWT role) for true role determination
+    const isTrueAdmin = userProfile && (userProfile.userType === 'Admin' || userProfile.role === 'Admin');
     const isCeo = userProfile && userProfile.userType === 'CEO';
 
-    if (!isAdmin && !isCeo) {
+    if (!isTrueAdmin && !isCeo) {
+      const userEmail = req.user.email?.toLowerCase();
+      const userName = req.user.name?.toLowerCase();
+
+      const isMatch = (entity) => {
+        if (entity.ownerId === req.user.uid) return true;
+        if (userEmail && entity.ownerEmail?.toLowerCase() === userEmail) return true;
+        if (userName && entity.ownerName?.toLowerCase().includes(userName.split(' ')[0])) return true;
+        return false;
+      };
+
       const accountsSnap = await db.collection('accounts').get();
       let accounts = accountsSnap.docs.map(doc => doc.data());
+
+      // 1. Contacts where user is the Stakeholder Owner directly
+      const ownedContactIds = new Set(
+        contacts.filter(c => isMatch(c)).map(c => c.contactId)
+      );
+
+      // 2. Contacts belonging to accounts the user owns
+      const ownedAccountIds = new Set(
+        accounts.filter(a => isMatch(a)).map(a => a.accountId || a.id)
+      );
 
       if (userProfile && userProfile.userType === 'BU Head') {
         const targetBu = userProfile.bu || '';
@@ -47,10 +68,8 @@ router.get('/', async (req, res) => {
           }))
         );
       } else {
-        // Fallback filter for Functional Heads, Project Managers, Delivery Heads, Employees, etc.
         const projectsList = userProfile ? (userProfile.projects || []) : [];
         const targetProjects = projectsList.map(p => typeof p === 'string' ? p : p.name).filter(Boolean);
-        
         accounts = accounts.filter(a => 
           targetProjects.some(tp => 
             a.companyName.toLowerCase().includes(tp.toLowerCase()) || 
@@ -59,9 +78,14 @@ router.get('/', async (req, res) => {
         );
       }
 
-      const allowedAccountIds = accounts.map(a => a.accountId || a.id);
-      contacts = contacts.filter(c => allowedAccountIds.includes(c.accountId));
+      const projectAccountIds = new Set(accounts.map(a => a.accountId || a.id));
+      const allowedAccountIds = new Set([...projectAccountIds, ...ownedAccountIds]);
+
+      contacts = contacts.filter(c =>
+        allowedAccountIds.has(c.accountId) || ownedContactIds.has(c.contactId)
+      );
     }
+
 
     if (search) {
       const q = search.toLowerCase();
@@ -100,11 +124,26 @@ router.get('/:id', async (req, res) => {
  * POST /api/contacts
  * Create contact (restricted to Admin, Manager, and Employee).
  */
-router.post('/', requireRole(['Admin', 'Sales Manager', 'Employee']), async (req, res) => {
-  const { accountId, name, email, designation, hierarchyTag, influenceTag, phone, projectName, projectIndustry } = req.body;
+router.post('/', requireRole(['Admin', 'Sales Manager', 'Employee', 'Executive']), async (req, res) => {
+  const { accountId, name, email, designation, hierarchyTag, influenceTag, phone, projectName, projectIndustry, projectType, ownerId, ownerName } = req.body;
 
-  if (!accountId || !name || !email) {
-    return res.status(400).json({ error: 'Missing accountId, name, or email' });
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  const phoneRegex = /^[\+\d\s\-\(\)\.]{7,25}$/;
+
+  if (!accountId || typeof accountId !== 'string' || !accountId.trim()) {
+    return res.status(400).json({ error: 'Account ID is required.' });
+  }
+  if (!name || typeof name !== 'string' || !name.trim()) {
+    return res.status(400).json({ error: 'Contact Name is required.' });
+  }
+  if (name.trim().length < 2) {
+    return res.status(400).json({ error: 'Contact Name must be at least 2 characters.' });
+  }
+  if (!email || typeof email !== 'string' || !emailRegex.test(email.trim())) {
+    return res.status(400).json({ error: 'A valid Contact Email is required.' });
+  }
+  if (phone && (typeof phone !== 'string' || !phoneRegex.test(phone.trim()))) {
+    return res.status(400).json({ error: 'Phone number format is invalid.' });
   }
 
   // Enforce valid tags
@@ -121,6 +160,31 @@ router.post('/', requireRole(['Admin', 'Sales Manager', 'Employee']), async (req
       return res.status(404).json({ error: 'Associated Account not found' });
     }
 
+    // Check for duplicate employee name in another company
+    const contactsSnap = await db.collection('contacts').get();
+    const existingContacts = contactsSnap.docs.map(doc => doc.data());
+    const duplicate = existingContacts.find(c => 
+      c.name && c.name.toLowerCase().trim() === name.toLowerCase().trim() &&
+      c.accountId !== accountId
+    );
+    if (duplicate) {
+      const otherAccountDoc = await db.collection('accounts').doc(duplicate.accountId).get();
+      const otherCompName = otherAccountDoc.exists ? otherAccountDoc.data().companyName : 'another company';
+      return res.status(400).json({ error: `Employee "${name}" already exists in ${otherCompName}.` });
+    }
+
+    let finalOwnerId = ownerId || req.user.uid;
+    let finalOwnerName = ownerName;
+    if (ownerId && !ownerName) {
+      const ownerUserDoc = await db.collection('users').doc(ownerId).get();
+      if (ownerUserDoc.exists) {
+        finalOwnerName = ownerUserDoc.data().name;
+      }
+    }
+    if (!finalOwnerName) {
+      finalOwnerName = req.user.name || 'System User';
+    }
+
     const contactId = 'con-' + Math.random().toString(36).substring(2, 11);
     const newContact = {
       contactId,
@@ -132,7 +196,11 @@ router.post('/', requireRole(['Admin', 'Sales Manager', 'Employee']), async (req
       influenceTag: iTag,
       phone: phone || '',
       projectName: projectName || '',
-      projectIndustry: projectIndustry || 'Technology'
+      projectIndustry: projectIndustry || '',
+      projectType: projectType || '',
+      ownerId: finalOwnerId,
+      ownerName: finalOwnerName,
+      createdAt: new Date().toISOString()
     };
 
     await db.collection('contacts').doc(contactId).set(newContact);
@@ -140,6 +208,7 @@ router.post('/', requireRole(['Admin', 'Sales Manager', 'Employee']), async (req
     // Update health score since relationship depth might have changed
     await calculateAccountHealth(accountId);
 
+    await logActivity(req.user.uid, req.user.name, 'Create Contact', `Created contact ${name} (${designation || 'Staff'}) for account ID ${accountId}`);
     return res.status(201).json(newContact);
   } catch (error) {
     console.error('Error creating contact:', error);
@@ -151,9 +220,9 @@ router.post('/', requireRole(['Admin', 'Sales Manager', 'Employee']), async (req
  * PUT /api/contacts/:id
  * Edit contact details.
  */
-router.put('/:id', requireRole(['Admin', 'Sales Manager', 'Employee']), async (req, res) => {
+router.put('/:id', requireRole(['Admin', 'Sales Manager', 'Employee', 'Executive']), async (req, res) => {
   const { id } = req.params;
-  const { name, email, designation, hierarchyTag, influenceTag, phone, projectName, projectIndustry } = req.body;
+  const { name, email, designation, hierarchyTag, influenceTag, phone, projectName, projectIndustry, projectType, ownerId, ownerName } = req.body;
 
   try {
     const docRef = db.collection('contacts').doc(id);
@@ -165,7 +234,21 @@ router.put('/:id', requireRole(['Admin', 'Sales Manager', 'Employee']), async (r
 
     const currentData = doc.data();
     const updates = {};
-    if (name) updates.name = name;
+    if (name) {
+      const contactsSnap = await db.collection('contacts').get();
+      const existingContacts = contactsSnap.docs.map(doc => doc.data());
+      const duplicate = existingContacts.find(c => 
+        c.contactId !== id && c.id !== id &&
+        c.name && c.name.toLowerCase().trim() === name.toLowerCase().trim() &&
+        c.accountId !== currentData.accountId
+      );
+      if (duplicate) {
+        const otherAccountDoc = await db.collection('accounts').doc(duplicate.accountId).get();
+        const otherCompName = otherAccountDoc.exists ? otherAccountDoc.data().companyName : 'another company';
+        return res.status(400).json({ error: `Employee "${name}" already exists in ${otherCompName}.` });
+      }
+      updates.name = name;
+    }
     if (email) updates.email = email;
     if (designation) updates.designation = designation;
     if (hierarchyTag) updates.hierarchyTag = hierarchyTag;
@@ -173,6 +256,23 @@ router.put('/:id', requireRole(['Admin', 'Sales Manager', 'Employee']), async (r
     if (phone !== undefined) updates.phone = phone;
     if (projectName !== undefined) updates.projectName = projectName;
     if (projectIndustry !== undefined) updates.projectIndustry = projectIndustry;
+    if (projectType !== undefined) updates.projectType = projectType;
+
+    if (ownerId !== undefined) {
+      updates.ownerId = ownerId;
+      if (ownerName) {
+        updates.ownerName = ownerName;
+      } else if (ownerId) {
+        const ownerUserDoc = await db.collection('users').doc(ownerId).get();
+        if (ownerUserDoc.exists) {
+          updates.ownerName = ownerUserDoc.data().name;
+        } else {
+          updates.ownerName = 'Unknown User';
+        }
+      } else {
+        updates.ownerName = null;
+      }
+    }
 
     await docRef.update(updates);
 
@@ -180,6 +280,7 @@ router.put('/:id', requireRole(['Admin', 'Sales Manager', 'Employee']), async (r
     await calculateAccountHealth(currentData.accountId);
 
     const updatedDoc = await docRef.get();
+    await logActivity(req.user.uid, req.user.name, 'Update Contact', `Updated details for contact ${updatedDoc.data().name} (ID: ${id})`);
     return res.json(updatedDoc.data());
   } catch (error) {
     console.error('Error updating contact:', error);
@@ -190,7 +291,7 @@ router.put('/:id', requireRole(['Admin', 'Sales Manager', 'Employee']), async (r
 /**
  * DELETE /api/contacts/:id
  */
-router.delete('/:id', requireRole(['Admin', 'Sales Manager']), async (req, res) => {
+router.delete('/:id', requireRole(['Admin', 'Sales Manager', 'Executive']), async (req, res) => {
   const { id } = req.params;
   try {
     const docRef = db.collection('contacts').doc(id);
@@ -201,11 +302,29 @@ router.delete('/:id', requireRole(['Admin', 'Sales Manager']), async (req, res) 
     }
 
     const accountId = doc.data().accountId;
+
+    // Disassociate interactions from this contact to prevent foreign key errors (keep interactions intact)
+    const interactionsSnap = await db.collection('interactions').where('contactId', '==', id).get();
+    if (interactionsSnap.docs && interactionsSnap.docs.length > 0) {
+      for (const interactionDoc of interactionsSnap.docs) {
+        await db.collection('interactions').doc(interactionDoc.id).update({ contactId: null });
+      }
+    }
+
+    // Disassociate tasks from this contact as well (good practice, even if not strictly a foreign key)
+    const tasksSnap = await db.collection('tasks').where('contactId', '==', id).get();
+    if (tasksSnap.docs && tasksSnap.docs.length > 0) {
+      for (const taskDoc of tasksSnap.docs) {
+        await db.collection('tasks').doc(taskDoc.id).update({ contactId: null });
+      }
+    }
+
     await docRef.delete();
 
     // Recalculate health
     await calculateAccountHealth(accountId);
 
+    await logActivity(req.user.uid, req.user.name, 'Delete Contact', `Deleted contact ${doc.data().name} (ID: ${id})`);
     return res.json({ message: 'Contact deleted successfully' });
   } catch (error) {
     console.error('Error deleting contact:', error);

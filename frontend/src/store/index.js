@@ -1,13 +1,18 @@
 import { create } from 'zustand';
 
-const API_BASE = 'http://localhost:5000/api';
+const API_BASE = '/CustomerPulse/api';
 
 export const useStore = create((set, get) => ({
-  // Authentication State
-  user: JSON.parse(localStorage.getItem('cp_user')) || null,
-  token: localStorage.getItem('cp_token') || null,
+  // Authentication State — always start unauthenticated so the login page shows first
+  user: null,
+  token: null,
   authError: null,
   authLoading: false,
+
+  // HR Employee State
+  hrEmployeeData: null,
+  hrEmployeeLoading: false,
+  hrEmployeeError: null,
 
   login: async (email, password) => {
     set({ authLoading: true, authError: null });
@@ -17,9 +22,15 @@ export const useStore = create((set, get) => ({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password })
       });
+
+      const contentType = res.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) {
+        throw new Error('Backend server is offline or unreachable. Please start the backend service (npm start).');
+      }
+
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Login failed');
-      
+
       localStorage.setItem('cp_token', data.token);
       localStorage.setItem('cp_user', JSON.stringify(data.user));
       set({ token: data.token, user: data.user, authLoading: false });
@@ -81,12 +92,92 @@ export const useStore = create((set, get) => ({
     set({ token: null, user: null, authError: null });
   },
 
+  // ─────────────────────────────────────────────────────────
+  // Google Integration
+  // ─────────────────────────────────────────────────────────
+  googleIntegrationStatus: null,
+
+  fetchGoogleStatus: async () => {
+    const token = get().token;
+    if (!token) return;
+    try {
+      const res = await fetch(`${API_BASE}/integrations/google/status`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        set({ googleIntegrationStatus: data });
+      }
+    } catch (err) {
+      console.error('Failed to fetch Google status:', err);
+    }
+  },
+
+  connectGoogle: async () => {
+    const token = get().token;
+    if (!token) return;
+    try {
+      const res = await fetch(`${API_BASE}/integrations/google/connect`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.url) {
+          window.location.href = data.url;
+        }
+      } else {
+        const data = await res.json();
+        alert('Google Connect Error: ' + (data.error || 'Unknown error'));
+      }
+    } catch (err) {
+      console.error('Failed to initialize Google connection:', err);
+      alert('Failed to initialize Google connection: ' + err.message);
+    }
+  },
+
+
+  testGoogleContacts: async () => {
+    const token = get().token;
+    if (!token) return { success: false, error: 'Not authenticated' };
+    try {
+      const res = await fetch(`${API_BASE}/integrations/google/test/contacts`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to fetch contacts');
+      return data;
+    } catch (err) {
+      console.error('Test contacts error:', err);
+      return { success: false, error: err.message };
+    }
+  },
+
+  testGoogleCalendar: async () => {
+    const token = get().token;
+    if (!token) return { success: false, error: 'Not authenticated' };
+    try {
+      const res = await fetch(`${API_BASE}/integrations/google/test/calendar`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to fetch calendar');
+      return data;
+    } catch (err) {
+      console.error('Test calendar error:', err);
+      return { success: false, error: err.message };
+    }
+  },
+
   // Accounts CRUD
   accounts: [],
   totalAccounts: 0,
   totalPages: 1,
   currentPage: 1,
+  allAccountIds: [],
+  nestBus: [],
+  regions: [],
   accountsLoading: false,
+  accountsError: null,
 
   fetchAccounts: async (page = 1, search = '', filters = {}) => {
     const token = get().token;
@@ -104,13 +195,61 @@ export const useStore = create((set, get) => ({
       });
       const data = await res.json();
       if (res.ok) {
-        set({
+        let allIds = data.allIds;
+        let nestBus = data.nestBus;
+        let regions = data.regions;
+
+        // Fallback if backend hasn't returned allIds and there are multiple pages
+        if (!allIds || !nestBus || nestBus.length === 0) {
+          if (data.total <= (data.accounts?.length || 0)) {
+            if (!allIds) allIds = (data.accounts || []).map(a => a.accountId || a.id);
+            if (!nestBus || nestBus.length === 0) {
+              nestBus = Array.from(new Set((data.accounts || []).map(a => a.domain || a.industry).filter(Boolean))).sort();
+            }
+            if (!regions || regions.length === 0) {
+              regions = Array.from(new Set((data.accounts || []).map(a => a.region).filter(Boolean))).sort();
+            }
+          } else {
+            try {
+              const allParams = new URLSearchParams({
+                page: 1,
+                limit: 10000,
+                search: '', // fetch all to get complete NeST BUs and regions list
+              }).toString();
+              const allRes = await fetch(`${API_BASE}/accounts?${allParams}`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+              });
+              if (allRes.ok) {
+                const allData = await allRes.json();
+                if (!allIds) {
+                  allIds = allData.allIds || (allData.accounts ? allData.accounts.map(a => a.accountId || a.id) : []);
+                }
+                if (!nestBus || nestBus.length === 0) {
+                  nestBus = allData.nestBus || (allData.accounts ? Array.from(new Set(allData.accounts.map(a => a.domain || a.industry).filter(Boolean))).sort() : []);
+                }
+                if (!regions || regions.length === 0) {
+                  regions = allData.regions || (allData.accounts ? Array.from(new Set(allData.accounts.map(a => a.region).filter(Boolean))).sort() : []);
+                }
+              }
+            } catch (fallbackErr) {
+              console.error('Fallback fetch all accounts metadata error:', fallbackErr);
+              if (!allIds) allIds = (data.accounts || []).map(a => a.accountId || a.id);
+              if (!nestBus) nestBus = Array.from(new Set((data.accounts || []).map(a => a.domain || a.industry).filter(Boolean))).sort();
+              if (!regions) regions = Array.from(new Set((data.accounts || []).map(a => a.region).filter(Boolean))).sort();
+            }
+          }
+        }
+
+        set(state => ({
           accounts: data.accounts,
           totalAccounts: data.total,
           currentPage: data.page,
           totalPages: data.totalPages,
+          allAccountIds: allIds || [],
+          nestBus: (nestBus && nestBus.length > 0) ? nestBus : state.nestBus,
+          regions: (regions && regions.length > 0) ? regions : state.regions,
           accountsLoading: false
-        });
+        }));
       }
     } catch (err) {
       console.error(err);
@@ -120,6 +259,7 @@ export const useStore = create((set, get) => ({
 
   addAccount: async (accountData) => {
     const token = get().token;
+    set({ accountsError: null });
     try {
       const res = await fetch(`${API_BASE}/accounts`, {
         method: 'POST',
@@ -135,15 +275,18 @@ export const useStore = create((set, get) => ({
         get().fetchDashboardStats();
         return true;
       }
+      set({ accountsError: data.error || 'Failed to create account.' });
       return false;
     } catch (err) {
       console.error(err);
+      set({ accountsError: err.message || 'Failed to create account.' });
       return false;
     }
   },
 
   updateAccount: async (id, updatedData) => {
     const token = get().token;
+    set({ accountsError: null });
     try {
       const res = await fetch(`${API_BASE}/accounts/${id}`, {
         method: 'PUT',
@@ -161,11 +304,29 @@ export const useStore = create((set, get) => ({
         get().fetchDashboardStats();
         return true;
       }
+      set({ accountsError: data.error || 'Failed to update account.' });
       return false;
     } catch (err) {
       console.error(err);
+      set({ accountsError: err.message || 'Failed to update account.' });
       return false;
     }
+  },
+
+  setAccountHealth: (id, healthScore, status, tier) => {
+    set(state => ({
+      accounts: (state.accounts || []).map(a => {
+        if ((a.accountId || a.id) === id) {
+          return {
+            ...a,
+            healthScore,
+            status: status || a.status,
+            tier: tier || a.tier
+          };
+        }
+        return a;
+      })
+    }));
   },
 
   deleteAccount: async (id) => {
@@ -177,7 +338,9 @@ export const useStore = create((set, get) => ({
       });
       if (res.ok) {
         set(state => ({
-          accounts: state.accounts.filter(a => a.accountId !== id)
+          accounts: state.accounts.filter(a => (a.accountId || a.id) !== id),
+          allAccountIds: (state.allAccountIds || []).filter(accId => accId !== id),
+          totalAccounts: Math.max(0, (state.totalAccounts || 0) - 1)
         }));
         get().fetchDashboardStats();
         return true;
@@ -189,9 +352,99 @@ export const useStore = create((set, get) => ({
     }
   },
 
+  bulkDeleteAccounts: async (ids) => {
+    const token = get().token;
+    try {
+      const res = await fetch(`${API_BASE}/accounts/bulk-delete`, {
+        method: 'POST',
+        headers: { 
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ ids })
+      });
+      if (res.ok) {
+        set(state => ({
+          accounts: state.accounts.filter(a => !ids.includes(a.accountId || a.id)),
+          allAccountIds: (state.allAccountIds || []).filter(accId => !ids.includes(accId)),
+          totalAccounts: Math.max(0, (state.totalAccounts || 0) - ids.length)
+        }));
+        get().fetchDashboardStats();
+        return true;
+      }
+      return false;
+    } catch (err) {
+      console.error(err);
+      return false;
+    }
+  },
+
+  suggestColumnMapping: async (headers, sampleRow) => {
+    const token = get().token;
+    try {
+      const res = await fetch(`${API_BASE}/ai/suggest-mapping`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ headers, sampleRow })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        return data.mapping;
+      }
+      return {};
+    } catch (err) {
+      console.error('Error getting mapping suggestions:', err);
+      return {};
+    }
+  },
+
+  bulkImportAccounts: async (records, preview = true) => {
+    const token = get().token;
+    try {
+      const res = await fetch(`${API_BASE}/accounts/bulk-import`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ records, preview })
+      });
+      const data = await res.json();
+      if (res.ok && !preview) {
+        get().fetchAccounts(1);
+        get().fetchDashboardStats();
+      }
+      return { ok: res.ok, data };
+    } catch (err) {
+      console.error('Error in bulk import:', err);
+      return { ok: false, data: { error: err.message } };
+    }
+  },
+
+  fetchHealthExplanation: async (accountId) => {
+    const token = get().token;
+    if (!token) return null;
+    try {
+      const res = await fetch(`${API_BASE}/accounts/${accountId}/health-explanation`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        return await res.json();
+      }
+      return null;
+    } catch (err) {
+      console.error('Error fetching health explanation:', err);
+      return null;
+    }
+  },
+
   // Contacts
   contacts: [],
   contactsLoading: false,
+  contactsError: null,
 
   fetchContacts: async (accountId = '') => {
     const token = get().token;
@@ -214,6 +467,7 @@ export const useStore = create((set, get) => ({
 
   addContact: async (contactData) => {
     const token = get().token;
+    set({ contactsError: null });
     try {
       const res = await fetch(`${API_BASE}/contacts`, {
         method: 'POST',
@@ -229,15 +483,18 @@ export const useStore = create((set, get) => ({
         get().fetchContacts(contactData.accountId);
         return true;
       }
+      set({ contactsError: data.error || 'Failed to create contact.' });
       return false;
     } catch (err) {
       console.error(err);
+      set({ contactsError: err.message || 'Failed to create contact.' });
       return false;
     }
   },
 
   updateContact: async (id, contactData) => {
     const token = get().token;
+    set({ contactsError: null });
     try {
       const res = await fetch(`${API_BASE}/contacts/${id}`, {
         method: 'PUT',
@@ -254,9 +511,11 @@ export const useStore = create((set, get) => ({
         }));
         return true;
       }
+      set({ contactsError: data.error || 'Failed to update contact.' });
       return false;
     } catch (err) {
       console.error(err);
+      set({ contactsError: err.message || 'Failed to update contact.' });
       return false;
     }
   },
@@ -270,14 +529,19 @@ export const useStore = create((set, get) => ({
       });
       if (res.ok) {
         set(state => ({
-          contacts: state.contacts.filter(c => c.contactId !== id)
+          contacts: state.contacts.filter(c => c.contactId !== id && c.id !== id)
         }));
         if (accountId) get().fetchContacts(accountId);
         return true;
+      } else {
+        const errorData = await res.json();
+        console.error("Delete contact failed:", errorData);
+        alert(`Failed to delete contact: ${errorData.error || 'Unknown error'}`);
+        return false;
       }
-      return false;
     } catch (err) {
-      console.error(err);
+      console.error("Network error deleting contact:", err);
+      alert(`Network error deleting contact: ${err.message}`);
       return false;
     }
   },
@@ -494,19 +758,31 @@ export const useStore = create((set, get) => ({
     const token = get().token;
     if (!token) return;
     try {
-      const res = await fetch(`${API_BASE}/auth/staff`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      const data = await res.json();
-      if (res.ok) {
-        set({ staffList: data });
-      }
+      const [resStaff, resUsers, resEmployees] = await Promise.all([
+        fetch(`${API_BASE}/auth/staff`, { headers: { 'Authorization': `Bearer ${token}` } }),
+        fetch(`${API_BASE}/auth/users`, { headers: { 'Authorization': `Bearer ${token}` } }),
+        fetch(`${API_BASE}/employees`, { headers: { 'Authorization': `Bearer ${token}` } })
+      ]);
+      let staffData = [];
+      let usersData = [];
+      let employeesData = [];
+      if (resStaff.ok) staffData = await resStaff.json();
+      if (resUsers.ok) usersData = await resUsers.json();
+      if (resEmployees.ok) employeesData = await resEmployees.json();
+      const combined = Array.from(
+        new Map([
+          ...(Array.isArray(staffData) ? staffData : []),
+          ...(Array.isArray(usersData) ? usersData : []),
+          ...(Array.isArray(employeesData) ? employeesData : [])
+        ].map(u => [u.uid || u.id || u.email?.toLowerCase(), u])).values()
+      );
+      set({ staffList: combined });
     } catch (err) {
       console.error(err);
     }
   },
 
-  // Users List (Admin Only)
+  // Users & Employees List
   usersList: [],
   usersLoading: false,
   fetchUsersList: async () => {
@@ -514,15 +790,25 @@ export const useStore = create((set, get) => ({
     if (!token) return;
     set({ usersLoading: true });
     try {
-      const res = await fetch(`${API_BASE}/auth/users`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      const data = await res.json();
-      if (res.ok) {
-        set({ usersList: data, usersLoading: false });
-      } else {
-        set({ usersLoading: false });
-      }
+      const [resUsers, resStaff, resEmployees] = await Promise.all([
+        fetch(`${API_BASE}/auth/users`, { headers: { 'Authorization': `Bearer ${token}` } }),
+        fetch(`${API_BASE}/auth/staff`, { headers: { 'Authorization': `Bearer ${token}` } }),
+        fetch(`${API_BASE}/employees`, { headers: { 'Authorization': `Bearer ${token}` } })
+      ]);
+      let usersData = [];
+      let staffData = [];
+      let employeesData = [];
+      if (resUsers.ok) usersData = await resUsers.json();
+      if (resStaff.ok) staffData = await resStaff.json();
+      if (resEmployees.ok) employeesData = await resEmployees.json();
+      const combined = Array.from(
+        new Map([
+          ...(Array.isArray(usersData) ? usersData : []),
+          ...(Array.isArray(staffData) ? staffData : []),
+          ...(Array.isArray(employeesData) ? employeesData : [])
+        ].map(u => [u.uid || u.id || u.email?.toLowerCase(), u])).values()
+      );
+      set({ usersList: combined, usersLoading: false });
     } catch (err) {
       console.error(err);
       set({ usersLoading: false });
@@ -653,6 +939,12 @@ export const useStore = create((set, get) => ({
             t.interactionId === interactionId
               ? { ...t, replyStatus: 'Replied', replies: [...(t.replies || []), data] }
               : t
+          ),
+          // Update interactions list with new reply
+          interactions: state.interactions.map(i =>
+            i.interactionId === interactionId
+              ? { ...i, replies: [...(i.replies || []), data] }
+              : i
           )
         }));
         get().fetchNotifications();
@@ -663,6 +955,419 @@ export const useStore = create((set, get) => ({
       console.error(err);
       return null;
     }
+  },
+
+  updateTaskStatus: async (interactionId, mentionUid, status, completionNote = '', forwardToUid = '', forwardToName = '', completionDate = null) => {
+    const token = get().token;
+    if (!token) return false;
+    try {
+      const res = await fetch(`${API_BASE}/interactions/${interactionId}/task-status`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ mentionUid, status, completionNote, forwardToUid, forwardToName, completionDate })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        set(state => ({
+          interactions: state.interactions.map(i => {
+            if (i.interactionId === interactionId) {
+              return { ...i, actionMentions: data.actionMentions || i.actionMentions };
+            }
+            return i;
+          }),
+          myTasks: state.myTasks.map(t => {
+            if (t.interactionId === interactionId) {
+              return { ...t, actionMentions: data.actionMentions || t.actionMentions };
+            }
+            return t;
+          })
+        }));
+        return true;
+      }
+      return false;
+    } catch (err) {
+      console.error('Error updating task status in store:', err);
+      return false;
+    }
+  },
+
+  // ── ACTIVITY LOGS ──
+  activityLogs: [],
+  activityLogsLoading: false,
+
+  fetchActivityLogs: async () => {
+    const token = get().token;
+    if (!token) return;
+    set({ activityLogsLoading: true });
+    try {
+      const res = await fetch(`${API_BASE}/activity-logs`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (res.ok) {
+        set({ activityLogs: data, activityLogsLoading: false });
+      } else {
+        set({ activityLogsLoading: false });
+      }
+    } catch (err) {
+      console.error('Error fetching activity logs:', err);
+      set({ activityLogsLoading: false });
+    }
+  },
+
+  // ── STAFF TASKS CRUD ──
+  staffTasks: [],
+  staffTasksLoading: false,
+
+  fetchStaffTasks: async (filter = 'all') => {
+    const token = get().token;
+    if (!token) return;
+    set({ staffTasksLoading: true });
+    try {
+      const res = await fetch(`${API_BASE}/tasks?filter=${filter}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (res.ok) {
+        set({ staffTasks: data, staffTasksLoading: false });
+      } else {
+        set({ staffTasksLoading: false });
+      }
+    } catch (err) {
+      console.error('Error fetching staff tasks:', err);
+      set({ staffTasksLoading: false });
+    }
+  },
+
+  createStaffTask: async (taskData) => {
+    const token = get().token;
+    if (!token) return { success: false, error: 'Authentication token missing' };
+    try {
+      const res = await fetch(`${API_BASE}/tasks`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(taskData)
+      });
+      const data = await res.json();
+      if (res.ok) {
+        set(state => ({ staffTasks: [data, ...(state.staffTasks || [])] }));
+        return { success: true, task: data, ...data };
+      }
+      return { success: false, error: data.error || 'Failed to create task' };
+    } catch (err) {
+      console.error('Error creating staff task:', err);
+      return { success: false, error: err.message || 'Error creating staff task' };
+    }
+  },
+
+  updateStaffTaskStatus: async (taskId, status, completionNote = '', note = '', forwardToUid = '', forwardToName = '') => {
+    const token = get().token;
+    if (!token) return false;
+    try {
+      const res = await fetch(`${API_BASE}/tasks/${taskId}/status`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ status, completionNote, note, forwardToUid, forwardToName })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        set(state => ({
+          staffTasks: state.staffTasks.map(t => {
+            if (t.taskId === taskId) {
+              const updated = {
+                ...t,
+                status: data.status,
+                assignedToUid: data.assignedToUid || t.assignedToUid,
+                assignedToName: data.assignedToName || t.assignedToName
+              };
+              if (completionNote !== undefined) {
+                updated.completionNote = completionNote;
+              }
+              return updated;
+            }
+            return t;
+          })
+        }));
+        return true;
+      }
+      return false;
+    } catch (err) {
+      console.error('Error updating staff task status:', err);
+      return false;
+    }
+  },
+
+  fetchStaffTaskReplies: async (taskId) => {
+    const token = get().token;
+    if (!token) return [];
+    try {
+      const res = await fetch(`${API_BASE}/tasks/${taskId}/replies`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (res.ok) {
+        return data;
+      }
+      return [];
+    } catch (err) {
+      console.error('Error fetching staff task replies:', err);
+      return [];
+    }
+  },
+
+  addStaffTaskReply: async (taskId, text) => {
+    const token = get().token;
+    if (!token) return null;
+    try {
+      const res = await fetch(`${API_BASE}/tasks/${taskId}/reply`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ text })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        return data;
+      }
+      return null;
+    } catch (err) {
+      console.error('Error adding staff task reply:', err);
+      return null;
+    }
+  },
+
+  generateTaskHeader: async (description) => {
+    const token = get().token;
+    if (!token) return null;
+    try {
+      const res = await fetch(`${API_BASE}/ai/generate-task-header`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ description })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        return data.header;
+      }
+      return null;
+    } catch (err) {
+      console.error('Error generating task header:', err);
+      return null;
+    }
+  },
+
+  fetchHREmployeeData: async (email) => {
+    const token = get().token;
+    if (!token) return null;
+    set({ hrEmployeeLoading: true, hrEmployeeError: null, hrEmployeeData: null });
+    try {
+      const res = await fetch(`${API_BASE}/employees/hr-data`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ email })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to fetch HR data');
+      set({ hrEmployeeData: data, hrEmployeeLoading: false });
+      return data;
+    } catch (err) {
+      console.error('Error fetching HR employee data:', err);
+      set({ hrEmployeeError: err.message, hrEmployeeLoading: false });
+      return null;
+    }
+  },
+
+  syncDirectoryWithHR: async () => {
+    const token = get().token;
+    if (!token) return { success: false, error: 'Authentication required' };
+    try {
+      const res = await fetch(`${API_BASE}/employees/sync`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      const data = await res.json();
+      if (res.ok) {
+        await get().fetchUsersList();
+        await get().fetchStaff();
+        return data;
+      }
+      return { success: false, error: data.error || 'Sync failed' };
+    } catch (err) {
+      console.error('Error syncing directory with HR:', err);
+      return { success: false, error: err.message };
+    }
+
+  },
+
+  // ─── Email Engine ─────────────────────────────────────────────────────────
+  emailEngineStats: null,
+  emailEngineStatsLoading: false,
+  emailQueue: [],
+  emailQueueLoading: false,
+  emailLogs: [],
+  emailLogsLoading: false,
+  emailTemplates: [],
+  notificationPreferences: null,
+
+  fetchEmailEngineStats: async () => {
+    const token = get().token;
+    if (!token) return;
+    set({ emailEngineStatsLoading: true });
+    try {
+      const res = await fetch(`${API_BASE}/email-engine/stats`, { headers: { 'Authorization': `Bearer ${token}` } });
+      const data = await res.json();
+      if (res.ok) set({ emailEngineStats: data });
+    } catch (err) { console.error('fetchEmailEngineStats:', err); }
+    finally { set({ emailEngineStatsLoading: false }); }
+  },
+
+  fetchEmailQueue: async (status = '') => {
+    const token = get().token;
+    if (!token) return;
+    set({ emailQueueLoading: true });
+    try {
+      const url = status ? `${API_BASE}/email-engine/queue?status=${status}` : `${API_BASE}/email-engine/queue`;
+      const res = await fetch(url, { headers: { 'Authorization': `Bearer ${token}` } });
+      const data = await res.json();
+      if (res.ok) set({ emailQueue: data });
+    } catch (err) { console.error('fetchEmailQueue:', err); }
+    finally { set({ emailQueueLoading: false }); }
+  },
+
+  fetchEmailLogs: async (filters = {}) => {
+    const token = get().token;
+    if (!token) return;
+    set({ emailLogsLoading: true });
+    try {
+      const params = new URLSearchParams(filters).toString();
+      const url = params ? `${API_BASE}/email-engine/logs?${params}` : `${API_BASE}/email-engine/logs`;
+      const res = await fetch(url, { headers: { 'Authorization': `Bearer ${token}` } });
+      const data = await res.json();
+      if (res.ok) set({ emailLogs: data });
+    } catch (err) { console.error('fetchEmailLogs:', err); }
+    finally { set({ emailLogsLoading: false }); }
+  },
+
+  fetchEmailTemplates: async () => {
+    const token = get().token;
+    if (!token) return;
+    try {
+      const res = await fetch(`${API_BASE}/email-engine/templates`, { headers: { 'Authorization': `Bearer ${token}` } });
+      const data = await res.json();
+      if (res.ok) set({ emailTemplates: data });
+    } catch (err) { console.error('fetchEmailTemplates:', err); }
+  },
+
+  retryEmail: async (queueId) => {
+    const token = get().token;
+    if (!token) return false;
+    try {
+      const res = await fetch(`${API_BASE}/email-engine/retry/${queueId}`, { method: 'POST', headers: { 'Authorization': `Bearer ${token}` } });
+      return res.ok;
+    } catch (err) { return false; }
+  },
+
+  retryAllEmails: async () => {
+    const token = get().token;
+    if (!token) return null;
+    try {
+      const res = await fetch(`${API_BASE}/email-engine/retry-all`, { method: 'POST', headers: { 'Authorization': `Bearer ${token}` } });
+      return await res.json();
+    } catch (err) { return null; }
+  },
+
+  cancelQueuedEmail: async (queueId) => {
+    const token = get().token;
+    if (!token) return false;
+    try {
+      const res = await fetch(`${API_BASE}/email-engine/queue/${queueId}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } });
+      return res.ok;
+    } catch (err) { return false; }
+  },
+
+  bulkCancelEmails: async () => {
+    const token = get().token;
+    if (!token) return null;
+    try {
+      const res = await fetch(`${API_BASE}/email-engine/bulk-cancel`, { method: 'POST', headers: { 'Authorization': `Bearer ${token}` } });
+      return await res.json();
+    } catch (err) { return null; }
+  },
+
+  previewEmailTemplate: async (templateId) => {
+    const token = get().token;
+    if (!token) return null;
+    try {
+      const res = await fetch(`${API_BASE}/email-engine/templates/${templateId}/preview`, { headers: { 'Authorization': `Bearer ${token}` } });
+      return res.ok ? await res.json() : null;
+    } catch (err) { return null; }
+  },
+
+  fetchNotificationPreferences: async (uid) => {
+    const token = get().token;
+    if (!token) return null;
+    try {
+      const res = await fetch(`${API_BASE}/email-engine/preferences/${uid}`, { headers: { 'Authorization': `Bearer ${token}` } });
+      const data = await res.json();
+      if (res.ok) { set({ notificationPreferences: data }); return data; }
+      return null;
+    } catch (err) { return null; }
+  },
+
+  updateNotificationPreferences: async (uid, updates) => {
+    const token = get().token;
+    if (!token) return false;
+    try {
+      const res = await fetch(`${API_BASE}/email-engine/preferences/${uid}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify(updates)
+      });
+      const data = await res.json();
+      if (res.ok) { set({ notificationPreferences: data }); return true; }
+      return false;
+    } catch (err) { return false; }
+  },
+
+  sendTestEmail: async (templateId, recipientUid) => {
+    const token = get().token;
+    if (!token) return false;
+    try {
+      const res = await fetch(`${API_BASE}/email-engine/test`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ templateId, recipientUid })
+      });
+      return res.ok;
+    } catch (err) { return false; }
+  },
+
+  fetchSmtpStatus: async () => {
+    const token = get().token;
+    if (!token) return null;
+    try {
+      const res = await fetch(`${API_BASE}/email-engine/smtp-status`, { headers: { 'Authorization': `Bearer ${token}` } });
+      return res.ok ? await res.json() : null;
+    } catch (err) { return null; }
   }
 }));
-

@@ -1,12 +1,24 @@
 import React, { useState, useEffect } from 'react';
-import { Building2, UserPlus, ArrowRight, ArrowLeft } from 'lucide-react';
+import { Building2, UserPlus, ArrowRight, ArrowLeft, ChevronLeft } from 'lucide-react';
 import { useStore } from '../store/index.js';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useLocation } from 'react-router-dom';
+import LoadingSpinner from '../components/LoadingSpinner.jsx';
 
 export default function EditAccount() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { id } = useParams();
   const { token, updateAccount } = useStore();
+
+  const handleBack = () => {
+    if (location.state?.from) {
+      navigate(location.state.from);
+    } else if (window.history.length > 1) {
+      navigate(-1);
+    } else {
+      navigate(`/accounts/${id}`);
+    }
+  };
 
   // Company Information
   const [companyName, setCompanyName] = useState('');
@@ -15,13 +27,14 @@ export default function EditAccount() {
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [ceoName, setCeoName] = useState('');
-  const [domain, setDomain] = useState('');
+  const [domain, setDomain] = useState('Aerospace and Defence');
 
   // Stakeholder Details (Hierarchical Projects)
   const [projects, setProjects] = useState([
     {
       projectName: '',
-      projectIndustry: 'Technology',
+      projectIndustry: '',
+      projectType: 'Development',
       employees: [
         {
           name: '',
@@ -40,7 +53,25 @@ export default function EditAccount() {
   const [isLoading, setIsLoading] = useState(true);
 
   const industries = ['Technology', 'Finance', 'Logistics', 'Healthcare', 'Manufacturing', 'Retail'];
-  const regions = ['North America', 'Europe', 'Asia Pacific', 'Latin America', 'Middle East'];
+  const regions = ['USA', 'UK', 'Germany', 'Singapore', 'India', 'UAE'];
+  const nestBus = [
+    'Aerospace and Defence',
+    'Banking & Financial Service (BFS)',
+    'Healthcare',
+    'Insurance',
+    'Locomotive',
+    'Industrial',
+    'Automotive',
+    'Logistics & Supply Chain'
+  ];
+  const projectTypes = [
+    'Development',
+    'Support & Maintenance',
+    'Testing & QA',
+    'Consulting',
+    'R&D',
+    'Implementation'
+  ];
 
   // Fetch account and contact details on load
   useEffect(() => {
@@ -49,7 +80,7 @@ export default function EditAccount() {
       try {
         setIsLoading(true);
         // Fetch account profile
-        const accRes = await fetch(`http://localhost:5000/api/accounts/${id}`, {
+        const accRes = await fetch(`/CustomerPulse/api/accounts/${id}`, {
           headers: { 'Authorization': `Bearer ${token}` }
         });
         if (!accRes.ok) {
@@ -66,7 +97,7 @@ export default function EditAccount() {
         setDomain(accData.domain || '');
 
         // Fetch contacts
-        const conRes = await fetch(`http://localhost:5000/api/contacts?accountId=${id}`, {
+        const conRes = await fetch(`/CustomerPulse/api/contacts?accountId=${id}`, {
           headers: { 'Authorization': `Bearer ${token}` }
         });
         if (conRes.ok) {
@@ -76,13 +107,15 @@ export default function EditAccount() {
           
           conData.forEach(c => {
             const pName = c.projectName || '';
-            const pInd = c.projectIndustry || 'Technology';
-            const key = `${pName}::${pInd}`;
+            const pInd = c.projectIndustry || '';
+            const pType = c.projectType || 'Development';
+            const key = `${pName}::${pInd}::${pType}`;
             
             if (!projectMap[key]) {
               projectMap[key] = {
                 projectName: pName,
                 projectIndustry: pInd,
+                projectType: pType,
                 employees: []
               };
             }
@@ -117,7 +150,8 @@ export default function EditAccount() {
   const addProject = () => {
     setProjects([...projects, {
       projectName: '',
-      projectIndustry: 'Technology',
+      projectIndustry: '',
+      projectType: 'Development',
       employees: [
         {
           name: '',
@@ -168,8 +202,32 @@ export default function EditAccount() {
     setProjects(newProjects);
   };
 
+  const [formError, setFormError] = useState('');
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setFormError('');
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const phoneRegex = /^[\+\d\s\-\(\)\.]{7,25}$/;
+
+    if (!companyName.trim()) {
+      setFormError('Company Name is required.');
+      return;
+    }
+    if (companyName.trim().length < 2) {
+      setFormError('Company Name must be at least 2 characters.');
+      return;
+    }
+    if (!email.trim() || !emailRegex.test(email.trim())) {
+      setFormError('Please enter a valid corporate Email address.');
+      return;
+    }
+    if (phone.trim() && !phoneRegex.test(phone.trim())) {
+      setFormError('Please enter a valid Phone number format.');
+      return;
+    }
+
     setIsSubmitting(true);
     
     // Flatten projects -> employees into flat contacts list
@@ -185,6 +243,7 @@ export default function EditAccount() {
           department: emp.department,
           projectName: proj.projectName,
           projectIndustry: proj.projectIndustry,
+          projectType: proj.projectType || 'Development',
           hierarchyTag: emp.hierarchyTag,
           influenceTag: emp.influenceTag
         });
@@ -205,30 +264,33 @@ export default function EditAccount() {
     setIsSubmitting(false);
 
     if (success) {
-      navigate('/accounts');
+      handleBack();
     } else {
-      alert("Failed to update account. Please try again.");
+      const errorMsg = useStore.getState().accountsError || "Failed to update account. Please try again.";
+      alert(errorMsg);
     }
   };
 
   if (isLoading) {
     return (
       <div className="h-[calc(100vh-10rem)] flex items-center justify-center">
-        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary"></div>
+        <LoadingSpinner size="lg" text="Loading account details..." />
       </div>
     );
   }
 
   return (
-    <div className="max-w-4xl mx-auto py-8 px-4 h-[calc(100vh-10rem)] overflow-y-auto animate-soft-pulse duration-1000">
+    <div className="max-w-7xl mx-auto py-8 px-4 h-auto animate-soft-pulse duration-1000">
       
       {/* Header */}
       <div className="flex items-center gap-4 mb-8">
         <button 
-          onClick={() => navigate('/accounts')}
-          className="p-2 rounded-xl bg-dark-900/40 border border-slate-800 hover:bg-slate-800/60 text-slate-400 hover:text-white transition-all"
+          type="button"
+          onClick={handleBack}
+          className="back-btn"
         >
-          <ArrowLeft className="w-5 h-5" />
+          <ChevronLeft className="w-5 h-5" strokeWidth={2.5} />
+          <span>Back</span>
         </button>
         <div>
           <h1 className="text-2xl font-bold text-white tracking-wide flex items-center gap-3">
@@ -251,7 +313,7 @@ export default function EditAccount() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-2">
-              <label className="text-[10px] text-slate-400 uppercase font-semibold">Company Name *</label>
+              <label className="text-xs text-slate-400 uppercase font-semibold">Company Name *</label>
               <input 
                 type="text" 
                 required
@@ -263,7 +325,7 @@ export default function EditAccount() {
             </div>
 
             <div className="space-y-2">
-              <label className="text-[10px] text-slate-400 uppercase font-semibold">CEO Name</label>
+              <label className="text-xs text-slate-400 uppercase font-semibold">CEO Name</label>
               <input 
                 type="text" 
                 value={ceoName}
@@ -274,7 +336,7 @@ export default function EditAccount() {
             </div>
 
             <div className="space-y-2">
-              <label className="text-[10px] text-slate-400 uppercase font-semibold">General Email</label>
+              <label className="text-xs text-slate-400 uppercase font-semibold">General Email</label>
               <input 
                 type="email" 
                 value={email}
@@ -285,7 +347,7 @@ export default function EditAccount() {
             </div>
 
             <div className="space-y-2">
-              <label className="text-[10px] text-slate-400 uppercase font-semibold">Corporate Phone</label>
+              <label className="text-xs text-slate-400 uppercase font-semibold">Corporate Phone</label>
               <input 
                 type="text" 
                 value={phone}
@@ -296,7 +358,7 @@ export default function EditAccount() {
             </div>
 
             <div className="space-y-2">
-              <label className="text-[10px] text-slate-400 uppercase font-semibold">Industry</label>
+              <label className="text-xs text-slate-400 uppercase font-semibold">Industry</label>
               <select 
                 value={industry}
                 onChange={e => setIndustry(e.target.value)}
@@ -307,7 +369,7 @@ export default function EditAccount() {
             </div>
 
             <div className="space-y-2">
-              <label className="text-[10px] text-slate-400 uppercase font-semibold">Region</label>
+              <label className="text-xs text-slate-400 uppercase font-semibold">Location</label>
               <select 
                 value={region}
                 onChange={e => setRegion(e.target.value)}
@@ -318,14 +380,14 @@ export default function EditAccount() {
             </div>
 
             <div className="space-y-2">
-              <label className="text-[10px] text-slate-400 uppercase font-semibold">Domain</label>
-              <input 
-                type="text" 
+              <label className="text-xs text-slate-400 uppercase font-semibold">NeST BU</label>
+              <select 
                 value={domain}
                 onChange={e => setDomain(e.target.value)}
-                className="w-full bg-dark-950/60 border border-slate-800 focus:border-primary/50 text-sm text-white rounded-xl p-3 focus:outline-none transition-colors"
-                placeholder="e.g. acme.com"
-              />
+                className="w-full bg-dark-950/60 border border-slate-800 focus:border-primary/50 text-sm text-white rounded-xl p-3 focus:outline-none cursor-pointer transition-colors appearance-none"
+              >
+                {nestBus.map(bu => <option key={bu} value={bu}>{bu}</option>)}
+              </select>
             </div>
           </div>
         </div>
@@ -370,12 +432,11 @@ export default function EditAccount() {
                 <h3 className="text-xs font-bold text-slate-400 mb-2">Project {pIndex + 1}</h3>
 
                 {/* Project level inputs */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pb-4 border-b border-slate-800/40">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pb-4 border-b border-slate-800/40">
                   <div className="space-y-2">
-                    <label className="text-[10px] text-slate-400 uppercase font-semibold">Project Name Details *</label>
+                    <label className="text-xs text-slate-400 uppercase font-semibold">Project Name</label>
                     <input 
                       type="text" 
-                      required
                       value={project.projectName}
                       onChange={e => updateProjectField(pIndex, 'projectName', e.target.value)}
                       className="w-full bg-dark-950/60 border border-slate-800 focus:border-blue-500/50 text-sm text-white rounded-xl p-3 focus:outline-none transition-colors"
@@ -384,13 +445,24 @@ export default function EditAccount() {
                   </div>
 
                   <div className="space-y-2">
-                    <label className="text-[10px] text-slate-400 uppercase font-semibold">Project Industry</label>
-                    <select 
+                    <label className="text-xs text-slate-400 uppercase font-semibold">Project Description</label>
+                    <input 
+                      type="text" 
                       value={project.projectIndustry}
                       onChange={e => updateProjectField(pIndex, 'projectIndustry', e.target.value)}
+                      className="w-full bg-dark-950/60 border border-slate-800 focus:border-blue-500/50 text-sm text-white rounded-xl p-3 focus:outline-none transition-colors"
+                      placeholder="e.g. Migration of critical database services"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-xs text-slate-400 uppercase font-semibold">Project Type</label>
+                    <select
+                      value={project.projectType || 'Development'}
+                      onChange={e => updateProjectField(pIndex, 'projectType', e.target.value)}
                       className="w-full bg-dark-950/60 border border-slate-800 focus:border-blue-500/50 text-sm text-white rounded-xl p-3 focus:outline-none cursor-pointer transition-colors appearance-none"
                     >
-                      {industries.map(ind => <option key={ind} value={ind}>{ind}</option>)}
+                      {projectTypes.map(type => <option key={type} value={type}>{type}</option>)}
                     </select>
                   </div>
                 </div>
@@ -398,11 +470,11 @@ export default function EditAccount() {
                 {/* Employees sub-section */}
                 <div className="space-y-4">
                   <div className="flex justify-between items-center">
-                    <h4 className="text-[11px] font-bold text-blue-400/80 uppercase tracking-wide">Project Employees ({project.employees.length})</h4>
+                    <h4 className="text-xs font-bold text-blue-400/80 uppercase tracking-wide">Project Employees ({project.employees.length})</h4>
                     <button 
                       type="button"
                       onClick={() => addEmployee(pIndex)}
-                      className="px-3 py-1.5 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 rounded-lg text-[10px] font-bold transition-all border border-blue-500/20 hover:border-blue-500/50 flex items-center gap-1"
+                      className="px-3 py-1.5 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 rounded-lg text-xs font-bold transition-all border border-blue-500/20 hover:border-blue-500/50 flex items-center gap-1"
                     >
                       <UserPlus className="w-3.5 h-3.5" />
                       Add Employee
@@ -418,17 +490,17 @@ export default function EditAccount() {
                           <button 
                             type="button" 
                             onClick={() => removeEmployee(pIndex, eIndex)}
-                            className="absolute top-3 right-3 text-slate-655 hover:text-red-400 transition-colors text-[10px] font-bold uppercase"
+                            className="absolute top-3 right-3 text-slate-655 hover:text-red-400 transition-colors text-xs font-bold uppercase"
                           >
                             Remove Employee
                           </button>
                         )}
 
-                        <span className="text-[10px] font-bold text-slate-500">Employee {eIndex + 1}</span>
+                        <span className="text-xs font-bold text-slate-500">Employee {eIndex + 1}</span>
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           <div className="space-y-1">
-                            <label className="text-[9px] text-slate-400 uppercase font-semibold">Employee Name</label>
+                            <label className="text-xs text-slate-400 uppercase font-semibold">Employee Name</label>
                             <input 
                               type="text" 
                               required
@@ -440,7 +512,7 @@ export default function EditAccount() {
                           </div>
 
                           <div className="space-y-1">
-                            <label className="text-[9px] text-slate-400 uppercase font-semibold">Position / Role</label>
+                            <label className="text-xs text-slate-400 uppercase font-semibold">Position / Role</label>
                             <input 
                               type="text" 
                               value={employee.position}
@@ -451,7 +523,7 @@ export default function EditAccount() {
                           </div>
 
                           <div className="space-y-1">
-                            <label className="text-[9px] text-slate-400 uppercase font-semibold">Direct Email</label>
+                            <label className="text-xs text-slate-400 uppercase font-semibold">Direct Email</label>
                             <input 
                               type="email" 
                               value={employee.email}
@@ -462,7 +534,7 @@ export default function EditAccount() {
                           </div>
 
                           <div className="space-y-1">
-                            <label className="text-[9px] text-slate-400 uppercase font-semibold">Direct Phone</label>
+                            <label className="text-xs text-slate-400 uppercase font-semibold">Direct Phone</label>
                             <input 
                               type="text" 
                               value={employee.phone}
@@ -473,7 +545,7 @@ export default function EditAccount() {
                           </div>
 
                           <div className="space-y-1">
-                            <label className="text-[9px] text-slate-400 uppercase font-semibold">Department</label>
+                            <label className="text-xs text-slate-400 uppercase font-semibold">Department</label>
                             <input 
                               type="text" 
                               value={employee.department}
@@ -484,7 +556,7 @@ export default function EditAccount() {
                           </div>
 
                           <div className="space-y-1">
-                            <label className="text-[9px] text-slate-400 uppercase font-semibold">Hierarchy Tag</label>
+                            <label className="text-xs text-slate-400 uppercase font-semibold">Hierarchy Tag</label>
                             <select
                               value={employee.hierarchyTag || 'Staff'}
                               onChange={e => updateEmployeeField(pIndex, eIndex, 'hierarchyTag', e.target.value)}
@@ -499,7 +571,7 @@ export default function EditAccount() {
                           </div>
 
                           <div className="space-y-1 md:col-span-2">
-                            <label className="text-[9px] text-slate-400 uppercase font-semibold">Influence Tag</label>
+                            <label className="text-xs text-slate-400 uppercase font-semibold">Influence Tag</label>
                             <select
                               value={employee.influenceTag || 'Observer'}
                               onChange={e => updateEmployeeField(pIndex, eIndex, 'influenceTag', e.target.value)}
@@ -528,24 +600,24 @@ export default function EditAccount() {
             <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Stakeholder Influence Tags Guide</h4>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
               <div className="bg-dark-950/30 p-3 rounded-xl border border-slate-850 space-y-1">
-                <span className="text-[10px] font-black uppercase text-primary tracking-wide">Decision Maker</span>
-                <p className="text-[10px] text-slate-400 leading-normal">Final sign-off authority for budget, contracts, and renewals.</p>
+                <span className="text-xs font-black uppercase text-primary tracking-wide">Decision Maker</span>
+                <p className="text-xs text-slate-400 leading-normal">Final sign-off authority for budget, contracts, and renewals.</p>
               </div>
               <div className="bg-dark-950/30 p-3 rounded-xl border border-slate-850 space-y-1">
-                <span className="text-[10px] font-black uppercase text-indigo-400 tracking-wide">Influencer</span>
-                <p className="text-[10px] text-slate-400 leading-normal">Shapes technical standards and vendor evaluations.</p>
+                <span className="text-xs font-black uppercase text-indigo-400 tracking-wide">Influencer</span>
+                <p className="text-xs text-slate-400 leading-normal">Shapes technical standards and vendor evaluations.</p>
               </div>
               <div className="bg-dark-950/30 p-3 rounded-xl border border-slate-850 space-y-1">
-                <span className="text-[10px] font-black uppercase text-emerald-400 tracking-wide">Champion</span>
-                <p className="text-[10px] text-slate-400 leading-normal">Advocates for our platform and drives internal adoption.</p>
+                <span className="text-xs font-black uppercase text-emerald-400 tracking-wide">Champion</span>
+                <p className="text-xs text-slate-400 leading-normal">Advocates for our platform and drives internal adoption.</p>
               </div>
               <div className="bg-dark-950/30 p-3 rounded-xl border border-slate-850 space-y-1">
-                <span className="text-[10px] font-black uppercase text-amber-400 tracking-wide">Gatekeeper</span>
-                <p className="text-[10px] text-slate-400 leading-normal">Controls access to decision makers and critical data.</p>
+                <span className="text-xs font-black uppercase text-amber-400 tracking-wide">Gatekeeper</span>
+                <p className="text-xs text-slate-400 leading-normal">Controls access to decision makers and critical data.</p>
               </div>
               <div className="bg-dark-950/30 p-3 rounded-xl border border-slate-850 space-y-1">
-                <span className="text-[10px] font-black uppercase text-slate-400 tracking-wide">Observer</span>
-                <p className="text-[10px] text-slate-400 leading-normal">Monitors relationship with minimal transaction influence.</p>
+                <span className="text-xs font-black uppercase text-slate-400 tracking-wide">Observer</span>
+                <p className="text-xs text-slate-400 leading-normal">Monitors relationship with minimal transaction influence.</p>
               </div>
             </div>
           </div>
@@ -555,7 +627,7 @@ export default function EditAccount() {
         <div className="flex items-center justify-end gap-4 pt-4 pb-12">
           <button 
             type="button"
-            onClick={() => navigate('/accounts')}
+            onClick={handleBack}
             className="px-6 py-3 rounded-xl text-sm font-bold text-slate-400 hover:text-white hover:bg-slate-800/50 transition-all"
           >
             Cancel
@@ -566,7 +638,7 @@ export default function EditAccount() {
             className="px-8 py-3 bg-primary hover:bg-blue-600 text-white text-sm font-bold rounded-xl shadow-lg shadow-primary/20 active:scale-98 transition-all flex items-center gap-2 disabled:opacity-70"
           >
             {isSubmitting ? (
-              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+              <LoadingSpinner size="xs" color="white" />
             ) : (
               <>
                 Save Changes
