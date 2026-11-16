@@ -147,15 +147,7 @@ router.post('/sync', async (req, res) => {
     // 2. BFS Traversal Loop (gracefully skips if external HR API is offline or returns consecutive errors)
     while (emailQueue.size > 0) {
       if (consecutiveFailures >= 3) {
-        console.log('[HR Crawl] HR API returned consecutive errors or is currently unavailable. Preserving existing database records.');
-        break;
-      }
-
-    // 2. BFS Traversal Loop
-    let consecutiveErrors = 0;
-    while (emailQueue.size > 0) {
-      if (consecutiveErrors >= 3) {
-        console.warn('⚠️ [HR Crawl] External HR REST API appears unreachable (multiple 404s/errors). Relying on primary Sentrifugo database sync.');
+        console.warn('⚠️ [HR Crawl] External HR REST API appears unreachable (multiple consecutive failures). Preserving existing database records.');
         break;
       }
       const email = Array.from(emailQueue)[0];
@@ -168,7 +160,6 @@ router.post('/sync', async (req, res) => {
         
         if (result && result.success && result.data) {
           consecutiveFailures = 0;
-          consecutiveErrors = 0;
           const hr = result.data;
           
           const name = typeof hr["Employee Name"] === 'string' ? hr["Employee Name"] : '';
@@ -231,7 +222,6 @@ router.post('/sync', async (req, res) => {
         }
       } catch (err) {
         consecutiveFailures++;
-        consecutiveErrors++;
         console.error(`[HR Crawl] Failed to process ${email}:`, err.message);
       }
     }
