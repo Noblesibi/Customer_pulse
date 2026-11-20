@@ -1,13 +1,19 @@
 import { Router } from 'express';
 import { db, logActivity } from '../config/database.js';
-import { authenticateToken, requireRole } from '../middleware/auth.middleware.js';
+import { authenticateToken, requireRole, canUserAccessAccount } from '../middleware/auth.middleware.js';
 import { calculateAccountHealth, getAccountHealthExplanation } from '../services/health.service.js';
 import { runScoringEngine } from '../services/scoringEngine.service.js';
 import { runRiskEngine } from '../services/riskEngine.service.js';
 import { NotificationEngine } from '../services/notification/NotificationEngine.js';
 import { getSystemDateString, getSystemTimeString } from '../utils/dateUtils.js';
 import { generateNextBestActions } from '../services/nba.service.js';
-import { sendNewAccountsTechTeamNotification } from '../services/email.service.js';
+import {
+  recalculateEligibleOrganizers,
+  processPolicySyncQueue,
+  buildEmployeeDirectoryIndex,
+  matchOwnerReferenceToEmployee,
+} from '../services/organizerSync.service.js';
+import { syncTeamsMeetingsForOrganizer } from '../services/teamsSync.service.js';
 
 const router = Router();
 
@@ -21,7 +27,7 @@ router.use(authenticateToken);
 router.get('/', async (req, res) => {
   try {
     const { search, industry, region, status, page = 1, limit = 10 } = req.query;
-    
+
     // Fetch all accounts to filter in memory (or query directly if needed)
     const snapshot = await db.collection('accounts').get();
     let accounts = snapshot.docs.map(doc => doc.data());
@@ -119,12 +125,12 @@ router.put('/:id/journey', async (req, res) => {
   const { id } = req.params;
   const { journeyStage, reason = '', triggerType = 'manual', fromStage } = req.body;
   if (!journeyStage) return res.status(400).json({ error: 'journeyStage is required' });
-  
+
   try {
     const accRef = db.collection('accounts').doc(id);
     const doc = await accRef.get();
     if (!doc.exists) return res.status(404).json({ error: 'Account not found' });
-    
+
     const prevData = doc.data();
     const prevStage = fromStage || prevData.journeyStage || 'Awareness';
     const nowIso = new Date().toISOString();
@@ -137,7 +143,7 @@ router.put('/:id/journey', async (req, res) => {
       journeyTrigger: triggerType,
       ...(isManualAction ? { journeyManualOverrideAt: nowIso } : {})
     };
-    
+
     try {
       await accRef.update(richUpdates);
     } catch (colErr) {
@@ -248,12 +254,12 @@ router.get('/:id', async (req, res) => {
         }
       }
     }
-    
+
     // Fetch active risk flags
     try {
       const flagsSnap = await db.collection('risk_flags').where('account_id', '==', id).get();
       data.activeFlags = flagsSnap.docs.map(d => d.data()).filter(f => ['active', 'acknowledged', 'snoozed'].includes(f.status));
-    } catch(e) { data.activeFlags = []; }
+    } catch (e) { data.activeFlags = []; }
 
     // Fetch account overrides
     try {
@@ -268,10 +274,10 @@ router.get('/:id', async (req, res) => {
           if (!data.journeyReason && latestJh.reason) data.journeyReason = latestJh.reason;
           if (!data.journeyTrigger && latestJh.triggerType) data.journeyTrigger = latestJh.triggerType;
         }
-      } catch(e) { data.journeyHistory = []; }
+      } catch (e) { data.journeyHistory = []; }
       const overridesSnap = await db.collection('account_scoring_overrides').where('account_id', '==', id).get();
       data.scoringOverrides = overridesSnap.docs.map(d => d.data());
-    } catch(e) { data.scoringOverrides = []; }
+    } catch (e) { data.scoringOverrides = []; }
 
     return res.json(data);
   } catch (error) {
@@ -336,14 +342,14 @@ router.post('/', (req, res, next) => {
     // Check if any incoming employee already exists in another company
     const contactsSnap = await db.collection('contacts').get();
     const existingContacts = contactsSnap.docs.map(doc => doc.data());
-    
+
     const incomingContactNames = [];
     if (contacts && Array.isArray(contacts)) {
       contacts.forEach(c => { if (c.name) incomingContactNames.push(c.name); });
     } else if (contactName) {
       incomingContactNames.push(contactName);
     }
-    
+
     for (const name of incomingContactNames) {
       const duplicate = existingContacts.find(c => c.name && c.name.toLowerCase().trim() === name.toLowerCase().trim());
       if (duplicate) {
@@ -353,22 +359,37 @@ router.post('/', (req, res, next) => {
       }
     }
 
+    const usersSnapForOwner = await db.collection('users').get();
+    const allUsersList = usersSnapForOwner.docs.map(d => ({ uid: d.id, ...d.data() }));
+    const adminCorpEmail = (process.env.MICROSOFT_TEST_MAILBOX || 'amina.rashad@nestgroup.net').trim().toLowerCase();
+    const adminCorpUser = allUsersList.find(u => (u.email || '').trim().toLowerCase() === adminCorpEmail);
+
     let finalOwnerId = ownerId || req.user.uid;
+    if (finalOwnerId === 'mock-admin-uid' && adminCorpUser) {
+      finalOwnerId = adminCorpUser.uid;
+    }
+
     let finalOwnerName = ownerName;
-    let finalOwnerEmail = '';
-    if (ownerId) {
-      const ownerUserDoc = await db.collection('users').doc(ownerId).get();
-      if (ownerUserDoc.exists) {
-        const ownerData = ownerUserDoc.data();
-        if (!finalOwnerName) finalOwnerName = ownerData.name;
-        finalOwnerEmail = ownerData.email || '';
-      }
+    let finalOwnerEmail = req.body.ownerEmail || '';
+    let finalOwnerEmployeeId = req.body.ownerEmployeeId || null;
+
+    const matchedOwnerUser =
+      allUsersList.find(u => u.uid === finalOwnerId) ||
+      (finalOwnerEmail && allUsersList.find(u => (u.email || '').trim().toLowerCase() === finalOwnerEmail.trim().toLowerCase())) ||
+      (finalOwnerName && allUsersList.find(u => (u.name || '').trim().toLowerCase() === finalOwnerName.trim().toLowerCase())) ||
+      null;
+
+    if (matchedOwnerUser) {
+      finalOwnerId = matchedOwnerUser.uid;
+      finalOwnerName = matchedOwnerUser.name || finalOwnerName;
+      finalOwnerEmail = matchedOwnerUser.email || finalOwnerEmail;
+      finalOwnerEmployeeId = matchedOwnerUser.employeeId || finalOwnerEmployeeId;
     }
     if (!finalOwnerName) {
       finalOwnerName = req.user.name || 'System User';
     }
     if (!finalOwnerEmail && (!ownerId || ownerId === req.user.uid)) {
-      finalOwnerEmail = req.user.email || '';
+      finalOwnerEmail = (req.user.email === 'admin@pulse.com' && adminCorpUser) ? adminCorpUser.email : (req.user.email || '');
     }
 
     const accountId = 'acc-' + Math.random().toString(36).substring(2, 11);
@@ -384,9 +405,12 @@ router.post('/', (req, res, next) => {
       projectName: '',
       healthScore: 70, // baseline
       status: 'Warning',
+      isActive: true,
       journeyStage: 'Awareness', // P2-F05
       ownerId: finalOwnerId,
       ownerName: finalOwnerName,
+      ownerEmail: finalOwnerEmail,
+      ownerEmployeeId: finalOwnerEmployeeId,
       createdAt: new Date().toISOString()
     };
 
@@ -412,16 +436,28 @@ router.post('/', (req, res, next) => {
         if (contact.name) {
           const contactId = 'con-' + Math.random().toString(36).substring(2, 11);
           let cOwnerId = contact.ownerId || finalOwnerId;
+          if (cOwnerId === 'mock-admin-uid' && adminCorpUser) {
+            cOwnerId = adminCorpUser.uid;
+          }
           let cOwnerName = contact.ownerName;
-          if (contact.ownerId && !contact.ownerName) {
-            const ownerUserDoc = await db.collection('users').doc(contact.ownerId).get();
-            if (ownerUserDoc.exists) {
-              cOwnerName = ownerUserDoc.data().name;
-            }
+          let cOwnerEmail = contact.ownerEmail || '';
+          let cOwnerEmployeeId = contact.ownerEmployeeId || null;
+
+          const matchedContactOwner =
+            allUsersList.find(u => u.uid === cOwnerId) ||
+            (cOwnerEmail && allUsersList.find(u => (u.email || '').trim().toLowerCase() === cOwnerEmail.trim().toLowerCase())) ||
+            (cOwnerName && allUsersList.find(u => (u.name || '').trim().toLowerCase() === cOwnerName.trim().toLowerCase())) ||
+            null;
+
+          if (matchedContactOwner) {
+            cOwnerId = matchedContactOwner.uid;
+            cOwnerName = matchedContactOwner.name || cOwnerName;
+            cOwnerEmail = matchedContactOwner.email || cOwnerEmail;
+            cOwnerEmployeeId = matchedContactOwner.employeeId || cOwnerEmployeeId;
           }
-          if (!cOwnerName) {
-            cOwnerName = finalOwnerName;
-          }
+          if (!cOwnerName) cOwnerName = finalOwnerName;
+          if (!cOwnerEmail) cOwnerEmail = finalOwnerEmail;
+          if (!cOwnerEmployeeId) cOwnerEmployeeId = finalOwnerEmployeeId;
 
           const newContact = {
             contactId,
@@ -436,8 +472,13 @@ router.post('/', (req, res, next) => {
             projectType: contact.projectType || '',
             hierarchyTag: contact.hierarchyTag || 'Staff',
             influenceTag: contact.influenceTag || 'Observer',
+            keyContact: contact.keyContact !== undefined ? String(contact.keyContact) : 'Yes',
+            isActive: true,
+            status: 'Active',
             ownerId: cOwnerId,
             ownerName: cOwnerName,
+            ownerEmail: cOwnerEmail,
+            ownerEmployeeId: cOwnerEmployeeId,
             createdAt: new Date().toISOString()
           };
           await db.collection('contacts').doc(contactId).set(newContact);
@@ -457,10 +498,15 @@ router.post('/', (req, res, next) => {
         department: contactDepartment || '',
         projectName: contactProjects || '',
         projectIndustry: 'Technology',
-        hierarchyTag: 'Staff', // Default, can be updated later
-        influenceTag: 'Observer', // Default
+        hierarchyTag: 'Staff',
+        influenceTag: 'Observer',
+        keyContact: 'Yes',
+        isActive: true,
+        status: 'Active',
         ownerId: finalOwnerId,
         ownerName: finalOwnerName,
+        ownerEmail: finalOwnerEmail,
+        ownerEmployeeId: finalOwnerEmployeeId,
         createdAt: new Date().toISOString()
       };
       await db.collection('contacts').doc(contactId).set(newContact);
@@ -486,29 +532,7 @@ router.post('/', (req, res, next) => {
 
     const doc = await db.collection('accounts').doc(accountId).get();
     await logActivity(req.user.uid, req.user.name, 'Create Account', `Created account ${companyName} (ID: ${accountId})`);
-
-    // Automatically notify tech team & tech head for Outlook & Teams permissions
-    sendNewAccountsTechTeamNotification({
-      accounts: [{
-        accountId,
-        companyName,
-        industry: industry || 'Technology',
-        domain: domain || 'General',
-        region: region || 'Unknown',
-        email: email || '',
-        phone: phone || '',
-        ceoName: ceoName || '',
-        ownerName: finalOwnerName,
-        ownerEmail: finalOwnerEmail,
-        contacts: createdContacts,
-        contactsCount: createdContacts.length
-      }],
-      uploadedBy: {
-        name: req.user?.name || req.user?.displayName || 'Administrator',
-        email: req.user?.email || 'admin@pulse.com'
-      },
-      source: 'Account Creation'
-    }).catch(err => console.error('Error triggering tech team notification for new account:', err));
+    await recalculateEligibleOrganizers({ triggerSource: 'ACCOUNT_CREATED' }).catch(() => { });
 
     return res.status(201).json(doc.data());
   } catch (error) {
@@ -545,15 +569,16 @@ router.put('/:id', requireRole(['Admin', 'Sales Manager', 'Executive']), async (
     if (!doc.exists) {
       return res.status(404).json({ error: 'Account not found' });
     }
+    const existingAccount = doc.data();
 
     // Check if any incoming employee already exists in another company (excluding the current account)
     if (contacts && Array.isArray(contacts)) {
       const contactsSnap = await db.collection('contacts').get();
       const existingContacts = contactsSnap.docs.map(doc => doc.data());
-      
+
       for (const contact of contacts) {
         if (contact.name) {
-          const duplicate = existingContacts.find(c => 
+          const duplicate = existingContacts.find(c =>
             c.name && c.name.toLowerCase().trim() === contact.name.toLowerCase().trim() &&
             c.accountId !== id
           );
@@ -571,9 +596,9 @@ router.put('/:id', requireRole(['Admin', 'Sales Manager', 'Executive']), async (
       const existingSnap = await db.collection('accounts').get();
       const nameExists = existingSnap.docs.some(doc => {
         const data = doc.data();
-        return (data.accountId !== id && data.id !== id) && 
-               data.companyName && 
-               data.companyName.toLowerCase().trim() === companyName.toLowerCase().trim();
+        return (data.accountId !== id && data.id !== id) &&
+          data.companyName &&
+          data.companyName.toLowerCase().trim() === companyName.toLowerCase().trim();
       });
       if (nameExists) {
         return res.status(400).json({ error: `Account with company name "${companyName}" already exists.` });
@@ -587,6 +612,10 @@ router.put('/:id', requireRole(['Admin', 'Sales Manager', 'Executive']), async (
     if (ceoName !== undefined) updates.ceoName = ceoName;
     if (domain !== undefined) updates.domain = domain;
     if (req.body.journeyStage !== undefined) updates.journeyStage = req.body.journeyStage;
+    if (req.body.status !== undefined) updates.status = req.body.status;
+    if (req.body.isActive !== undefined) updates.isActive = Boolean(req.body.isActive);
+    if (req.body.ownerEmail !== undefined) updates.ownerEmail = req.body.ownerEmail;
+    if (req.body.ownerEmployeeId !== undefined) updates.ownerEmployeeId = req.body.ownerEmployeeId;
 
     if (ownerId !== undefined) {
       updates.ownerId = ownerId;
@@ -703,6 +732,7 @@ router.put('/:id', requireRole(['Admin', 'Sales Manager', 'Executive']), async (
 
     const updatedDoc = await docRef.get();
     await logActivity(req.user.uid, req.user.name, 'Update Account', `Updated account ${updatedDoc.data().companyName} (ID: ${id})`);
+    await recalculateEligibleOrganizers({ triggerSource: 'ACCOUNT_UPDATED' }).catch(() => { });
     return res.json(updatedDoc.data());
   } catch (error) {
     console.error('Error updating account:', error);
@@ -723,6 +753,7 @@ router.delete('/:id', requireRole(['Admin', 'Executive', 'Sales Manager']), asyn
     if (!doc.exists) {
       return res.status(404).json({ error: 'Account not found' });
     }
+    const existingAccount = doc.data();
 
     await docRef.delete();
 
@@ -738,6 +769,7 @@ router.delete('/:id', requireRole(['Admin', 'Executive', 'Sales Manager']), asyn
     }
 
     await logActivity(req.user.uid, req.user.name, 'Delete Account', `Deleted account ${doc.data().companyName} (ID: ${id})`);
+    await recalculateEligibleOrganizers({ triggerSource: 'ACCOUNT_DELETED' }).catch(() => { });
     return res.json({ success: true, message: 'Account deleted successfully' });
   } catch (error) {
     console.error('Error deleting account:', error);
@@ -862,7 +894,7 @@ router.post('/:id/recalculate', async (req, res) => {
   try {
     const scoreResult = await runScoringEngine(id);
     const riskResult = await runRiskEngine(id);
-    
+
     return res.json({
       success: true,
       score: scoreResult,
@@ -885,6 +917,10 @@ router.post('/:id/recalculate', async (req, res) => {
 router.get('/:id/outlook-mails', async (req, res) => {
   const { id } = req.params;
   try {
+    const hasAccess = await canUserAccessAccount(req.user, id);
+    if (!hasAccess) {
+      return res.status(403).json({ error: 'You do not have permission to view communications for this account.' });
+    }
     // 1. Fetch the account
     const accountDoc = await db.collection('accounts').doc(id).get();
     if (!accountDoc.exists) return res.status(404).json({ error: 'Account not found' });
@@ -1026,6 +1062,178 @@ router.get('/:id/outlook-mails', async (req, res) => {
 });
 
 /**
+ * GET /api/accounts/:id/teams-meetings
+ * Returns all synced Microsoft Teams meetings, participants, transcripts, and AI summaries
+ * for this account, strictly enforcing account-level RBAC.
+ */
+router.get('/:id/teams-meetings', async (req, res) => {
+  const { id } = req.params;
+  try {
+    const hasAccess = await canUserAccessAccount(req.user, id);
+    if (!hasAccess) {
+      return res.status(403).json({ error: 'You do not have permission to view Teams meetings for this account.' });
+    }
+
+    const accountDoc = await db.collection('accounts').doc(id).get();
+    if (!accountDoc.exists) {
+      return res.status(404).json({ error: 'Account not found' });
+    }
+    const accountData = accountDoc.data();
+
+    const [contactsSnap, orgsSnap, usersSnap] = await Promise.all([
+      db.collection('contacts').where('accountId', '==', id).get(),
+      db.collection('authorizedorganizers').get(),
+      db.collection('users').get(),
+    ]);
+
+    const accountContacts = contactsSnap.docs.map(d => ({ contactId: d.id, ...d.data() }));
+    const allOrgs = orgsSnap.docs.map(d => d.data());
+    const allUsers = usersSnap.docs.map(d => ({ uid: d.id, ...d.data() }));
+
+    // Build account-specific connected organizers (Account Owner + Key Contact Owners for THIS account)
+    const connectedMap = new Map();
+
+    const findUserAndOrg = ({ ownerId, ownerEmail, ownerName }) => {
+      const cleanEmail = (ownerEmail || '').trim().toLowerCase();
+      const userMatch =
+        (ownerId && allUsers.find(u => u.uid === ownerId)) ||
+        (cleanEmail && allUsers.find(u => (u.email || '').trim().toLowerCase() === cleanEmail)) ||
+        (ownerName && allUsers.find(u => (u.name || '').trim().toLowerCase() === ownerName.trim().toLowerCase())) ||
+        null;
+
+      const resolvedEmail = (userMatch?.email || cleanEmail || '').trim().toLowerCase();
+      const resolvedUid = userMatch?.uid || ownerId || null;
+
+      const orgMatch =
+        (resolvedUid && allOrgs.find(o => o.uid === resolvedUid || o.organizerKey === resolvedUid)) ||
+        (resolvedEmail && allOrgs.find(o => (o.email || '').trim().toLowerCase() === resolvedEmail)) ||
+        allOrgs.find(o => Array.isArray(o.ownedAccountIds) && o.ownedAccountIds.includes(id)) ||
+        null;
+
+      return {
+        key: resolvedUid || resolvedEmail || (ownerName || '').trim().toLowerCase(),
+        uid: resolvedUid,
+        name: userMatch?.name || orgMatch?.name || ownerName || 'Unassigned',
+        email: userMatch?.email || orgMatch?.email || cleanEmail || '',
+        employeeId: userMatch?.employeeId || orgMatch?.employeeId || null,
+        eligibilityStatus: orgMatch?.eligibilityStatus || 'Pending Assignment',
+        teamsStatus: orgMatch?.teamsStatus || orgMatch?.eligibilityStatus || 'Pending Assignment',
+        outlookStatus: orgMatch?.outlookStatus || 'Pending Approval/Configuration',
+        livePolicyVerified: Boolean(orgMatch?.livePolicyVerified),
+        policyName: orgMatch?.policyName || 'CustomerPulseDevPolicy',
+      };
+    };
+
+    // 1. Account Owner for this customer account
+    if (accountData.ownerId || accountData.ownerEmail || accountData.ownerName) {
+      const resolved = findUserAndOrg({
+        ownerId: accountData.ownerId,
+        ownerEmail: accountData.ownerEmail,
+        ownerName: accountData.ownerName,
+      });
+      if (resolved.key && resolved.name.toLowerCase() !== 'admin user') {
+        connectedMap.set(resolved.key, {
+          ...resolved,
+          isAccountOwner: true,
+          isKeyContactOwner: false,
+          managedContacts: [],
+        });
+      }
+    }
+
+    // 2. Key Contact Owners for contacts belonging to this customer account
+    for (const c of accountContacts) {
+      if (!c.ownerId && !c.ownerEmail && !c.ownerName) continue;
+      const resolved = findUserAndOrg({
+        ownerId: c.ownerId,
+        ownerEmail: c.ownerEmail,
+        ownerName: c.ownerName,
+      });
+      if (!resolved.key || resolved.name.toLowerCase() === 'admin user') continue;
+
+      const existing = connectedMap.get(resolved.key) || {
+        ...resolved,
+        isAccountOwner: false,
+        isKeyContactOwner: false,
+        managedContacts: [],
+      };
+      existing.isKeyContactOwner = true;
+      if (c.name && !existing.managedContacts.some(mc => mc.name === c.name)) {
+        existing.managedContacts.push({
+          contactId: c.contactId,
+          name: c.name,
+          email: c.email || '',
+          designation: c.designation || '',
+        });
+      }
+      connectedMap.set(resolved.key, existing);
+    }
+
+    const accountOrganizers = Array.from(connectedMap.values());
+
+    // Optional live sync trigger when user clicks Refresh (?sync=true)
+    const syncResults = [];
+    if (req.query.sync === 'true') {
+      await processPolicySyncQueue({ recheckLiveGraph: true }).catch(() => { });
+      const refreshedOrgsSnap = await db.collection('authorizedorganizers').get();
+      const refreshedOrgs = refreshedOrgsSnap.docs.map(d => d.data());
+
+      for (const org of accountOrganizers) {
+        const freshMatch = refreshedOrgs.find(
+          o =>
+            (org.uid && (o.uid === org.uid || o.organizerKey === org.uid)) ||
+            (org.email && (o.email || '').trim().toLowerCase() === org.email.trim().toLowerCase())
+        );
+        if (freshMatch) {
+          org.eligibilityStatus = freshMatch.eligibilityStatus || org.eligibilityStatus;
+          org.teamsStatus = freshMatch.teamsStatus || freshMatch.eligibilityStatus || org.teamsStatus;
+          org.outlookStatus = freshMatch.outlookStatus || org.outlookStatus;
+          org.livePolicyVerified = Boolean(freshMatch.livePolicyVerified);
+        }
+
+        if (org.email && (org.teamsStatus === 'Authorized' || org.eligibilityStatus === 'Authorized')) {
+          try {
+            const outcome = await syncTeamsMeetingsForOrganizer({
+              organizerEmail: org.email,
+              user: req.user,
+            });
+            syncResults.push({ organizerEmail: org.email, ...outcome });
+          } catch (syncErr) {
+            syncResults.push({ organizerEmail: org.email, error: syncErr.message, reason: syncErr.reason || null });
+          }
+        }
+      }
+    }
+
+    const meetingsSnap = await db.collection('teamsmeetings').where('accountId', '==', id).get();
+    const isSyntheticTestMeeting = (m) => {
+      const mId = String(m.meetingId || m.id || '');
+      const url = String(m.joinWebUrl || '').toLowerCase();
+      if (url.includes('/test-qbr-cadence') || url.includes('/dummy')) return true;
+      if (mId === 'mtg_1794247825656' || mId.toLowerCase().includes('dummy')) return true;
+      return false;
+    };
+
+    const meetings = meetingsSnap.docs
+      .map(d => ({ id: d.id, ...d.data() }))
+      .filter(m => !isSyntheticTestMeeting(m))
+      .sort((a, b) => new Date(b.startDateTime || b.createdAt || 0) - new Date(a.startDateTime || a.createdAt || 0));
+
+    return res.json({
+      accountId: id,
+      companyName: accountData.companyName || '',
+      count: meetings.length,
+      meetings,
+      accountOrganizers,
+      syncResults,
+    });
+  } catch (error) {
+    console.error('Error fetching account Teams meetings:', error);
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+/**
  * POST /api/accounts/bulk-delete
  * Bulk Delete Accounts and their related data
  */
@@ -1034,15 +1242,15 @@ router.post('/bulk-delete', requireRole(['Admin', 'Sales Manager', 'Executive'])
   if (!Array.isArray(ids)) {
     return res.status(400).json({ error: 'ids array is required' });
   }
-  
+
   try {
     const relatedCollections = ['contacts', 'risks', 'interactions', 'tasks', 'notifications', 'journeyHistory'];
-    
+
     for (const id of ids) {
       const doc = await db.collection('accounts').doc(id).get();
       if (doc.exists) {
         await db.collection('accounts').doc(id).delete();
-        
+
         for (const coll of relatedCollections) {
           const snap = await db.collection(coll).where('accountId', '==', id).get();
           if (snap && snap.docs) {
@@ -1053,14 +1261,15 @@ router.post('/bulk-delete', requireRole(['Admin', 'Sales Manager', 'Executive'])
         }
       }
     }
-    
+
     await logActivity(
       req.user.uid,
       req.user.name || req.user.email,
       'Bulk Delete Accounts',
       `Deleted ${ids.length} accounts`
     );
-    
+    await recalculateEligibleOrganizers({ triggerSource: 'ACCOUNT_BULK_DELETED' }).catch(() => { });
+
     return res.json({ success: true });
   } catch (err) {
     console.error('Error bulk deleting accounts:', err);
@@ -1079,20 +1288,78 @@ router.post('/bulk-import', requireRole(['Admin', 'Sales Manager']), async (req,
   }
 
   try {
-    const existingAccountsSnap = await db.collection('accounts').get();
+    const [existingAccountsSnap, existingContactsSnap, usersSnap] = await Promise.all([
+      db.collection('accounts').get(),
+      db.collection('contacts').get(),
+      db.collection('users').get(),
+    ]);
     const existingAccounts = existingAccountsSnap.docs.map(d => ({ accountId: d.id, ...d.data() }));
-
-    const existingContactsSnap = await db.collection('contacts').get();
     const existingContacts = existingContactsSnap.docs.map(d => ({ contactId: d.id, ...d.data() }));
+    const directoryIndex = buildEmployeeDirectoryIndex(
+      usersSnap.docs.map(d => ({ uid: d.id, ...d.data() }))
+    );
+
+    const resolveOwnerFields = (rawRef, fallbackOwner = null) => {
+      const hasExplicitRef = Boolean(
+        (rawRef.ownerId && String(rawRef.ownerId).trim()) ||
+        (rawRef.ownerEmployeeId && String(rawRef.ownerEmployeeId).trim()) ||
+        (rawRef.ownerEmail && String(rawRef.ownerEmail).trim()) ||
+        (rawRef.ownerName && String(rawRef.ownerName).trim())
+      );
+
+      if (!hasExplicitRef && fallbackOwner) {
+        return { ...fallbackOwner };
+      }
+
+      const matchRes = matchOwnerReferenceToEmployee(rawRef, directoryIndex);
+      if (matchRes.matched && matchRes.employee) {
+        return {
+          ownerId: matchRes.employee.uid,
+          ownerEmployeeId: matchRes.employee.employeeId || rawRef.ownerEmployeeId || null,
+          ownerEmail: matchRes.employee.email || rawRef.ownerEmail || '',
+          ownerName: matchRes.employee.name || rawRef.ownerName || '',
+          matchedEmployee: true,
+        };
+      }
+
+      return {
+        ownerId: rawRef.ownerId || null,
+        ownerEmployeeId: rawRef.ownerEmployeeId || null,
+        ownerEmail: (rawRef.ownerEmail || '').trim(),
+        ownerName: (rawRef.ownerName || '').trim(),
+        matchedEmployee: false,
+      };
+    };
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     const groupedAccounts = {};
     const warnings = [];
 
     records.forEach((record, index) => {
-      const { companyName, industry, region, email, phone, domain, ownerName, ownerEmail, ownerId, contactName, contactEmail, contactPhone, contactDesignation, contactDepartment, keyContact, contactOwnerName, contactOwnerEmail } = record;
-      
-      if (!companyName) {
+      const {
+        companyName,
+        industry,
+        region,
+        email,
+        phone,
+        domain,
+        ownerName,
+        ownerEmail,
+        ownerId,
+        ownerEmployeeId,
+        contactName,
+        contactEmail,
+        contactPhone,
+        contactDesignation,
+        contactDepartment,
+        keyContact,
+        contactOwnerName,
+        contactOwnerEmail,
+        contactOwnerId,
+        contactOwnerEmployeeId,
+      } = record;
+
+      if (!companyName || !String(companyName).trim()) {
         warnings.push(`Row ${index + 1}: Missing Company Name. Skipped.`);
         return;
       }
@@ -1104,154 +1371,236 @@ router.post('/bulk-import', requireRole(['Admin', 'Sales Manager']), async (req,
         warnings.push(`Row ${index + 1}: Invalid contact email for ${contactName}`);
       }
 
-      const key = companyName.toLowerCase().trim();
-      
+      const key = String(companyName).toLowerCase().trim();
+
       if (!groupedAccounts[key]) {
-        const existing = existingAccounts.find(a => a.companyName?.toLowerCase() === key);
+        const existing = existingAccounts.find(a => a.companyName?.toLowerCase().trim() === key);
         if (existing) {
           warnings.push(`Company "${companyName}" already exists. It will be updated.`);
         }
+
+        const resolvedAccOwner = resolveOwnerFields(
+          { ownerId, ownerEmployeeId, ownerEmail, ownerName },
+          {
+            ownerId: existing?.ownerId || req.user?.uid || null,
+            ownerEmployeeId: existing?.ownerEmployeeId || null,
+            ownerEmail: existing?.ownerEmail || req.user?.email || '',
+            ownerName: existing?.ownerName || req.user?.name || 'System User',
+          }
+        );
+
         groupedAccounts[key] = {
-          companyName,
-          industry: industry || '',
-          region: region || '',
-          email: email || '',
-          phone: phone || '',
-          domain: domain || 'General',
-          ownerName: ownerName || req.user.name || 'System User',
-          ownerId: ownerId || req.user.uid,
-          ownerEmail: ownerEmail || '',
+          companyName: String(companyName).trim(),
+          industry: industry || existing?.industry || '',
+          region: region || existing?.region || '',
+          email: email || existing?.email || '',
+          phone: phone || existing?.phone || '',
+          domain: domain || existing?.domain || 'General',
+          ownerId: resolvedAccOwner.ownerId,
+          ownerEmployeeId: resolvedAccOwner.ownerEmployeeId,
+          ownerName: resolvedAccOwner.ownerName,
+          ownerEmail: resolvedAccOwner.ownerEmail,
           existingAccountId: existing ? existing.accountId : null,
-          contacts: []
+          contacts: [],
         };
+      } else if (ownerName || ownerEmail || ownerEmployeeId || ownerId) {
+        // Allow subsequent rows of same company to supply account owner if earlier row left it blank
+        const resolvedAccOwner = resolveOwnerFields({ ownerId, ownerEmployeeId, ownerEmail, ownerName });
+        if (resolvedAccOwner.ownerEmail || resolvedAccOwner.ownerId || resolvedAccOwner.ownerName) {
+          groupedAccounts[key].ownerId = resolvedAccOwner.ownerId;
+          groupedAccounts[key].ownerEmployeeId = resolvedAccOwner.ownerEmployeeId;
+          groupedAccounts[key].ownerName = resolvedAccOwner.ownerName;
+          groupedAccounts[key].ownerEmail = resolvedAccOwner.ownerEmail;
+        }
       }
 
-      if (contactName) {
-        const isDuplicateContactInBatch = groupedAccounts[key].contacts.some(c => c.name.toLowerCase() === contactName.toLowerCase().trim());
-        const isDuplicateContactInDB = existingContacts.some(c => c.name?.toLowerCase() === contactName.toLowerCase().trim() && c.accountId === groupedAccounts[key].existingAccountId);
-        
-        if (isDuplicateContactInBatch || isDuplicateContactInDB) {
-          warnings.push(`Contact "${contactName}" already exists. Skipping duplicate.`);
+      if (contactName && String(contactName).trim()) {
+        const cleanContactName = String(contactName).trim();
+        const isDuplicateContactInBatch = groupedAccounts[key].contacts.some(
+          c => c.name.toLowerCase() === cleanContactName.toLowerCase()
+        );
+        const existingDbContact = existingContacts.find(
+          c =>
+            c.name?.toLowerCase().trim() === cleanContactName.toLowerCase() &&
+            c.accountId === groupedAccounts[key].existingAccountId
+        );
+
+        const resolvedContactOwner = resolveOwnerFields(
+          {
+            ownerId: contactOwnerId,
+            ownerEmployeeId: contactOwnerEmployeeId,
+            ownerEmail: contactOwnerEmail,
+            ownerName: contactOwnerName,
+          },
+          {
+            ownerId: groupedAccounts[key].ownerId,
+            ownerEmployeeId: groupedAccounts[key].ownerEmployeeId,
+            ownerEmail: groupedAccounts[key].ownerEmail,
+            ownerName: groupedAccounts[key].ownerName,
+          }
+        );
+
+        if (isDuplicateContactInBatch) {
+          warnings.push(`Contact "${cleanContactName}" duplicated in upload batch. Skipping duplicate.`);
         } else {
           groupedAccounts[key].contacts.push({
-            name: contactName,
-            email: contactEmail || '',
-            phone: contactPhone || '',
-            designation: contactDesignation || '',
-            department: contactDepartment || '',
-            ownerName: contactOwnerName || groupedAccounts[key].ownerName,
-            ownerEmail: contactOwnerEmail || groupedAccounts[key].ownerEmail
+            existingContactId: existingDbContact ? existingDbContact.contactId : null,
+            name: cleanContactName,
+            email: contactEmail || existingDbContact?.email || '',
+            phone: contactPhone || existingDbContact?.phone || '',
+            designation: contactDesignation || existingDbContact?.designation || '',
+            department: contactDepartment || existingDbContact?.department || '',
+            keyContact: keyContact !== undefined ? String(keyContact) : (existingDbContact?.keyContact || 'Yes'),
+            ownerId: resolvedContactOwner.ownerId,
+            ownerEmployeeId: resolvedContactOwner.ownerEmployeeId,
+            ownerName: resolvedContactOwner.ownerName,
+            ownerEmail: resolvedContactOwner.ownerEmail,
           });
         }
       }
     });
 
     const accountsArr = Object.values(groupedAccounts);
+    if (accountsArr.length === 0) {
+      return res.status(400).json({ error: 'No valid account records found in import payload.', warnings });
+    }
+
     let accountsCreated = 0;
+    let accountsUpdated = 0;
     let contactsCreated = 0;
-    
-    // For preview we just need to return the grouped accounts
+    let contactsUpdated = 0;
+
+    // For preview we just need to return the grouped accounts without writing or triggering sync
     if (preview) {
       return res.json({
         readyAccounts: accountsArr.length,
         readyContacts: accountsArr.reduce((acc, curr) => acc + curr.contacts.length, 0),
         warnings,
-        accounts: accountsArr
+        accounts: accountsArr,
       });
     }
 
-    const newlyCreatedAccounts = [];
+    // Process actual insertions & updates inside a single atomic database transaction.
+    // If any account or contact write fails midway through the batch, all changes are rolled back
+    // and organizer recalculation is skipped.
+    const touchedAccountIds = [];
 
-    // Process actual insertions
-    for (const acc of accountsArr) {
-      let finalAccountId = acc.existingAccountId;
+    await db.runInTransaction(async (txDb) => {
+      for (const acc of accountsArr) {
+        let finalAccountId = acc.existingAccountId;
 
-      if (!finalAccountId) {
-        finalAccountId = 'acc-' + Math.random().toString(36).substring(2, 11);
-        const newAccount = {
-          accountId: finalAccountId,
-          companyName: acc.companyName,
-          industry: acc.industry || 'Technology',
-          region: acc.region || 'Unknown',
-          email: acc.email || '',
-          phone: acc.phone || '',
-          domain: acc.domain || 'General',
-          healthScore: 70, // default
-          status: 'Warning',
-          journeyStage: 'Awareness',
-          ownerId: acc.ownerId,
-          ownerName: acc.ownerName,
-          ownerEmail: acc.ownerEmail,
-          createdAt: new Date().toISOString()
-        };
-        await db.collection('accounts').doc(finalAccountId).set(newAccount);
-        accountsCreated++;
-        newlyCreatedAccounts.push({
-          ...newAccount,
-          contacts: acc.contacts || [],
-          contactsCount: acc.contacts?.length || 0
-        });
-      } else {
-        // Update existing account
-        await db.collection('accounts').doc(finalAccountId).update({
-          industry: acc.industry || 'Technology',
-          region: acc.region || 'Unknown',
-          domain: acc.domain || 'General',
-          ownerId: acc.ownerId,
-          ownerName: acc.ownerName,
-          ownerEmail: acc.ownerEmail,
-          updatedAt: new Date().toISOString()
-        });
+        if (!finalAccountId) {
+          finalAccountId = 'acc-' + Math.random().toString(36).substring(2, 11);
+          const newAccount = {
+            accountId: finalAccountId,
+            companyName: acc.companyName,
+            industry: acc.industry || 'Technology',
+            region: acc.region || 'Unknown',
+            email: acc.email || '',
+            phone: acc.phone || '',
+            domain: acc.domain || 'General',
+            healthScore: 70,
+            status: 'Warning',
+            isActive: true,
+            journeyStage: 'Awareness',
+            ownerId: acc.ownerId,
+            ownerEmployeeId: acc.ownerEmployeeId || null,
+            ownerName: acc.ownerName,
+            ownerEmail: acc.ownerEmail,
+            createdAt: new Date().toISOString(),
+          };
+          await txDb.collection('accounts').doc(finalAccountId).set(newAccount);
+          accountsCreated++;
+        } else {
+          await txDb.collection('accounts').doc(finalAccountId).update({
+            industry: acc.industry || 'Technology',
+            region: acc.region || 'Unknown',
+            domain: acc.domain || 'General',
+            ownerId: acc.ownerId,
+            ownerEmployeeId: acc.ownerEmployeeId || null,
+            ownerName: acc.ownerName,
+            ownerEmail: acc.ownerEmail,
+            updatedAt: new Date().toISOString(),
+          });
+          accountsUpdated++;
+        }
+
+        touchedAccountIds.push(finalAccountId);
+
+        // Create or update contacts (preserving Key Contact Owner assignments)
+        for (const contact of acc.contacts) {
+          if (contact.existingContactId) {
+            await txDb.collection('contacts').doc(contact.existingContactId).update({
+              email: contact.email || '',
+              phone: contact.phone || '',
+              designation: contact.designation || '',
+              department: contact.department || '',
+              keyContact: contact.keyContact || 'Yes',
+              ownerId: contact.ownerId,
+              ownerEmployeeId: contact.ownerEmployeeId || null,
+              ownerName: contact.ownerName,
+              ownerEmail: contact.ownerEmail,
+              updatedAt: new Date().toISOString(),
+            });
+            contactsUpdated++;
+          } else {
+            const contactId = 'con-' + Math.random().toString(36).substring(2, 11);
+            const newContact = {
+              contactId,
+              accountId: finalAccountId,
+              name: contact.name,
+              email: contact.email || '',
+              phone: contact.phone || '',
+              designation: contact.designation || '',
+              department: contact.department || '',
+              keyContact: contact.keyContact || 'Yes',
+              isActive: true,
+              status: 'Active',
+              hierarchyTag: 'Staff',
+              influenceTag: 'Observer',
+              ownerId: contact.ownerId,
+              ownerEmployeeId: contact.ownerEmployeeId || null,
+              ownerName: contact.ownerName,
+              ownerEmail: contact.ownerEmail,
+              createdAt: new Date().toISOString(),
+            };
+            await txDb.collection('contacts').doc(contactId).set(newContact);
+            contactsCreated++;
+          }
+        }
       }
+    });
 
-      // Create new contacts
-      for (const contact of acc.contacts) {
-        const contactId = 'con-' + Math.random().toString(36).substring(2, 11);
-        
-        const newContact = {
-          contactId,
-          accountId: finalAccountId,
-          name: contact.name,
-          email: contact.email || '',
-          phone: contact.phone || '',
-          designation: contact.designation || '',
-          department: contact.department || '',
-          hierarchyTag: 'Staff',
-          influenceTag: 'Observer',
-          ownerId: acc.ownerId, // inherit from account if not provided
-          ownerName: contact.ownerName,
-          ownerEmail: contact.ownerEmail,
-          createdAt: new Date().toISOString()
-        };
-        await db.collection('contacts').doc(contactId).set(newContact);
-        contactsCreated++;
-      }
-
-      // Re-evaluate Health Calc
-      await calculateAccountHealth(finalAccountId);
+    // Post-commit side effects: health calculation, activity log, and organizer recalculation
+    for (const accId of touchedAccountIds) {
+      await calculateAccountHealth(accId).catch(() => { });
     }
 
-    if (accountsCreated > 0 || contactsCreated > 0) {
-      await logActivity(req.user.uid, req.user.name, 'Bulk Import Accounts', `Processed ${accountsCreated} new accounts and ${contactsCreated} contacts`);
+    if (accountsCreated > 0 || accountsUpdated > 0 || contactsCreated > 0 || contactsUpdated > 0) {
+      await logActivity(
+        req.user.uid,
+        req.user.name,
+        'Bulk Import Accounts',
+        `Processed ${accountsCreated} new / ${accountsUpdated} updated accounts and ${contactsCreated} new / ${contactsUpdated} updated contacts`
+      );
     }
 
-    // Automatically trigger email notification to technical team and tech head for Outlook & Teams permissions
-    if (newlyCreatedAccounts.length > 0) {
-      sendNewAccountsTechTeamNotification({
-        accounts: newlyCreatedAccounts,
-        uploadedBy: {
-          name: req.user?.name || req.user?.displayName || 'Administrator',
-          email: req.user?.email || 'admin@pulse.com'
-        },
-        source: 'Bulk NeST BU Excel Importer'
-      }).catch(err => console.error('Error triggering tech team notification for bulk accounts:', err));
-    }
+    // Automatically recalculate Account Owners & Key Contact Owners and sync Teams organizer policies
+    // ONLY after the entire import transaction has committed.
+    const organizerSync = await recalculateEligibleOrganizers({
+      triggerSource: 'EXCEL_BULK_IMPORT',
+    });
 
-    return res.json({ 
+    return res.json({
       result: {
-        readyAccounts: accountsCreated, 
-        readyContacts: contactsCreated
-      }
+        readyAccounts: accountsCreated + accountsUpdated,
+        accountsCreated,
+        accountsUpdated,
+        readyContacts: contactsCreated + contactsUpdated,
+        contactsCreated,
+        contactsUpdated,
+      },
+      organizerSync,
     });
   } catch (err) {
     console.error('Error in bulk import:', err);
@@ -1303,7 +1652,7 @@ router.put('/:id/health-config', async (req, res) => {
   try {
     const { id } = req.params;
     const { config } = req.body;
-    
+
     if (!config) return res.status(400).json({ error: 'Config object required' });
 
     const isGlobal = id === 'global';
@@ -1322,8 +1671,8 @@ router.put('/:id/health-config', async (req, res) => {
       updatedExplanation = await getAccountHealthExplanation(id);
     }
 
-    return res.json({ 
-      success: true, 
+    return res.json({
+      success: true,
       id,
       healthScore: calcResult ? calcResult.healthScore : null,
       status: calcResult ? calcResult.status : null,

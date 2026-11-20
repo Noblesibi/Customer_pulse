@@ -26,12 +26,12 @@ export async function computeAccountSignals(accountId) {
     .where('accountId', '==', accountId)
     .get();
   const allInteractions = allInteractionsSnapshot.docs.map(doc => doc.data());
-  
+
   // Sort interactions latest first
   allInteractions.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
 
   // --- BUILT-IN SIGNALS ---
-  
+
   // 1. days_since_last_interaction
   if (allInteractions.length > 0) {
     const lastIntDate = new Date(allInteractions[0].timestamp);
@@ -46,7 +46,7 @@ export async function computeAccountSignals(accountId) {
   const accountUsers = usersSnapshot.docs
     .map(doc => doc.data())
     .filter(u => u.projects && u.projects.includes(accountId));
-    
+
   let daysSinceLastLogin = 999;
   accountUsers.forEach(user => {
     if (user.last_login) {
@@ -62,10 +62,10 @@ export async function computeAccountSignals(accountId) {
   const thirtyDaysAgo = new Date();
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
   const thirtyDaysAgoIso = thirtyDaysAgo.toISOString();
-  
-  const recentMeetings = allInteractions.filter(i => 
-    i.timestamp >= thirtyDaysAgoIso && 
-    (i.source === 'Meeting' || i.type === 'meeting')
+
+  const recentMeetings = allInteractions.filter(i =>
+    i.timestamp >= thirtyDaysAgoIso &&
+    (i.source === 'Meeting' || i.source === 'Teams Meeting' || i.type === 'meeting')
   );
   signals['meetings_last_30d'] = recentMeetings.length;
 
@@ -86,10 +86,10 @@ export async function computeAccountSignals(accountId) {
   // 5. Tasks and Commitments
   const tasksSnapshot = await db.collection('tasks').where('accountId', '==', accountId).get();
   const allTasks = tasksSnapshot.docs.map(d => d.data());
-  
+
   let overdueCount = 0;
   let completedCount = 0;
-  
+
   allTasks.forEach(task => {
     if (task.status === 'Completed') {
       completedCount++;
@@ -101,26 +101,26 @@ export async function computeAccountSignals(accountId) {
       }
     }
   });
-  
+
   signals['overdue_task_count'] = overdueCount;
   signals['task_completion_rate'] = allTasks.length > 0 ? normalize(completedCount, 0, allTasks.length) : 100;
-  
+
   // 6. Contacts and Champions
   const contactsSnapshot = await db.collection('contacts').where('accountId', '==', accountId).get();
   const contacts = contactsSnapshot.docs.map(doc => doc.data());
   signals['active_contacts_count'] = contacts.length;
-  
+
   const hasChampion = contacts.some(c => c.influenceTag === 'Champion');
   signals['has_champion'] = hasChampion ? 1 : 0;
-  
+
   // 7. Emails and Greetings
   const emailInteractions = allInteractions.filter(i => i.source === 'Email' || i.type === 'email');
   const greetingReplies = emailInteractions.filter(i => i.direction === 'inbound' && i.is_greeting_reply);
   signals['greeting_reply_received'] = greetingReplies.length > 0 ? 1 : 0;
-  
+
   const unansweredEmails = emailInteractions.filter(i => i.direction === 'inbound' && !i.replied); // Simplified logic
   signals['unanswered_email_count'] = unansweredEmails.length;
-  
+
   // Real average reply time and reply rate computed from actual interactions
   const inboundEmails = emailInteractions.filter(i => i.direction === 'inbound');
   const repliedInbound = inboundEmails.filter(i => i.replied || (Array.isArray(i.replies) && i.replies.length > 0));
@@ -143,15 +143,15 @@ export async function computeAccountSignals(accountId) {
   signals['avg_reply_time'] = replyCount > 0
     ? Math.round(totalReplyHours / replyCount)
     : (unansweredEmails.length > 0 ? 48 : 12);
-  
+
   // --- CUSTOM SIGNALS ---
-  
+
   const customSignalsSnapshot = await db.collection('custom_signals').get();
   const customSignals = customSignalsSnapshot.docs.map(d => d.data());
-  
+
   for (const cs of customSignals) {
     let filteredData = [];
-    
+
     // Determine data source
     if (cs.source === 'interaction_type') {
       filteredData = allInteractions.filter(i => i.type === cs.filters?.type || i.source === cs.filters?.type);
@@ -163,7 +163,7 @@ export async function computeAccountSignals(accountId) {
       // Stub for AI extracted logic on transcripts/emails
       filteredData = allInteractions.filter(i => i.ai_extracted && i.ai_extracted[cs.filters?.field] === cs.filters?.value);
     }
-    
+
     // Apply time window if present
     if (cs.time_window_days) {
       const windowDate = new Date();
@@ -171,7 +171,7 @@ export async function computeAccountSignals(accountId) {
       const windowDateIso = windowDate.toISOString();
       filteredData = filteredData.filter(d => d.timestamp >= windowDateIso);
     }
-    
+
     // Aggregate
     let value = 0;
     if (cs.aggregation === 'count') {
@@ -192,16 +192,16 @@ export async function computeAccountSignals(accountId) {
         value = sum / filteredData.length;
       }
     }
-    
+
     signals[cs.name] = value;
   }
-  
+
   // Ignore "no reply" rules if currently out of office
   const activeOoo = emailInteractions.find(i => i.is_auto_reply && new Date(i.timestamp) > thirtyDaysAgo);
   if (activeOoo) {
     // If out of office, override some signals that penalize non-responsiveness
     signals['unanswered_email_count'] = 0;
-    signals['days_since_last_interaction'] = 0; 
+    signals['days_since_last_interaction'] = 0;
   }
 
   return signals;

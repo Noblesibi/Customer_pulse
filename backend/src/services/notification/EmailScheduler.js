@@ -155,6 +155,7 @@ async function scanTaskReminders() {
           InAppMessage: `Reminder: Task "${task.title}" is due tomorrow.`
         }, [task.assignedToUid].filter(Boolean), {
           relatedTaskId: task.taskId,
+          relatedAccountId: task.accountId || null,
           skipInAppNotification: false
         });
         // Mark in queue with fixed ID so we don't re-send today
@@ -179,7 +180,8 @@ async function scanTaskReminders() {
           DaysOverdue: Math.abs(diffDays),
           InAppMessage: `Task "${task.title}" is overdue by ${Math.abs(diffDays)} day(s).`
         }, [task.assignedToUid, task.assignedByUid].filter(Boolean), {
-          relatedTaskId: task.taskId
+          relatedTaskId: task.taskId,
+          relatedAccountId: task.accountId || null
         });
         await db.collection('emailqueue').doc(overdueKey).set({
           queueId: overdueKey,

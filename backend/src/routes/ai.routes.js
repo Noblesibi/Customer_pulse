@@ -1,7 +1,8 @@
 import { Router } from 'express';
 import { generateTaskHeader, generateContactReconnectBrief, generateActivityNextSteps, generateSmartHealthAnalysis } from '../services/ai.service.js';
 import { db } from '../config/database.js';
-import { authenticateToken } from '../middleware/auth.middleware.js';
+import { authenticateToken, canUserAccessAccount, getPermittedAccountIdsForUser } from '../middleware/auth.middleware.js';
+import { listAiRecommendations, reviewAiRecommendation } from '../services/aiRecommendationReview.service.js';
 
 const router = Router();
 router.use(authenticateToken);
@@ -265,6 +266,70 @@ router.post('/contact-reconnect-brief', async (req, res) => {
   } catch (error) {
     console.error('Error generating contact reconnect brief:', error);
     return res.status(500).json({ error: 'Failed to generate contact reconnect brief' });
+  }
+});
+
+/**
+ * GET /api/ai/recommendations
+ * Lists AI-generated recommendations (Tasks, Opportunities, Risks, Engagement Insights)
+ * with full source provenance, strictly filtered by account-level RBAC.
+ */
+router.get('/recommendations', async (req, res) => {
+  try {
+    const { accountId, contactId, category, status, sourceType } = req.query;
+    if (accountId) {
+      const allowed = await canUserAccessAccount(req.user, accountId);
+      if (!allowed) {
+        return res.status(403).json({ error: 'Forbidden: you do not have access to this account.' });
+      }
+    }
+
+    let items = await listAiRecommendations({ accountId, contactId, category, status, sourceType });
+    if (!accountId) {
+      const { unrestricted, accountIds } = await getPermittedAccountIdsForUser(req.user);
+      if (!unrestricted) {
+        items = items.filter(i => i.accountId && accountIds.has(i.accountId));
+      }
+    }
+
+    return res.json(items);
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * POST /api/ai/recommendations/:id/review
+ * Employee review endpoint: Approve, Edit, Reject, or Defer an AI recommendation.
+ */
+router.post('/recommendations/:id/review', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const recDoc = await db.collection('airecommendations').doc(id).get();
+    if (!recDoc.exists) {
+      return res.status(404).json({ error: 'AI recommendation not found.' });
+    }
+    const recData = recDoc.data();
+    if (recData.accountId) {
+      const allowed = await canUserAccessAccount(req.user, recData.accountId);
+      if (!allowed) {
+        return res.status(403).json({ error: 'Forbidden: you do not have access to review recommendations for this account.' });
+      }
+    }
+
+    const { action, edits, deferredUntil, reviewNotes } = req.body || {};
+    const updated = await reviewAiRecommendation({
+      recommendationId: id,
+      action,
+      edits: edits || {},
+      deferredUntil: deferredUntil || null,
+      reviewNotes: reviewNotes || '',
+      user: req.user,
+    });
+
+    return res.json(updated);
+  } catch (err) {
+    return res.status(400).json({ error: err.message });
   }
 });
 

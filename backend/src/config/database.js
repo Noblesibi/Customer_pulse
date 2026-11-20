@@ -14,7 +14,9 @@ const isPostgres = dbType === 'postgres';
 // Dynamic Database Provider — allows clean fallback to mock on connection failure
 let activeDbProvider = null;
 
-const MOCK_DB_FILE = path.resolve(process.cwd(), 'db-mock.json');
+const MOCK_DB_FILE = process.env.MOCK_DB_FILE
+  ? path.resolve(process.env.MOCK_DB_FILE)
+  : path.resolve(process.cwd(), 'db-mock.json');
 
 class FirestoreSQLAdapter {
   collection(name) {
@@ -22,6 +24,22 @@ class FirestoreSQLAdapter {
       throw new Error('Database layer is not initialized yet!');
     }
     return activeDbProvider.collection(name);
+  }
+
+  async runInTransaction(callback) {
+    if (!activeDbProvider) {
+      throw new Error('Database layer is not initialized yet!');
+    }
+    if (typeof activeDbProvider.runInTransaction === 'function') {
+      return activeDbProvider.runInTransaction(callback);
+    }
+    return callback(this);
+  }
+
+  setTestWriteHook(fn) {
+    if (activeDbProvider && typeof activeDbProvider.setTestWriteHook === 'function') {
+      activeDbProvider.setTestWriteHook(fn);
+    }
   }
 }
 
@@ -32,6 +50,8 @@ const db = new FirestoreSQLAdapter();
 // ─────────────────────────────────────────────────────────
 class MockFirestore {
   constructor() {
+    this.transactionDepth = 0;
+    this.testWriteHook = null;
     this.data = {
       users: {},
       accounts: {},
@@ -48,9 +68,43 @@ class MockFirestore {
       emaillogs: {},
       notificationpreferences: {},
       celebrationEvents: {},
-      userintegrations: {}
+      userintegrations: {},
+      teamsmeetings: {},
+      synchistory: {},
+      syncHistory: {},
+      authorizedorganizers: {},
+      organizerownershiphistory: {},
+      organizerpolicysync: {},
+      organizerapprovalhistory: {},
+      synccheckpoints: {},
+      communicationreviewqueue: {},
+      airecommendations: {}
     };
     this.loadData();
+  }
+
+  setTestWriteHook(fn) {
+    this.testWriteHook = typeof fn === 'function' ? fn : null;
+  }
+
+  async runInTransaction(callback) {
+    const snapshot = JSON.parse(JSON.stringify(this.data));
+    this.transactionDepth = (this.transactionDepth || 0) + 1;
+    try {
+      const result = await callback(this);
+      this.transactionDepth--;
+      if (this.transactionDepth === 0) {
+        this.saveData();
+      }
+      return result;
+    } catch (err) {
+      this.transactionDepth--;
+      this.data = snapshot;
+      if (this.transactionDepth === 0) {
+        this.saveData();
+      }
+      throw err;
+    }
   }
 
   loadData() {
@@ -68,6 +122,7 @@ class MockFirestore {
   }
 
   saveData() {
+    if (this.transactionDepth > 0) return;
     try {
       fs.writeFileSync(MOCK_DB_FILE, JSON.stringify(this.data, null, 2), 'utf8');
     } catch (err) {
@@ -90,17 +145,30 @@ class MockFirestore {
             id: docId,
             data: () => self.data[name][docId] || null
           }),
-          set: async (val) => {
-            self.data[name][docId] = { ...val, id: docId };
+          set: async (val, options = {}) => {
+            if (self.testWriteHook) {
+              await self.testWriteHook({ collection: name, docId, operation: 'set', data: val });
+            }
+            if (options && options.merge && self.data[name][docId]) {
+              self.data[name][docId] = { ...self.data[name][docId], ...val, id: docId };
+            } else {
+              self.data[name][docId] = { ...val, id: docId };
+            }
             self.saveData();
             return { id: docId };
           },
           update: async (val) => {
+            if (self.testWriteHook) {
+              await self.testWriteHook({ collection: name, docId, operation: 'update', data: val });
+            }
             self.data[name][docId] = { ...self.data[name][docId], ...val, id: docId };
             self.saveData();
             return { id: docId };
           },
           delete: async () => {
+            if (self.testWriteHook) {
+              await self.testWriteHook({ collection: name, docId, operation: 'delete', data: null });
+            }
             delete self.data[name][docId];
             self.saveData();
             return { id: docId };
@@ -126,29 +194,31 @@ class MockFirestore {
         return { docs };
       },
       where(field, operator, value) {
-        return {
-          get: async () => {
-            const docs = Object.values(self.data[name])
-              .filter(doc => {
-                if (operator === '==') return doc[field] === value;
-                if (operator === 'array-contains') return Array.isArray(doc[field]) && doc[field].includes(value);
-                return true;
-              })
-              .map(doc => ({ id: doc.id, exists: true, data: () => doc }));
-            return { docs };
+        const filters = [{ field, operator, value }];
+        const runFilter = (limitNum = null) => {
+          let docs = Object.values(self.data[name])
+            .filter(doc => filters.every(f => {
+              if (f.operator === '==') return doc[f.field] === f.value;
+              if (f.operator === 'array-contains') return Array.isArray(doc[f.field]) && doc[f.field].includes(f.value);
+              return true;
+            }));
+          if (limitNum !== null) docs = docs.slice(0, limitNum);
+          const mapped = docs.map(doc => ({ id: doc.id, exists: true, data: () => doc }));
+          return { docs: mapped, size: mapped.length, empty: mapped.length === 0, forEach: cb => mapped.forEach(cb) };
+        };
+        const queryObj = {
+          where(nextField, nextOp, nextVal) {
+            filters.push({ field: nextField, operator: nextOp, value: nextVal });
+            return queryObj;
           },
+          get: async () => runFilter(null),
           limit(num) {
             return {
-              get: async () => {
-                const docs = Object.values(self.data[name])
-                  .filter(doc => doc[field] === value)
-                  .slice(0, num)
-                  .map(doc => ({ id: doc.id, exists: true, data: () => doc }));
-                return { docs };
-              }
+              get: async () => runFilter(num)
             };
           }
         };
+        return queryObj;
       },
       orderBy(field, direction = 'asc') {
         return {
@@ -211,47 +281,38 @@ function seedMockData(mockDb) {
   };
 }
 
+
 // ─────────────────────────────────────────────────────────
 // Provider Initialization
 // ─────────────────────────────────────────────────────────
 auth = new MockAuth();
 
 if (isPostgres) {
-  // PostgreSQL mode — primary production path for Nest Digital CRM
+  // PostgreSQL is mandatory in production mode.
+  // Do not silently fall back to in-memory mock data.
   activeDbProvider = postgresDb;
-  isMock = true; // JWT-based auth, not Firebase; isMock means "we manage our own JWTs"
-
-  initPostgres().catch(err => {
-    const detail = err.message || (err.errors && err.errors.map(e => e.message).join('; ')) || String(err);
-    console.error('\n❌ Failed to initialize PostgreSQL database:', detail);
-    if (err.errors) {
-      err.errors.forEach((e, i) => console.error(`  Sub-error [${i}]:`, e.message || e));
-    }
-    console.warn('\n⚠️  FALLING BACK TO MOCK IN-MEMORY DATABASE.');
-    console.warn('To fix PostgreSQL connectivity, ensure:');
-    console.warn('  1. PostgreSQL is running on the configured DB_HOST:DB_PORT.');
-    console.warn('  2. DB_USER, DB_PASSWORD, DB_DATABASE are correct in backend/.env');
-    console.warn('  3. The database was created: createdb -U postgres customer_pulse\n');
-
-    // Swap to in-memory mock on failure
-    const fileExists = fs.existsSync(MOCK_DB_FILE);
-    const mockDb = new MockFirestore();
-    activeDbProvider = mockDb;
-    if (!fileExists) {
-      seedMockData(mockDb);
-      mockDb.saveData();
-    }
-  });
+  isMock = true; // JWT-based authentication, not Firebase
 } else {
   // Developer mock mode (no database required)
-  console.log('⚠️  Running in Mock In-Memory mode. Set DB_TYPE=postgres in backend/.env to connect to PostgreSQL.');
+  console.log('⚠️ Running in Mock In-Memory mode. Set DB_TYPE=postgres in backend/.env to connect to PostgreSQL.');
+
   const fileExists = fs.existsSync(MOCK_DB_FILE);
   const mockDb = new MockFirestore();
   activeDbProvider = mockDb;
   isMock = true;
+
   if (!fileExists) {
     seedMockData(mockDb);
     mockDb.saveData();
+  }
+}
+
+// Explicit database initialization, awaited by server.js
+export async function initializeDataProvider() {
+  if (isPostgres) {
+    console.log('Initializing PostgreSQL database...');
+    await initPostgres();
+    console.log('PostgreSQL database initialized successfully.');
   }
 }
 

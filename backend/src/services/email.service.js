@@ -432,30 +432,9 @@ export function buildNewAccountsTechTeamEmail({ accounts, uploadedBy, source = '
 }
 
 /**
- * Sends an email notification to the technical team and tech head informing them that
- * new account(s) have been added to CustomerPulse via bulk upload or single creation,
- * including full account details and key contacts with highlighted email addresses.
- * @param {object} params - { accounts: Array, uploadedBy: { name, email }, source?: string }
+ * Automated emails to IT / Technical Team and Tech Head on new account creation
+ * have been disabled because organizer eligibility and policy assignment are handled automatically.
  */
-export async function sendNewAccountsTechTeamNotification({ accounts, uploadedBy, source = 'Bulk Account Upload' }) {
-  try {
-    if (!accounts || accounts.length === 0) return;
-
-    const { targetEmails, subject, html } = buildNewAccountsTechTeamEmail({ accounts, uploadedBy, source });
-
-    for (const to of targetEmails) {
-      try {
-        await smtpProvider.send({
-          to,
-          subject,
-          html
-        });
-        console.log(`📧 [AccountNotification] Sent new accounts alert to: ${to}`);
-      } catch (err) {
-        console.error(`❌ [AccountNotification] Failed to send new accounts alert to ${to}:`, err.message);
-      }
-    }
-  } catch (outerErr) {
-    console.error('❌ [sendNewAccountsTechTeamNotification] Error dispatching email:', outerErr);
-  }
+export async function sendNewAccountsTechTeamNotification() {
+  return { skipped: true, reason: 'AUTOMATED_TECH_TEAM_EMAIL_DISABLED' };
 }

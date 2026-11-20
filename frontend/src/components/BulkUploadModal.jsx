@@ -13,6 +13,7 @@ const TARGET_FIELDS = [
   { field: 'domain', label: 'NeST BU / Domain', required: false },
   { field: 'ownerName', label: 'Account Owner', required: false },
   { field: 'ownerEmail', label: 'Account Owner Email', required: false },
+  { field: 'ownerEmployeeId', label: 'Account Owner Employee ID', required: false },
   { field: 'contactName', label: 'Key Contact Name', required: false },
   { field: 'contactEmail', label: 'Key Contact Email', required: false },
   { field: 'contactPhone', label: 'Key Contact Phone', required: false },
@@ -20,7 +21,8 @@ const TARGET_FIELDS = [
   { field: 'contactDepartment', label: 'Department', required: false },
   { field: 'keyContact', label: 'Key Contact (Yes/No)', required: false },
   { field: 'contactOwnerName', label: 'Key Contact Owner', required: false },
-  { field: 'contactOwnerEmail', label: 'Key Contact Owner Email', required: false }
+  { field: 'contactOwnerEmail', label: 'Key Contact Owner Email', required: false },
+  { field: 'contactOwnerEmployeeId', label: 'Key Contact Owner Employee ID', required: false }
 ];
 
 // Dictionary of known NeST Business Units mapped to Sheet Names
@@ -79,6 +81,8 @@ function heuristicAutoMap(headers) {
     { field: 'companyName', regex: /^(?:customer|client|company|account)(?:\s*name)?$/i },
     { field: 'contactName', regex: /^(?:key\s*contact.*?name|key\s*contact|contact\s*name|poc|person)(?:\s*name)?$/i },
     { field: 'contactDesignation', regex: /^(?:designation|job\s*title|position|role)$/i },
+    { field: 'contactOwnerEmployeeId', regex: /(?:key\s*contact\s*owner\s*(?:emp|employee)\s*id|contact\s*owner\s*(?:emp|employee)\s*id)/i },
+    { field: 'ownerEmployeeId', regex: /(?:account\s*owner\s*(?:emp|employee)\s*id|owner\s*(?:emp|employee)\s*id)/i },
     { field: 'contactOwnerEmail', regex: /(?:key\s*contact\s*owner\s*email|contact\s*owner\s*email)/i },
     { field: 'contactEmail', regex: /(?:direct\s*(?:email|mail)|contact\s*(?:email|mail)|key\s*contact\s*(?:email|mail)|^email$|^mail$|email\s*(?:id|address)|direct\s*mail\s*id)/i },
     { field: 'ownerEmail', regex: /(?:account\s*owner\s*email|owner\s*email)/i },
@@ -1293,6 +1297,35 @@ export default function BulkUploadModal({ isOpen, onClose }) {
                   <div className="text-[10px] uppercase tracking-wider text-slate-500 font-semibold">Contacts</div>
                 </div>
               </div>
+
+              {importResult.organizerSync && (
+                <div className="bg-indigo-50/70 border border-indigo-200 rounded-xl p-4 w-full max-w-2xl mb-6 text-left shadow-xs">
+                  <div className="text-xs font-bold text-indigo-950 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                    <UserCheck className="w-4 h-4 text-indigo-600" />
+                    Automated Microsoft Teams Organizer Synchronization
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                    <div className="bg-white rounded-lg p-2.5 border border-indigo-100">
+                      <div className="text-lg font-black text-indigo-700">{importResult.organizerSync.eligibleOrganizersCount || 0}</div>
+                      <div className="text-[10px] text-slate-500 font-semibold">Eligible Organizers</div>
+                    </div>
+                    <div className="bg-white rounded-lg p-2.5 border border-indigo-100">
+                      <div className="text-lg font-black text-emerald-700">
+                        {(importResult.organizerSync.retainedAuthorizedCount || 0) + (importResult.organizerSync.policyQueueSummary?.authorized || 0)}
+                      </div>
+                      <div className="text-[10px] text-slate-500 font-semibold">Policy Authorized</div>
+                    </div>
+                    <div className="bg-white rounded-lg p-2.5 border border-indigo-100">
+                      <div className="text-lg font-black text-amber-700">{importResult.organizerSync.revocationQueuedCount || 0}</div>
+                      <div className="text-[10px] text-slate-500 font-semibold">Revocations Processed</div>
+                    </div>
+                    <div className="bg-white rounded-lg p-2.5 border border-indigo-100">
+                      <div className="text-lg font-black text-rose-700">{importResult.organizerSync.unmatchedCount || 0}</div>
+                      <div className="text-[10px] text-slate-500 font-semibold">Unmatched Owners</div>
+                    </div>
+                  </div>
+                </div>
+              )}
               
               <div className="w-full max-w-2xl bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
                 <div className="px-4 py-3 border-b border-slate-200 bg-slate-50 text-left">

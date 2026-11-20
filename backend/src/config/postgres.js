@@ -1,10 +1,13 @@
 import pg from 'pg';
 import fs from 'fs';
 import path from 'path';
+import { AsyncLocalStorage } from 'async_hooks';
 import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+const txClientStorage = new AsyncLocalStorage();
 
 const config = {
   host: process.env.DB_HOST || 'localhost',
@@ -50,7 +53,14 @@ const tableMap = {
   risk_flags: 'risk_flags',
   journeyhistory: 'JourneyHistory',
   risk_notifications: 'risk_notifications',
-  teamsmeetings: 'TeamsMeetings'
+  teamsmeetings: 'TeamsMeetings',
+  authorizedorganizers: 'AuthorizedOrganizers',
+  organizerownershiphistory: 'OrganizerOwnershipHistory',
+  organizerpolicysync: 'OrganizerPolicySync',
+  organizerapprovalhistory: 'OrganizerApprovalHistory',
+  synccheckpoints: 'SyncCheckpoints',
+  communicationreviewqueue: 'CommunicationReviewQueue',
+  airecommendations: 'AiRecommendations'
 };
 
 // Map collection names to primary key fields
@@ -60,6 +70,13 @@ const keyFields = {
   contacts: 'contactId',
   interactions: 'interactionId',
   teamsmeetings: 'meetingId',
+  authorizedorganizers: 'organizerKey',
+  organizerownershiphistory: 'historyId',
+  organizerpolicysync: 'jobId',
+  organizerapprovalhistory: 'auditId',
+  synccheckpoints: 'checkpointId',
+  communicationreviewqueue: 'reviewId',
+  airecommendations: 'recommendationId',
   replies: 'replyId',
   risks: 'riskId',
   notifications: 'notificationId',
@@ -95,7 +112,7 @@ const keyFields = {
 function parseRow(tableName, row) {
   if (!row) return null;
   const data = { ...row };
-  
+
   if (tableName === 'Users') {
     if (typeof data.projects === 'string') {
       try { data.projects = JSON.parse(data.projects); } catch (e) { data.projects = []; }
@@ -104,7 +121,7 @@ function parseRow(tableName, row) {
       try { data.employees = JSON.parse(data.employees); } catch (e) { data.employees = []; }
     }
   }
-  
+
   if (tableName === 'Interactions') {
     if (typeof data.actionMentions === 'string') {
       try { data.actionMentions = JSON.parse(data.actionMentions); } catch (e) { data.actionMentions = []; }
@@ -123,7 +140,64 @@ function parseRow(tableName, row) {
     }
     data.riskDetected = !!data.riskDetected;
   }
-  
+
+  if (tableName === 'SyncHistory') {
+    if (typeof data.results === 'string') {
+      try { data.results = JSON.parse(data.results); } catch (e) { }
+    }
+  }
+
+  if (tableName === 'TeamsMeetings') {
+    for (const col of ['parsedDialogue', 'speakers', 'attendees', 'externalAttendees', 'internalAttendees', 'relatedContactIds', 'keyTopics', 'keyDecisions', 'actionItems', 'customerRequirements', 'commitments', 'risksIdentified', 'associatedAccountIds']) {
+      if (typeof data[col] === 'string') {
+        try { data[col] = JSON.parse(data[col]); } catch (e) { data[col] = []; }
+      }
+    }
+    data.hasRecording = !!data.hasRecording;
+  }
+
+  if (tableName === 'AuthorizedOrganizers') {
+    for (const col of ['ownedAccountIds', 'ownedContactIds', 'dependentWorkflows']) {
+      if (typeof data[col] === 'string') {
+        try { data[col] = JSON.parse(data[col]); } catch (e) { data[col] = []; }
+      }
+    }
+    data.isAccountOwner = !!data.isAccountOwner;
+    data.isKeyContactOwner = !!data.isKeyContactOwner;
+    data.policyConflictDetected = !!data.policyConflictDetected;
+    data.livePolicyVerified = !!data.livePolicyVerified;
+    data.outlookRbacVerified = !!data.outlookRbacVerified;
+    data.outlookMailReadGranted = !!data.outlookMailReadGranted;
+  }
+
+  if (tableName === 'OrganizerPolicySync') {
+    for (const col of ['dependentWorkflows', 'verificationResult']) {
+      if (typeof data[col] === 'string') {
+        try { data[col] = JSON.parse(data[col]); } catch (e) { }
+      }
+    }
+  }
+
+  if (tableName === 'OrganizerApprovalHistory') {
+    if (typeof data.details === 'string') {
+      try { data.details = JSON.parse(data.details); } catch (e) { }
+    }
+  }
+
+  if (tableName === 'CommunicationReviewQueue') {
+    for (const col of ['externalParticipants', 'internalParticipants', 'candidateAccounts', 'payload']) {
+      if (typeof data[col] === 'string') {
+        try { data[col] = JSON.parse(data[col]); } catch (e) { }
+      }
+    }
+  }
+
+  if (tableName === 'AiRecommendations') {
+    if (typeof data.sourceReferences === 'string') {
+      try { data.sourceReferences = JSON.parse(data.sourceReferences); } catch (e) { data.sourceReferences = {}; }
+    }
+  }
+
   if (tableName === 'Notifications') {
     data.read = !!data.read;
   }
@@ -133,7 +207,7 @@ function parseRow(tableName, row) {
       try { data.variables = JSON.parse(data.variables); } catch (e) { data.variables = {}; }
     }
   }
-  
+
   // Ensure dates are stringified back into ISO strings for application uniformity
   for (const key of Object.keys(data)) {
     if (data[key] instanceof Date) {
@@ -144,17 +218,18 @@ function parseRow(tableName, row) {
   // Set the Firestore-like virtual `id` property
   const keyCol = keyFields[tableName.toLowerCase()] || 'id';
   data.id = data[keyCol];
-  
+
   return data;
 }
 
 const tableColumnCache = new Map();
 
-async function ensureTableColumns(connection, tableName, columns) {
+async function ensureTableColumns(_connection, tableName, columns) {
+  const schemaConn = await getRawPool();
   let existingCols = tableColumnCache.get(tableName.toLowerCase());
   if (!existingCols) {
     try {
-      const res = await connection.query(`
+      const res = await schemaConn.query(`
         SELECT column_name FROM information_schema.columns WHERE lower(table_name) = lower($1)
       `, [tableName]);
       existingCols = new Set(res.rows.map(r => r.column_name));
@@ -168,7 +243,7 @@ async function ensureTableColumns(connection, tableName, columns) {
     if (col === 'id') continue;
     if (!existingCols.has(col) && !existingCols.has(col.toLowerCase())) {
       try {
-        await connection.query(`ALTER TABLE "${tableName}" ADD COLUMN IF NOT EXISTS "${col}" TEXT NULL`);
+        await schemaConn.query(`ALTER TABLE "${tableName}" ADD COLUMN IF NOT EXISTS "${col}" TEXT NULL`);
         existingCols.add(col);
         existingCols.add(col.toLowerCase());
         console.log(`✨ [Postgres Schema] Auto-added missing column "${col}" to "${tableName}" table.`);
@@ -184,10 +259,10 @@ async function ensureTableColumns(connection, tableName, columns) {
  */
 async function upsertRow(tableName, keyColumn, keyVal, data) {
   const connection = await getPool();
-  
+
   // Check if row already exists
   const checkResult = await connection.query(`SELECT 1 FROM "${tableName}" WHERE "${keyColumn}" = $1`, [keyVal]);
-  
+
   // Prepare input variables
   const columns = Object.keys(data).filter(col => col !== 'id');
   const formattedData = {};
@@ -204,7 +279,7 @@ async function upsertRow(tableName, keyColumn, keyVal, data) {
       formattedData[col] = val;
     }
   }
-  
+
   const colsToBind = Object.keys(formattedData);
   if (!colsToBind.includes(keyColumn)) {
     colsToBind.push(keyColumn);
@@ -215,7 +290,7 @@ async function upsertRow(tableName, keyColumn, keyVal, data) {
   await ensureTableColumns(connection, tableName, colsToBind);
 
   const values = colsToBind.map(col => formattedData[col]);
-  
+
   if (checkResult.rows.length > 0) {
     // Perform UPDATE
     const setClause = colsToBind.filter(col => col !== keyColumn).map((col, idx) => `"${col}" = $${idx + 1}`).join(', ');
@@ -227,7 +302,7 @@ async function upsertRow(tableName, keyColumn, keyVal, data) {
       } catch (upErr) {
         if (upErr.message && upErr.message.includes('does not exist')) {
           for (const col of colsToBind) {
-            try { await connection.query(`ALTER TABLE "${tableName}" ADD COLUMN IF NOT EXISTS "${col}" TEXT NULL`); } catch (e) {}
+            try { await connection.query(`ALTER TABLE "${tableName}" ADD COLUMN IF NOT EXISTS "${col}" TEXT NULL`); } catch (e) { }
           }
           await connection.query(`UPDATE "${tableName}" SET ${setClause} WHERE "${keyColumn}" = $${updateValues.length}`, updateValues);
         } else {
@@ -244,7 +319,7 @@ async function upsertRow(tableName, keyColumn, keyVal, data) {
     } catch (insErr) {
       if (insErr.message && insErr.message.includes('does not exist')) {
         for (const col of colsToBind) {
-          try { await connection.query(`ALTER TABLE "${tableName}" ADD COLUMN IF NOT EXISTS "${col}" TEXT NULL`); } catch (e) {}
+          try { await connection.query(`ALTER TABLE "${tableName}" ADD COLUMN IF NOT EXISTS "${col}" TEXT NULL`); } catch (e) { }
         }
         await connection.query(`INSERT INTO "${tableName}" (${colList}) VALUES (${placeholderList})`, values);
       } else {
@@ -274,7 +349,7 @@ async function updateRow(tableName, keyColumn, keyVal, data) {
       formattedData[col] = val;
     }
   }
-  
+
   const colsToBind = Object.keys(formattedData);
   if (colsToBind.length === 0) return;
 
@@ -294,9 +369,16 @@ async function updateRow(tableName, keyColumn, keyVal, data) {
  */
 async function getRow(tableName, keyColumn, keyVal) {
   const connection = await getPool();
-  const res = await connection.query(`SELECT * FROM "${tableName}" WHERE "${keyColumn}" = $1`, [keyVal]);
-  if (res.rows.length === 0) return null;
-  return parseRow(tableName, res.rows[0]);
+  try {
+    const res = await connection.query(`SELECT * FROM "${tableName}" WHERE "${keyColumn}" = $1`, [keyVal]);
+    if (res.rows.length === 0) return null;
+    return parseRow(tableName, res.rows[0]);
+  } catch (err) {
+    if (err.message && err.message.includes('does not exist')) {
+      return null;
+    }
+    throw err;
+  }
 }
 
 /**
@@ -335,66 +417,66 @@ class PostgreSQLQuery {
     this.orderByDir = 'ASC';
     this.limitNum = null;
   }
-  
+
   where(field, op, val) {
     this.filters.push({ field, op, val });
     return this;
   }
-  
+
   orderBy(field, dir = 'asc') {
     this.orderByField = field;
     this.orderByDir = dir.toUpperCase();
     return this;
   }
-  
+
   limit(num) {
     this.limitNum = num;
     return this;
   }
-  
+
   async get() {
     const connection = await getPool();
     let queryStr = `SELECT * FROM "${this.tableName}"`;
     const whereClauses = [];
     const params = [];
-    
+
     this.filters.forEach((filter, index) => {
       let sqlOp = '=';
       if (filter.op === '==') sqlOp = '=';
-      
+
       whereClauses.push(`"${filter.field}" ${sqlOp} $${index + 1}`);
       params.push(filter.val);
     });
-    
+
     if (whereClauses.length > 0) {
       queryStr += ` WHERE ${whereClauses.join(' AND ')}`;
     }
-    
+
     if (this.orderByField) {
       queryStr += ` ORDER BY "${this.orderByField}" ${this.orderByDir}`;
     }
-    
+
     if (this.limitNum !== null) {
       queryStr += ` LIMIT $${params.length + 1}`;
       params.push(parseInt(this.limitNum));
     }
-    
+
     let res;
     try {
       res = await connection.query(queryStr, params);
     } catch (err) {
       if (err.message && err.message.includes('does not exist')) {
-        return { docs: [], size: 0, forEach: () => {}, empty: true };
+        return { docs: [], size: 0, forEach: () => { }, empty: true };
       }
       throw err;
     }
     const tableName = this.tableName;
     const keyCol = keyFields[this.collectionName.toLowerCase()] || 'id';
-    
+
     const docs = res.rows.map(row => {
       const dataObj = parseRow(tableName, row);
       const docId = dataObj[keyCol];
-      
+
       return {
         id: docId,
         exists: true,
@@ -410,9 +492,9 @@ class PostgreSQLQuery {
         }
       };
     });
-    
-    return { 
-      docs, 
+
+    return {
+      docs,
       size: docs.length,
       empty: docs.length === 0,
       forEach(callback) {
@@ -435,7 +517,7 @@ class PostgreSQLSubCollection {
     this.keyField = 'replyId';
     this.parentField = this.isTaskReply ? 'taskId' : 'interactionId';
   }
-  
+
   doc(replyId) {
     const self = this;
     const id = replyId || generateId('replies');
@@ -467,7 +549,7 @@ class PostgreSQLSubCollection {
       }
     };
   }
-  
+
   async get() {
     const connection = await getPool();
     const res = await connection.query(`SELECT * FROM "${this.targetTable}" WHERE "${this.parentField}" = $1`, [this.parentId]);
@@ -491,12 +573,12 @@ class PostgreSQLCollection {
     this.collectionName = collectionName;
     this.tableName = tableMap[collectionName.toLowerCase()] || collectionName;
   }
-  
+
   doc(id) {
     const self = this;
     const docId = id || generateId(self.collectionName);
     const keyCol = keyFields[self.collectionName.toLowerCase()] || 'id';
-    
+
     return {
       id: docId,
       get: async () => {
@@ -527,7 +609,7 @@ class PostgreSQLCollection {
       }
     };
   }
-  
+
   async add(val) {
     const id = generateId(this.collectionName);
     await this.doc(id).set(val);
@@ -543,30 +625,60 @@ class PostgreSQLCollection {
       }
     };
   }
-  
+
   where(field, op, val) {
     return new PostgreSQLQuery(this.collectionName).where(field, op, val);
   }
-  
+
   orderBy(field, dir) {
     return new PostgreSQLQuery(this.collectionName).orderBy(field, dir);
   }
-  
+
   limit(num) {
     return new PostgreSQLQuery(this.collectionName).limit(num);
   }
-  
+
   async get() {
     return new PostgreSQLQuery(this.collectionName).get();
   }
 }
 
 /**
- * Replicates Firestore DB interface.
+ * Replicates Firestore DB interface, with atomic PostgreSQL transaction support.
  */
 class FirestoreSQLAdapter {
   collection(name) {
     return new PostgreSQLCollection(name);
+  }
+
+  async runInTransaction(callback) {
+    const existingClient = txClientStorage.getStore();
+    if (existingClient) {
+      const savepointName = `sp_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+      await existingClient.query(`SAVEPOINT ${savepointName}`);
+      try {
+        const result = await callback(this);
+        await existingClient.query(`RELEASE SAVEPOINT ${savepointName}`);
+        return result;
+      } catch (err) {
+        await existingClient.query(`ROLLBACK TO SAVEPOINT ${savepointName}`).catch(() => { });
+        throw err;
+      }
+    }
+
+    const rawPool = await getRawPool();
+    const client = await rawPool.connect();
+    try {
+      await client.query('BEGIN');
+      const result = await txClientStorage.run(client, () => callback(this));
+      await client.query('COMMIT');
+      return result;
+    } catch (err) {
+      await client.query('ROLLBACK').catch(() => { });
+      throw err;
+    } finally {
+      client.release();
+    }
   }
 }
 
@@ -592,14 +704,14 @@ async function ensureDatabaseExists() {
   } catch (err) {
     console.warn(`⚠️ Warning during database existence check: ${err.message}`);
   } finally {
-    await client.end().catch(() => {});
+    await client.end().catch(() => { });
   }
 }
 
 /**
- * Retrieves the initialized PostgreSQL pool, connecting if needed.
+ * Retrieves the underlying PostgreSQL pool, connecting if needed.
  */
-async function getPool() {
+async function getRawPool() {
   if (!isConnected) {
     pool = new pg.Pool(config);
     pool.on('error', (err) => {
@@ -611,6 +723,18 @@ async function getPool() {
 }
 
 /**
+ * Returns the active transaction client when inside `db.runInTransaction(...)`,
+ * or the shared PostgreSQL connection pool otherwise.
+ */
+async function getPool() {
+  const activeTxClient = txClientStorage.getStore();
+  if (activeTxClient) {
+    return activeTxClient;
+  }
+  return getRawPool();
+}
+
+/**
  * Initializes schema and runs auto-seeding.
  */
 async function initializeDatabase() {
@@ -619,12 +743,12 @@ async function initializeDatabase() {
     await ensureDatabaseExists();
     connection = await getPool();
     console.log('\uD83D\uDD0C Connected to PostgreSQL Server successfully.');
-    
+
     console.log('\u2699\uFE0F Verifying database tables...');
     const schemaPath = path.resolve(__dirname, '../../schema.postgres.sql');
     if (fs.existsSync(schemaPath)) {
       const schemaSql = fs.readFileSync(schemaPath, 'utf8');
-      
+
       // Split on semicolons, strip pure comment blocks, execute each statement
       const cleanSql = schemaSql
         .replace(/--.*$/gm, '')
@@ -633,14 +757,14 @@ async function initializeDatabase() {
         .split(';')
         .map(s => s.trim())
         .filter(s => s.length > 0);
-        
+
       for (const statement of statements) {
         try {
           await connection.query(statement);
         } catch (stmtErr) {
-          // Log schema warnings but continue — most are benign "already exists" notices
-          console.warn('Schema statement warning:', stmtErr.message || stmtErr);
-        }
+  console.error('Schema creation failed. Database initialization aborted:', stmtErr.message || stmtErr);
+  throw stmtErr;
+}
       }
       console.log('\u2705 Schema check/creation complete.');
     }
@@ -814,7 +938,233 @@ async function initializeDatabase() {
         "updatedAt" TIMESTAMP WITH TIME ZONE DEFAULT NOW()
       )`,
       `CREATE INDEX IF NOT EXISTS idx_teamsmeetings_account ON "TeamsMeetings"("accountId")`,
-      `CREATE INDEX IF NOT EXISTS idx_teamsmeetings_organizer ON "TeamsMeetings"("organizerEmail")`
+      `CREATE INDEX IF NOT EXISTS idx_teamsmeetings_organizer ON "TeamsMeetings"("organizerEmail")`,
+      `ALTER TABLE "Accounts" ADD COLUMN IF NOT EXISTS "ownerEmail" VARCHAR(150) NULL`,
+      `ALTER TABLE "Accounts" ADD COLUMN IF NOT EXISTS "ownerEmployeeId" VARCHAR(100) NULL`,
+      `ALTER TABLE "Accounts" ADD COLUMN IF NOT EXISTS "isActive" BOOLEAN DEFAULT TRUE`,
+      `ALTER TABLE "Accounts" ADD COLUMN IF NOT EXISTS "updatedAt" TIMESTAMP WITH TIME ZONE NULL`,
+      `ALTER TABLE "Contacts" ADD COLUMN IF NOT EXISTS "ownerEmail" VARCHAR(150) NULL`,
+      `ALTER TABLE "Contacts" ADD COLUMN IF NOT EXISTS "ownerEmployeeId" VARCHAR(100) NULL`,
+      `ALTER TABLE "Contacts" ADD COLUMN IF NOT EXISTS "keyContact" VARCHAR(20) NULL`,
+      `ALTER TABLE "Contacts" ADD COLUMN IF NOT EXISTS "isActive" BOOLEAN DEFAULT TRUE`,
+      `ALTER TABLE "Contacts" ADD COLUMN IF NOT EXISTS "status" VARCHAR(50) DEFAULT 'Active'`,
+      `ALTER TABLE "Contacts" ADD COLUMN IF NOT EXISTS "updatedAt" TIMESTAMP WITH TIME ZONE NULL`,
+      `ALTER TABLE "TeamsMeetings" ADD COLUMN IF NOT EXISTS "onlineMeetingId" VARCHAR(255) NULL`,
+      `ALTER TABLE "TeamsMeetings" ADD COLUMN IF NOT EXISTS "organizerEmployeeId" VARCHAR(100) NULL`,
+      `ALTER TABLE "TeamsMeetings" ADD COLUMN IF NOT EXISTS "relatedContactIds" JSONB NULL`,
+      `ALTER TABLE "TeamsMeetings" ADD COLUMN IF NOT EXISTS "aiSummary" TEXT NULL`,
+      `ALTER TABLE "TeamsMeetings" ADD COLUMN IF NOT EXISTS "keyTopics" JSONB NULL`,
+      `ALTER TABLE "TeamsMeetings" ADD COLUMN IF NOT EXISTS "keyDecisions" JSONB NULL`,
+      `ALTER TABLE "TeamsMeetings" ADD COLUMN IF NOT EXISTS "actionItems" JSONB NULL`,
+      `ALTER TABLE "TeamsMeetings" ADD COLUMN IF NOT EXISTS "customerRequirements" JSONB NULL`,
+      `ALTER TABLE "TeamsMeetings" ADD COLUMN IF NOT EXISTS "commitments" JSONB NULL`,
+      `ALTER TABLE "TeamsMeetings" ADD COLUMN IF NOT EXISTS "risksIdentified" JSONB NULL`,
+      `ALTER TABLE "TeamsMeetings" ADD COLUMN IF NOT EXISTS "sentiment" VARCHAR(50) NULL`,
+      `ALTER TABLE "TeamsMeetings" ADD COLUMN IF NOT EXISTS "aiStatus" VARCHAR(50) DEFAULT 'PENDING'`,
+      `ALTER TABLE "TeamsMeetings" ADD COLUMN IF NOT EXISTS "aiError" TEXT NULL`,
+      `ALTER TABLE "TeamsMeetings" ADD COLUMN IF NOT EXISTS "externalAttendees" JSONB NULL`,
+      `ALTER TABLE "TeamsMeetings" ADD COLUMN IF NOT EXISTS "internalAttendees" JSONB NULL`,
+      `ALTER TABLE "TeamsMeetings" ADD COLUMN IF NOT EXISTS "transcriptStatus" VARCHAR(60) DEFAULT 'PENDING'`,
+      `ALTER TABLE "TeamsMeetings" ADD COLUMN IF NOT EXISTS "hasRecording" BOOLEAN DEFAULT FALSE`,
+      `ALTER TABLE "TeamsMeetings" ADD COLUMN IF NOT EXISTS "durationSeconds" INT DEFAULT 0`,
+      `ALTER TABLE "TeamsMeetings" ADD COLUMN IF NOT EXISTS "wordCount" INT DEFAULT 0`,
+      `ALTER TABLE "TeamsMeetings" ADD COLUMN IF NOT EXISTS "matchConfidence" INT NULL`,
+      `ALTER TABLE "TeamsMeetings" ADD COLUMN IF NOT EXISTS "matchReason" VARCHAR(100) NULL`,
+      `ALTER TABLE "TeamsMeetings" ADD COLUMN IF NOT EXISTS "associatedAccountIds" JSONB NULL`,
+      `ALTER TABLE "TeamsMeetings" ADD COLUMN IF NOT EXISTS "lastError" TEXT NULL`,
+      `ALTER TABLE "TeamsMeetings" ADD COLUMN IF NOT EXISTS "lastSyncedAt" TIMESTAMP WITH TIME ZONE NULL`,
+      `CREATE INDEX IF NOT EXISTS idx_teamsmeetings_onlinemeetingid ON "TeamsMeetings"("onlineMeetingId")`,
+      `CREATE INDEX IF NOT EXISTS idx_teamsmeetings_startdatetime ON "TeamsMeetings"("startDateTime")`,
+      `CREATE INDEX IF NOT EXISTS idx_teamsmeetings_transcriptstatus ON "TeamsMeetings"("transcriptStatus")`,
+      `CREATE UNIQUE INDEX IF NOT EXISTS idx_interactions_internet_msg_id ON "Interactions"("internetMessageId") WHERE "internetMessageId" IS NOT NULL`,
+      `CREATE TABLE IF NOT EXISTS "AuthorizedOrganizers" (
+        "organizerKey" VARCHAR(150) PRIMARY KEY,
+        "uid" VARCHAR(100) NULL,
+        "employeeId" VARCHAR(100) NULL,
+        "email" VARCHAR(150) NULL,
+        "name" VARCHAR(150) NULL,
+        "isAccountOwner" BOOLEAN DEFAULT FALSE,
+        "isKeyContactOwner" BOOLEAN DEFAULT FALSE,
+        "ownedAccountIds" JSONB DEFAULT '[]',
+        "ownedContactIds" JSONB DEFAULT '[]',
+        "ownedAccountsCount" INT DEFAULT 0,
+        "ownedContactsCount" INT DEFAULT 0,
+        "eligibilityStatus" VARCHAR(60) NOT NULL,
+        "policyName" VARCHAR(150) DEFAULT 'CustomerPulseDevPolicy',
+        "applicationId" VARCHAR(100) NULL,
+        "existingTeamsPolicy" VARCHAR(150) NULL,
+        "policyConflictDetected" BOOLEAN DEFAULT FALSE,
+        "adapterMode" VARCHAR(40) DEFAULT 'MOCK',
+        "livePolicyVerified" BOOLEAN DEFAULT FALSE,
+        "dependentWorkflows" JSONB DEFAULT '[]',
+        "retryCount" INT DEFAULT 0,
+        "lastError" TEXT NULL,
+        "lastVerifiedAt" TIMESTAMP WITH TIME ZONE NULL,
+        "authorizedAt" TIMESTAMP WITH TIME ZONE NULL,
+        "revokedAt" TIMESTAMP WITH TIME ZONE NULL,
+        "teamsStatus" VARCHAR(60) NULL,
+        "outlookStatus" VARCHAR(60) DEFAULT 'Not Eligible',
+        "outlookScopeName" VARCHAR(150) NULL,
+        "outlookRbacVerified" BOOLEAN DEFAULT FALSE,
+        "outlookMailReadGranted" BOOLEAN DEFAULT FALSE,
+        "outlookAdapterMode" VARCHAR(40) DEFAULT 'MOCK',
+        "outlookRetryCount" INT DEFAULT 0,
+        "outlookLastError" TEXT NULL,
+        "outlookAuthorizedAt" TIMESTAMP WITH TIME ZONE NULL,
+        "outlookRevokedAt" TIMESTAMP WITH TIME ZONE NULL,
+        "createdAt" TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+        "updatedAt" TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+      )`,
+      `ALTER TABLE "AuthorizedOrganizers" ADD COLUMN IF NOT EXISTS "teamsStatus" VARCHAR(60) NULL`,
+      `ALTER TABLE "AuthorizedOrganizers" ADD COLUMN IF NOT EXISTS "outlookStatus" VARCHAR(60) DEFAULT 'Not Eligible'`,
+      `ALTER TABLE "AuthorizedOrganizers" ADD COLUMN IF NOT EXISTS "outlookScopeName" VARCHAR(150) NULL`,
+      `ALTER TABLE "AuthorizedOrganizers" ADD COLUMN IF NOT EXISTS "outlookRbacVerified" BOOLEAN DEFAULT FALSE`,
+      `ALTER TABLE "AuthorizedOrganizers" ADD COLUMN IF NOT EXISTS "outlookMailReadGranted" BOOLEAN DEFAULT FALSE`,
+      `ALTER TABLE "AuthorizedOrganizers" ADD COLUMN IF NOT EXISTS "outlookAdapterMode" VARCHAR(40) DEFAULT 'MOCK'`,
+      `ALTER TABLE "AuthorizedOrganizers" ADD COLUMN IF NOT EXISTS "outlookRetryCount" INT DEFAULT 0`,
+      `ALTER TABLE "AuthorizedOrganizers" ADD COLUMN IF NOT EXISTS "outlookLastError" TEXT NULL`,
+      `ALTER TABLE "AuthorizedOrganizers" ADD COLUMN IF NOT EXISTS "outlookAuthorizedAt" TIMESTAMP WITH TIME ZONE NULL`,
+      `ALTER TABLE "AuthorizedOrganizers" ADD COLUMN IF NOT EXISTS "outlookRevokedAt" TIMESTAMP WITH TIME ZONE NULL`,
+      `CREATE UNIQUE INDEX IF NOT EXISTS idx_authorizedorganizers_email ON "AuthorizedOrganizers"("email") WHERE "email" IS NOT NULL`,
+      `CREATE INDEX IF NOT EXISTS idx_authorizedorganizers_status ON "AuthorizedOrganizers"("eligibilityStatus")`,
+      `CREATE TABLE IF NOT EXISTS "OrganizerOwnershipHistory" (
+        "historyId" VARCHAR(100) PRIMARY KEY,
+        "entityType" VARCHAR(40) NOT NULL,
+        "entityId" VARCHAR(100) NOT NULL,
+        "entityName" VARCHAR(200) NULL,
+        "accountId" VARCHAR(100) NULL,
+        "previousOwnerUid" VARCHAR(100) NULL,
+        "previousOwnerEmail" VARCHAR(150) NULL,
+        "previousOwnerEmployeeId" VARCHAR(100) NULL,
+        "previousOwnerName" VARCHAR(150) NULL,
+        "newOwnerUid" VARCHAR(100) NULL,
+        "newOwnerEmail" VARCHAR(150) NULL,
+        "newOwnerEmployeeId" VARCHAR(100) NULL,
+        "newOwnerName" VARCHAR(150) NULL,
+        "changeType" VARCHAR(60) NOT NULL,
+        "triggerSource" VARCHAR(100) NULL,
+        "createdAt" TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+      )`,
+      `CREATE INDEX IF NOT EXISTS idx_ownershiphist_entity ON "OrganizerOwnershipHistory"("entityType", "entityId")`,
+      `CREATE INDEX IF NOT EXISTS idx_ownershiphist_created ON "OrganizerOwnershipHistory"("createdAt")`,
+      `CREATE TABLE IF NOT EXISTS "OrganizerPolicySync" (
+        "jobId" VARCHAR(100) PRIMARY KEY,
+        "organizerKey" VARCHAR(150) NOT NULL,
+        "uid" VARCHAR(100) NULL,
+        "employeeId" VARCHAR(100) NULL,
+        "email" VARCHAR(150) NULL,
+        "channel" VARCHAR(40) DEFAULT 'TEAMS',
+        "action" VARCHAR(40) NOT NULL,
+        "policyName" VARCHAR(150) NOT NULL,
+        "applicationId" VARCHAR(100) NULL,
+        "status" VARCHAR(60) NOT NULL,
+        "adapterMode" VARCHAR(40) DEFAULT 'MOCK',
+        "existingPolicyBefore" VARCHAR(150) NULL,
+        "dependentWorkflows" JSONB DEFAULT '[]',
+        "attemptCount" INT DEFAULT 0,
+        "maxAttempts" INT DEFAULT 3,
+        "nextRetryAt" TIMESTAMP WITH TIME ZONE NULL,
+        "lastError" TEXT NULL,
+        "verificationResult" JSONB NULL,
+        "createdAt" TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+        "updatedAt" TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+      )`,
+      `CREATE INDEX IF NOT EXISTS idx_orgpolicysync_status ON "OrganizerPolicySync"("status", "nextRetryAt")`,
+      `CREATE INDEX IF NOT EXISTS idx_orgpolicysync_org ON "OrganizerPolicySync"("organizerKey")`,
+      `CREATE TABLE IF NOT EXISTS "OrganizerApprovalHistory" (
+        "auditId" VARCHAR(100) PRIMARY KEY,
+        "organizerKey" VARCHAR(150) NOT NULL,
+        "uid" VARCHAR(100) NULL,
+        "employeeId" VARCHAR(100) NULL,
+        "email" VARCHAR(150) NULL,
+        "previousStatus" VARCHAR(60) NULL,
+        "newStatus" VARCHAR(60) NOT NULL,
+        "action" VARCHAR(80) NOT NULL,
+        "policyName" VARCHAR(150) NULL,
+        "adapterMode" VARCHAR(40) NULL,
+        "reason" TEXT NULL,
+        "details" JSONB NULL,
+        "createdAt" TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+      )`,
+      `CREATE INDEX IF NOT EXISTS idx_orgapprovalhist_org ON "OrganizerApprovalHistory"("organizerKey")`,
+      `CREATE TABLE IF NOT EXISTS "SyncCheckpoints" (
+        "checkpointId" VARCHAR(150) PRIMARY KEY,
+        "provider" VARCHAR(60) NOT NULL,
+        "organizerEmail" VARCHAR(150) NOT NULL,
+        "deltaLink" TEXT NULL,
+        "lastSyncedAt" TIMESTAMP WITH TIME ZONE NULL,
+        "lastStatus" VARCHAR(40) NULL,
+        "lastError" TEXT NULL,
+        "itemsProcessed" INT DEFAULT 0,
+        "updatedAt" TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+      )`,
+      `CREATE INDEX IF NOT EXISTS idx_synccheckpoints_organizer ON "SyncCheckpoints"("organizerEmail")`,
+      `CREATE TABLE IF NOT EXISTS "CommunicationReviewQueue" (
+        "reviewId" VARCHAR(100) PRIMARY KEY,
+        "channel" VARCHAR(50) NOT NULL,
+        "externalResourceId" VARCHAR(255) NOT NULL,
+        "organizerEmail" VARCHAR(150) NULL,
+        "subject" VARCHAR(300) NULL,
+        "occurredAt" TIMESTAMP WITH TIME ZONE NULL,
+        "externalParticipants" JSONB NULL,
+        "internalParticipants" JSONB NULL,
+        "candidateAccounts" JSONB NULL,
+        "reason" VARCHAR(100) NOT NULL,
+        "payload" JSONB NULL,
+        "status" VARCHAR(40) DEFAULT 'PENDING_REVIEW',
+        "resolvedAccountId" VARCHAR(50) NULL REFERENCES "Accounts"("accountId") ON DELETE SET NULL,
+        "resolvedByUid" VARCHAR(100) NULL,
+        "resolvedAt" TIMESTAMP WITH TIME ZONE NULL,
+        "createdAt" TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+        "updatedAt" TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+      )`,
+      `CREATE INDEX IF NOT EXISTS idx_commreview_status ON "CommunicationReviewQueue"("status")`,
+      `CREATE UNIQUE INDEX IF NOT EXISTS idx_commreview_channel_ext ON "CommunicationReviewQueue"("channel", "externalResourceId")`,
+      `CREATE TABLE IF NOT EXISTS "AiRecommendations" (
+        "recommendationId" VARCHAR(100) PRIMARY KEY,
+        "accountId" VARCHAR(50) NULL REFERENCES "Accounts"("accountId") ON DELETE CASCADE,
+        "contactId" VARCHAR(50) NULL REFERENCES "Contacts"("contactId") ON DELETE SET NULL,
+        "category" VARCHAR(50) NOT NULL,
+        "title" VARCHAR(300) NOT NULL,
+        "description" TEXT NULL,
+        "priority" VARCHAR(40) DEFAULT 'Medium',
+        "severity" VARCHAR(40) NULL,
+        "suggestedAssigneeUid" VARCHAR(100) NULL,
+        "suggestedAssigneeName" VARCHAR(150) NULL,
+        "suggestedDueDate" VARCHAR(50) NULL,
+        "sourceType" VARCHAR(60) NOT NULL,
+        "sourceId" VARCHAR(150) NULL,
+        "interactionId" VARCHAR(100) NULL,
+        "meetingId" VARCHAR(150) NULL,
+        "internetMessageId" VARCHAR(255) NULL,
+        "sourceTimestamp" TIMESTAMP WITH TIME ZONE NULL,
+        "evidenceExcerpt" TEXT NULL,
+        "sourceReferences" JSONB DEFAULT '{}',
+        "status" VARCHAR(40) DEFAULT 'PENDING_REVIEW',
+        "deferredUntil" TIMESTAMP WITH TIME ZONE NULL,
+        "reviewedByUid" VARCHAR(100) NULL,
+        "reviewedByName" VARCHAR(150) NULL,
+        "reviewedAt" TIMESTAMP WITH TIME ZONE NULL,
+        "reviewNotes" TEXT NULL,
+        "createdEntityType" VARCHAR(50) NULL,
+        "createdEntityId" VARCHAR(100) NULL,
+        "createdAt" TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+        "updatedAt" TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+      )`,
+      `CREATE INDEX IF NOT EXISTS idx_airec_account_status ON "AiRecommendations"("accountId", "status")`,
+      `CREATE INDEX IF NOT EXISTS idx_airec_source ON "AiRecommendations"("sourceType", "sourceId")`,
+      `CREATE TABLE IF NOT EXISTS "UserIntegrations" (
+        "id" VARCHAR(100) PRIMARY KEY,
+        "userId" VARCHAR(100) NOT NULL,
+        "provider" VARCHAR(50) NOT NULL,
+        "accessToken" TEXT,
+        "refreshToken" TEXT,
+        "tokenExpiry" VARCHAR(100),
+        "scope" TEXT,
+        "status" VARCHAR(40) DEFAULT 'ACTIVE',
+        "createdAt" VARCHAR(50),
+        "updatedAt" VARCHAR(50)
+      )`
     ];
     for (const migration of migrations) {
       try {
@@ -823,7 +1173,6 @@ async function initializeDatabase() {
         console.warn('Migration warning (non-fatal):', migErr.message || migErr);
       }
     }
-    
     // Auto seed if users table is empty
     const usersCheck = await connection.query('SELECT COUNT(*) as count FROM "Users"');
     const userCount = parseInt(usersCheck.rows[0].count, 10);
@@ -857,7 +1206,7 @@ async function seedPostgresData(connection) {
   const users = [
     { uid: 'mock-admin-uid', email: 'admin@pulse.com', role: 'Admin', position: 'System Administrator', userType: 'Admin', name: 'Admin User', password: 'Admin123' }
   ];
-  
+
   for (const u of users) {
     await connection.query(`
       INSERT INTO "Users" (uid, email, name, role, position, "userType", department, password, projects, employees)

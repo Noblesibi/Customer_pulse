@@ -1,6 +1,6 @@
 import { Router } from 'express';
-import { db } from '../config/database.js';
-import { authenticateToken } from '../middleware/auth.middleware.js';
+import { db, logActivity } from '../config/database.js';
+import { authenticateToken, requireDbAdmin, getPermittedAccountIdsForUser } from '../middleware/auth.middleware.js';
 import { fetchRecentMessages } from '../services/outlookSync.service.js';
 import { createInteraction } from '../services/interaction.service.js';
 import { google } from 'googleapis';
@@ -9,6 +9,17 @@ import {
   handleGoogleCallback,
   getGoogleClientForUser
 } from '../services/google.service.js';
+import { inspectDevGraphConfigReadiness } from '../services/microsoftGraph.service.js';
+import {
+  listAuthorizedOrganizers,
+  recalculateEligibleOrganizers,
+} from '../services/organizerSync.service.js';
+import {
+  syncTeamsMeetingsForOrganizer,
+  resolveTeamsReviewItem,
+  getTeamsOperationalStatus,
+  retryFailedTeamsOperations,
+} from '../services/teamsSync.service.js';
 
 const router = Router();
 
@@ -41,11 +52,11 @@ router.get('/google/connect', authenticateToken, (req, res) => {
 router.get('/google/callback', async (req, res) => {
   try {
     const { code, state, error } = req.query;
-    
+
     if (error) {
       return res.status(400).send(`Google authorization failed: ${error}`);
     }
-    
+
     if (!code || !state) {
       return res.status(400).send('Missing authorization code or state');
     }
@@ -76,7 +87,7 @@ router.get('/google/status', authenticateToken, async (req, res) => {
     const { db } = await import('../config/database.js');
     const integrationsRef = db.collection('userintegrations');
     const existingDocs = await integrationsRef.where('userId', '==', req.user.uid).get();
-    
+
     const googleIntegration = existingDocs.docs
       .map(d => d.data())
       .find(i => i.provider === 'GOOGLE' && i.status === 'ACTIVE');
@@ -115,7 +126,7 @@ router.get('/google/test/contacts', authenticateToken, async (req, res) => {
   try {
     const oauth2Client = await getGoogleClientForUser(req.user.uid);
     const people = google.people({ version: 'v1', auth: oauth2Client });
-    
+
     const response = await people.people.connections.list({
       resourceName: 'people/me',
       personFields: 'names,emailAddresses,birthdays',
@@ -123,7 +134,7 @@ router.get('/google/test/contacts', authenticateToken, async (req, res) => {
     });
 
     const connections = response.data.connections || [];
-    
+
     const contacts = connections.map(c => {
       const name = c.names?.[0]?.displayName || 'Unknown';
       const emails = (c.emailAddresses || []).map(e => e.value);
@@ -150,7 +161,7 @@ router.get('/google/test/calendar', authenticateToken, async (req, res) => {
   try {
     const oauth2Client = await getGoogleClientForUser(req.user.uid);
     const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
-    
+
     const response = await calendar.events.list({
       calendarId: 'primary',
       timeMin: new Date().toISOString(),
@@ -160,7 +171,7 @@ router.get('/google/test/calendar', authenticateToken, async (req, res) => {
     });
 
     const items = response.data.items || [];
-    
+
     const events = items.map(e => ({
       id: e.id,
       summary: e.summary || '(No title)',
@@ -181,36 +192,123 @@ router.get('/google/test/calendar', authenticateToken, async (req, res) => {
 });
 
 import { syncEmails } from '../services/emailTracking.service.js';
-import { syncTeamsMeetingsForOrganizer } from '../services/teamsSync.service.js';
 
-// Require auth for manual sync
+// Require auth for Microsoft/Teams integration endpoints
 router.use(authenticateToken);
 
 /**
- * POST /api/integrations/teams/sync
- * Trigger synchronization of Microsoft Teams meetings and transcripts.
+ * GET /api/integrations/teams/readiness
+ * GET /api/integrations/teams/status
+ * Operational visibility for automated Microsoft Teams integration (Phase 12).
+ * Zero manual employee approval controls.
  */
-router.post('/teams/sync', async (req, res) => {
+router.get(['/teams/readiness', '/teams/status'], async (_req, res) => {
   try {
-    const organizerEmail = req.body?.organizerEmail || req.user?.email || process.env.MICROSOFT_TEST_MAILBOX;
-    if (!organizerEmail) {
-      return res.status(400).json({ error: 'Organizer email is required for Teams synchronization.' });
+    const status = await getTeamsOperationalStatus();
+    return res.json(status);
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * GET /api/integrations/teams/authorized-organizers
+ * Read-only list of automatically calculated Account Owner & Key Contact Owner organizers.
+ */
+router.get('/teams/authorized-organizers', async (req, res) => {
+  try {
+    const list = await listAuthorizedOrganizers({
+      status: req.query.status || null,
+      eligibleOnly: req.query.eligibleOnly === 'true',
+    });
+    return res.json(list);
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * POST /api/integrations/teams/retry
+ * Retries failed technical synchronization operations (policy queue, AI intelligence, eligibility recalculation).
+ * Does NOT allow manual employee approval or manual organizer additions.
+ */
+router.post('/teams/retry', requireDbAdmin, async (req, res) => {
+  try {
+    const outcome = await retryFailedTeamsOperations({ user: req.user });
+    const status = await getTeamsOperationalStatus();
+    return res.status(200).json({
+      success: true,
+      outcome,
+      status,
+    });
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * POST /api/integrations/teams/recalculate-organizers
+ * Triggers automatic ownership recalculation from CRM Accounts and Contacts.
+ */
+router.post('/teams/recalculate-organizers', requireDbAdmin, async (_req, res) => {
+  try {
+    const summary = await recalculateEligibleOrganizers({ triggerSource: 'TECHNICAL_RECALCULATION' });
+    return res.status(200).json({ success: true, summary });
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * POST /api/integrations/teams/sync
+ * Admin-only controlled synchronization of Microsoft Teams meetings & transcripts.
+ * Validates organizerEmail against IT-approved AuthorizedMailboxes before any Graph call.
+ */
+router.post('/teams/sync', requireDbAdmin, async (req, res) => {
+  try {
+    const { organizerEmail, joinWebUrl, onlineMeetingId, meetingRefs = [], daysBack = 14, daysAhead = 7 } = req.body || {};
+
+    if (!organizerEmail || typeof organizerEmail !== 'string' || !organizerEmail.trim()) {
+      return res.status(400).json({ error: 'Explicit IT-approved organizerEmail is required for Teams synchronization.' });
     }
 
-    const { daysBack = 14, daysAhead = 7 } = req.body || {};
+    const combinedRefs = Array.isArray(meetingRefs) ? [...meetingRefs] : [];
+    if (joinWebUrl || onlineMeetingId) {
+      combinedRefs.push({
+        ...(joinWebUrl ? { joinWebUrl } : {}),
+        ...(onlineMeetingId ? { onlineMeetingId } : {}),
+      });
+    }
 
     const outcome = await syncTeamsMeetingsForOrganizer({
-      organizerEmail,
-      daysBack: parseInt(daysBack, 10),
-      daysAhead: parseInt(daysAhead, 10),
-      user: req.user
+      organizerEmail: organizerEmail.trim(),
+      meetingRefs: combinedRefs,
+      daysBack: parseInt(daysBack, 10) || 14,
+      daysAhead: parseInt(daysAhead, 10) || 7,
+      user: req.user,
     });
+
+    await logActivity(
+      req.user.uid,
+      req.user.name || req.user.email,
+      'ADMIN_TEAMS_SYNC',
+      `Triggered Teams sync for ${outcome.organizerEmail}: ${outcome.interactionsCreated} created, ${outcome.duplicatesSkipped} duplicate(s), ${outcome.queuedForReview} review`
+    ).catch(() => { });
 
     return res.status(200).json({
       message: 'Teams synchronization complete',
-      summary: outcome
+      summary: outcome,
     });
   } catch (error) {
+    if (error.code === 'UNAUTHORIZED_ORGANIZER') {
+      await logActivity(
+        req.user?.uid || 'unknown',
+        req.user?.name || req.user?.email || 'Unknown',
+        'UNAUTHORIZED_TEAMS_SYNC_BLOCKED',
+        `Blocked unauthorized Teams sync attempt for organizer: ${req.body?.organizerEmail || 'none'} (${error.reason})`
+      ).catch(() => { });
+      return res.status(403).json({ error: error.message, reason: error.reason });
+    }
     console.error('Error in Teams sync:', error);
     return res.status(500).json({ error: error.message });
   }
@@ -218,20 +316,123 @@ router.post('/teams/sync', async (req, res) => {
 
 /**
  * GET /api/integrations/teams/meetings
- * List synced Teams meetings from PostgreSQL
+ * List synced Teams meetings from PostgreSQL, enforced by account-level RBAC.
  */
 router.get('/teams/meetings', async (req, res) => {
   try {
     const { accountId, limit = 50 } = req.query;
+    const { unrestricted, accountIds } = await getPermittedAccountIdsForUser(req.user);
+
+    if (accountId && !unrestricted && !accountIds.has(accountId)) {
+      return res.status(403).json({ error: 'Forbidden: you do not have access to this account.' });
+    }
+
     let query = db.collection('teamsmeetings');
     if (accountId) {
       query = query.where('accountId', '==', accountId);
     }
-    const snap = await query.limit(parseInt(limit, 10)).get();
-    const meetings = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-    return res.status(200).json(meetings);
+    const snap = await query.get();
+    let meetings = snap.docs
+      .map(d => ({ id: d.id, ...d.data() }))
+      .filter(m => {
+        const mId = String(m.meetingId || m.id || '');
+        const url = String(m.joinWebUrl || '').toLowerCase();
+        if (url.includes('/test-qbr-cadence') || url.includes('/dummy')) return false;
+        if (mId === 'mtg_1794247825656' || mId.toLowerCase().includes('dummy')) return false;
+        return true;
+      });
+
+    if (!unrestricted) {
+      meetings = meetings.filter(m => m.accountId && accountIds.has(m.accountId));
+    }
+
+    meetings.sort((a, b) => new Date(b.startDateTime || 0) - new Date(a.startDateTime || 0));
+    return res.status(200).json(meetings.slice(0, parseInt(limit, 10) || 50));
   } catch (error) {
     console.error('Error fetching Teams meetings:', error);
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * GET /api/integrations/teams/sync-history
+ * Admin-only history of Teams synchronization runs.
+ */
+router.get('/teams/sync-history', requireDbAdmin, async (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit, 10) || 30;
+    const snap = await db.collection('synchistory').get();
+    const rows = snap.docs
+      .map(d => d.data())
+      .filter(r => r.provider === 'Microsoft Teams')
+      .sort((a, b) => new Date(b.timestamp || 0) - new Date(a.timestamp || 0))
+      .slice(0, limit);
+    return res.json(rows);
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * GET /api/integrations/teams/review-queue
+ * Admin-only queue of unmatched / multi-account ambiguous Teams meetings.
+ */
+router.get('/teams/review-queue', requireDbAdmin, async (req, res) => {
+  try {
+    const statusFilter = req.query.status || 'PENDING_REVIEW';
+    const snap = await db.collection('communicationreviewqueue').get();
+    let rows = snap.docs.map(d => d.data()).filter(r => r.channel === 'TEAMS_MEETING');
+    if (statusFilter !== 'ALL') {
+      rows = rows.filter(r => r.status === statusFilter);
+    }
+    rows.sort((a, b) => new Date(b.occurredAt || b.createdAt || 0) - new Date(a.occurredAt || a.createdAt || 0));
+    return res.json(rows);
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * POST /api/integrations/teams/review-queue/:reviewId/resolve
+ * Admin-only association of a queued Teams meeting to a verified CRM Account.
+ */
+router.post('/teams/review-queue/:reviewId/resolve', requireDbAdmin, async (req, res) => {
+  try {
+    const { accountId, contactId = null } = req.body || {};
+    if (!accountId) {
+      return res.status(400).json({ error: 'accountId is required to resolve review item.' });
+    }
+    const result = await resolveTeamsReviewItem({
+      reviewId: req.params.reviewId,
+      accountId,
+      contactId,
+      user: req.user,
+    });
+    return res.json(result);
+  } catch (error) {
+    return res.status(400).json({ error: error.message });
+  }
+});
+
+/**
+ * POST /api/integrations/teams/review-queue/:reviewId/ignore
+ * Admin-only dismissal of an unrelated Teams meeting in the review queue.
+ */
+router.post('/teams/review-queue/:reviewId/ignore', requireDbAdmin, async (req, res) => {
+  try {
+    const doc = await db.collection('communicationreviewqueue').doc(req.params.reviewId).get();
+    if (!doc.exists) {
+      return res.status(404).json({ error: 'Review queue item not found.' });
+    }
+    const now = new Date().toISOString();
+    await db.collection('communicationreviewqueue').doc(req.params.reviewId).update({
+      status: 'IGNORED',
+      resolvedByUid: req.user.uid,
+      resolvedAt: now,
+      updatedAt: now,
+    });
+    return res.json({ success: true, reviewId: req.params.reviewId, status: 'IGNORED' });
+  } catch (error) {
     return res.status(500).json({ error: error.message });
   }
 });
