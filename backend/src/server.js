@@ -1,3 +1,4 @@
+import { initializeDataProvider } from './config/database.js';
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
@@ -158,21 +159,27 @@ app.use((err, req, res, next) => {
   });
 });
 
-// Start Server
-app.listen(PORT, () => {
-  console.log(`🚀 Customer Pulse Backend running on port ${PORT}`);
-  console.log(`🔗 Health check available at http://localhost:${PORT}/api/health`);
-  
-  // Start the background employee sync scheduler
-  startSyncScheduler();
-  // Start the celebration sync scheduler
-  startCelebrationSyncCron();
-  // Start the email notification engine scheduler
-  startEmailScheduler();
-  // Start the automated email tracking scheduler
-  startEmailTrackingScheduler();
-  // Start the customer intelligence background scheduler (Phase 2)
-  startCustomerIntelligenceScheduler();
-  // Start the Teams meeting & transcript sync scheduler (runs only if MICROSOFT_TEAMS_SOURCE_ENABLED=true)
-  startTeamsSyncScheduler();
-});
+// Start Server only after database initialization
+async function startServer() {
+  try {
+    await initializeDataProvider();
+
+    app.listen(PORT, () => {
+      console.log(`🚀 Customer Pulse Backend running on port ${PORT}`);
+      console.log(`🔗 Health check available at http://localhost:${PORT}/api/health`);
+
+      startSyncScheduler();
+      startCelebrationSyncCron();
+      startEmailScheduler();
+      startEmailTrackingScheduler();
+      startCustomerIntelligenceScheduler();
+      // Start the Teams meeting & transcript sync scheduler (runs only if MICROSOFT_TEAMS_SOURCE_ENABLED=true)
+      startTeamsSyncScheduler();
+    });
+  } catch (err) {
+    console.error('Failed to initialize database. Backend startup aborted:', err);
+    process.exit(1);
+  }
+}
+
+startServer();

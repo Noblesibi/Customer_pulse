@@ -762,9 +762,9 @@ async function initializeDatabase() {
         try {
           await connection.query(statement);
         } catch (stmtErr) {
-          // Log schema warnings but continue — most are benign "already exists" notices
-          console.warn('Schema statement warning:', stmtErr.message || stmtErr);
-        }
+  console.error('Schema creation failed. Database initialization aborted:', stmtErr.message || stmtErr);
+  throw stmtErr;
+}
       }
       console.log('\u2705 Schema check/creation complete.');
     }
@@ -1173,7 +1173,6 @@ async function initializeDatabase() {
         console.warn('Migration warning (non-fatal):', migErr.message || migErr);
       }
     }
-
     // Auto seed if users table is empty
     const usersCheck = await connection.query('SELECT COUNT(*) as count FROM "Users"');
     const userCount = parseInt(usersCheck.rows[0].count, 10);

@@ -281,47 +281,38 @@ function seedMockData(mockDb) {
   };
 }
 
+
 // ─────────────────────────────────────────────────────────
 // Provider Initialization
 // ─────────────────────────────────────────────────────────
 auth = new MockAuth();
 
 if (isPostgres) {
-  // PostgreSQL mode — primary production path for Nest Digital CRM
+  // PostgreSQL is mandatory in production mode.
+  // Do not silently fall back to in-memory mock data.
   activeDbProvider = postgresDb;
-  isMock = true; // JWT-based auth, not Firebase; isMock means "we manage our own JWTs"
-
-  initPostgres().catch(err => {
-    const detail = err.message || (err.errors && err.errors.map(e => e.message).join('; ')) || String(err);
-    console.error('\n❌ Failed to initialize PostgreSQL database:', detail);
-    if (err.errors) {
-      err.errors.forEach((e, i) => console.error(`  Sub-error [${i}]:`, e.message || e));
-    }
-    console.warn('\n⚠️  FALLING BACK TO MOCK IN-MEMORY DATABASE.');
-    console.warn('To fix PostgreSQL connectivity, ensure:');
-    console.warn('  1. PostgreSQL is running on the configured DB_HOST:DB_PORT.');
-    console.warn('  2. DB_USER, DB_PASSWORD, DB_DATABASE are correct in backend/.env');
-    console.warn('  3. The database was created: createdb -U postgres customer_pulse\n');
-
-    // Swap to in-memory mock on failure
-    const fileExists = fs.existsSync(MOCK_DB_FILE);
-    const mockDb = new MockFirestore();
-    activeDbProvider = mockDb;
-    if (!fileExists) {
-      seedMockData(mockDb);
-      mockDb.saveData();
-    }
-  });
+  isMock = true; // JWT-based authentication, not Firebase
 } else {
   // Developer mock mode (no database required)
-  console.log('⚠️  Running in Mock In-Memory mode. Set DB_TYPE=postgres in backend/.env to connect to PostgreSQL.');
+  console.log('⚠️ Running in Mock In-Memory mode. Set DB_TYPE=postgres in backend/.env to connect to PostgreSQL.');
+
   const fileExists = fs.existsSync(MOCK_DB_FILE);
   const mockDb = new MockFirestore();
   activeDbProvider = mockDb;
   isMock = true;
+
   if (!fileExists) {
     seedMockData(mockDb);
     mockDb.saveData();
+  }
+}
+
+// Explicit database initialization, awaited by server.js
+export async function initializeDataProvider() {
+  if (isPostgres) {
+    console.log('Initializing PostgreSQL database...');
+    await initPostgres();
+    console.log('PostgreSQL database initialized successfully.');
   }
 }
 
