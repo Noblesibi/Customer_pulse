@@ -162,9 +162,24 @@ router.get('/:accountId/:userId/interactions', async (req, res) => {
       return { ...i, contactName, companyName, replies };
     }));
 
-    // 2. Fetch from Emaillogs (system sent emails)
-    const emailSnap = await db.collection('emaillogs').get();
+    // 2. Fetch from Emaillogs (system sent emails) + active EmailQueue items not yet logged
+    const [emailSnap, queueSnap] = await Promise.all([
+      db.collection('emaillogs').get(),
+      db.collection('emailqueue').get().catch(() => ({ docs: [] })),
+    ]);
     let emails = emailSnap.docs.map(doc => doc.data());
+    const loggedQueueIds = new Set(emails.map(e => e.queueId).filter(Boolean));
+    for (const qDoc of queueSnap.docs) {
+      const q = qDoc.data();
+      if (!q || q.status === 'scheduled_marker' || loggedQueueIds.has(q.queueId)) continue;
+      if (q.subject && q.htmlBody) {
+        emails.push({
+          ...q,
+          logId: q.queueId || qDoc.id,
+          sentAt: q.processedAt || q.scheduledAt || q.createdAt,
+        });
+      }
+    }
 
     // Exclude all dummy/mock data
     emails = emails.filter(e => !e.isMock);
@@ -174,11 +189,8 @@ router.get('/:accountId/:userId/interactions', async (req, res) => {
       emails = emails.filter(e => e.recipientUid === userId);
     }
 
-    // Filter strictly by accountId so unrelated global emails are not injected
-    emails = emails.filter(e => e.relatedAccountId && String(e.relatedAccountId) === String(accountId));
-
-    // Batch resolve related tasks to get the actual assignedBy / author
-    const taskIds = emails.map(e => e.relatedTaskId).filter(Boolean);
+    // Batch resolve related tasks so task reminders/overdue emails with relatedTaskId map to their accountId
+    const taskIds = Array.from(new Set(emails.map(e => e.relatedTaskId).filter(Boolean)));
     const taskMap = new Map();
     if (taskIds.length > 0) {
       await Promise.all(taskIds.map(async (tid) => {
@@ -188,6 +200,15 @@ router.get('/:accountId/:userId/interactions', async (req, res) => {
         } catch (e) {}
       }));
     }
+
+    // Filter strictly by accountId (either directly on relatedAccountId/accountId or via relatedTask.accountId)
+    emails = emails.filter(e => {
+      const directAccId = e.relatedAccountId || e.accountId;
+      if (directAccId && String(directAccId) === String(accountId)) return true;
+      const relatedTask = e.relatedTaskId ? taskMap.get(e.relatedTaskId) : null;
+      if (relatedTask?.accountId && String(relatedTask.accountId) === String(accountId)) return true;
+      return false;
+    });
 
     // Map emaillogs to interaction format expected by the frontend
     const emailInteractions = emails.map(e => {

@@ -37,8 +37,8 @@ async function resolveAccountAndContact(email) {
     console.error('Error resolving account/contact from email:', error);
   }
   
-  // Return default sandbox demo account if unable to match
-  return { contactId: 'unknown-graph-contact', accountId: 'acc-1' };
+  // Never assign unmatched communications to a default account such as acc-1
+  return { contactId: null, accountId: null };
 }
 
 export async function handleOutlookWebhook(req, res) {
@@ -50,6 +50,12 @@ export async function handleOutlookWebhook(req, res) {
 
   try {
     const { contactId, accountId } = await resolveAccountAndContact(senderEmail);
+    if (!accountId) {
+      return res.status(202).json({
+        queuedForReview: true,
+        message: 'No matching CRM account found for senderEmail; webhook was not assigned to any default account.',
+      });
+    }
 
     // AI Analysis
     const analysis = await analyzeCommunication(bodyText);
@@ -149,6 +155,12 @@ export async function handleTeamsWebhook(req, res) {
 
   try {
     const { contactId, accountId } = await resolveAccountAndContact(senderEmail);
+    if (!accountId) {
+      return res.status(202).json({
+        queuedForReview: true,
+        message: 'No matching CRM account found for senderEmail; webhook was not assigned to any default account.',
+      });
+    }
 
     // AI Analysis
     const analysis = await analyzeCommunication(messageText);

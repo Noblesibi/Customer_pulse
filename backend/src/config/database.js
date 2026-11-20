@@ -14,7 +14,9 @@ const isPostgres = dbType === 'postgres';
 // Dynamic Database Provider — allows clean fallback to mock on connection failure
 let activeDbProvider = null;
 
-const MOCK_DB_FILE = path.resolve(process.cwd(), 'db-mock.json');
+const MOCK_DB_FILE = process.env.MOCK_DB_FILE
+  ? path.resolve(process.env.MOCK_DB_FILE)
+  : path.resolve(process.cwd(), 'db-mock.json');
 
 class FirestoreSQLAdapter {
   collection(name) {
@@ -22,6 +24,22 @@ class FirestoreSQLAdapter {
       throw new Error('Database layer is not initialized yet!');
     }
     return activeDbProvider.collection(name);
+  }
+
+  async runInTransaction(callback) {
+    if (!activeDbProvider) {
+      throw new Error('Database layer is not initialized yet!');
+    }
+    if (typeof activeDbProvider.runInTransaction === 'function') {
+      return activeDbProvider.runInTransaction(callback);
+    }
+    return callback(this);
+  }
+
+  setTestWriteHook(fn) {
+    if (activeDbProvider && typeof activeDbProvider.setTestWriteHook === 'function') {
+      activeDbProvider.setTestWriteHook(fn);
+    }
   }
 }
 
@@ -32,6 +50,8 @@ const db = new FirestoreSQLAdapter();
 // ─────────────────────────────────────────────────────────
 class MockFirestore {
   constructor() {
+    this.transactionDepth = 0;
+    this.testWriteHook = null;
     this.data = {
       users: {},
       accounts: {},
@@ -48,9 +68,43 @@ class MockFirestore {
       emaillogs: {},
       notificationpreferences: {},
       celebrationEvents: {},
-      userintegrations: {}
+      userintegrations: {},
+      teamsmeetings: {},
+      synchistory: {},
+      syncHistory: {},
+      authorizedorganizers: {},
+      organizerownershiphistory: {},
+      organizerpolicysync: {},
+      organizerapprovalhistory: {},
+      synccheckpoints: {},
+      communicationreviewqueue: {},
+      airecommendations: {}
     };
     this.loadData();
+  }
+
+  setTestWriteHook(fn) {
+    this.testWriteHook = typeof fn === 'function' ? fn : null;
+  }
+
+  async runInTransaction(callback) {
+    const snapshot = JSON.parse(JSON.stringify(this.data));
+    this.transactionDepth = (this.transactionDepth || 0) + 1;
+    try {
+      const result = await callback(this);
+      this.transactionDepth--;
+      if (this.transactionDepth === 0) {
+        this.saveData();
+      }
+      return result;
+    } catch (err) {
+      this.transactionDepth--;
+      this.data = snapshot;
+      if (this.transactionDepth === 0) {
+        this.saveData();
+      }
+      throw err;
+    }
   }
 
   loadData() {
@@ -68,6 +122,7 @@ class MockFirestore {
   }
 
   saveData() {
+    if (this.transactionDepth > 0) return;
     try {
       fs.writeFileSync(MOCK_DB_FILE, JSON.stringify(this.data, null, 2), 'utf8');
     } catch (err) {
@@ -90,17 +145,30 @@ class MockFirestore {
             id: docId,
             data: () => self.data[name][docId] || null
           }),
-          set: async (val) => {
-            self.data[name][docId] = { ...val, id: docId };
+          set: async (val, options = {}) => {
+            if (self.testWriteHook) {
+              await self.testWriteHook({ collection: name, docId, operation: 'set', data: val });
+            }
+            if (options && options.merge && self.data[name][docId]) {
+              self.data[name][docId] = { ...self.data[name][docId], ...val, id: docId };
+            } else {
+              self.data[name][docId] = { ...val, id: docId };
+            }
             self.saveData();
             return { id: docId };
           },
           update: async (val) => {
+            if (self.testWriteHook) {
+              await self.testWriteHook({ collection: name, docId, operation: 'update', data: val });
+            }
             self.data[name][docId] = { ...self.data[name][docId], ...val, id: docId };
             self.saveData();
             return { id: docId };
           },
           delete: async () => {
+            if (self.testWriteHook) {
+              await self.testWriteHook({ collection: name, docId, operation: 'delete', data: null });
+            }
             delete self.data[name][docId];
             self.saveData();
             return { id: docId };
@@ -126,29 +194,31 @@ class MockFirestore {
         return { docs };
       },
       where(field, operator, value) {
-        return {
-          get: async () => {
-            const docs = Object.values(self.data[name])
-              .filter(doc => {
-                if (operator === '==') return doc[field] === value;
-                if (operator === 'array-contains') return Array.isArray(doc[field]) && doc[field].includes(value);
-                return true;
-              })
-              .map(doc => ({ id: doc.id, exists: true, data: () => doc }));
-            return { docs };
+        const filters = [{ field, operator, value }];
+        const runFilter = (limitNum = null) => {
+          let docs = Object.values(self.data[name])
+            .filter(doc => filters.every(f => {
+              if (f.operator === '==') return doc[f.field] === f.value;
+              if (f.operator === 'array-contains') return Array.isArray(doc[f.field]) && doc[f.field].includes(f.value);
+              return true;
+            }));
+          if (limitNum !== null) docs = docs.slice(0, limitNum);
+          const mapped = docs.map(doc => ({ id: doc.id, exists: true, data: () => doc }));
+          return { docs: mapped, size: mapped.length, empty: mapped.length === 0, forEach: cb => mapped.forEach(cb) };
+        };
+        const queryObj = {
+          where(nextField, nextOp, nextVal) {
+            filters.push({ field: nextField, operator: nextOp, value: nextVal });
+            return queryObj;
           },
+          get: async () => runFilter(null),
           limit(num) {
             return {
-              get: async () => {
-                const docs = Object.values(self.data[name])
-                  .filter(doc => doc[field] === value)
-                  .slice(0, num)
-                  .map(doc => ({ id: doc.id, exists: true, data: () => doc }));
-                return { docs };
-              }
+              get: async () => runFilter(num)
             };
           }
         };
+        return queryObj;
       },
       orderBy(field, direction = 'asc') {
         return {

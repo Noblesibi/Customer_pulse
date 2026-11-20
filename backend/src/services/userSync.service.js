@@ -2,6 +2,7 @@ import { executeSecQuery } from '../config/secDatabase.js';
 import { db } from '../config/database.js';
 import { ensureNestGroupEmployees } from './nestgroup.seed.js';
 import { userTypeToRole } from '../config/rbac.js';
+import { recalculateEligibleOrganizers } from './organizerSync.service.js';
 import dotenv from 'dotenv';
 
 dotenv.config();
@@ -161,6 +162,7 @@ export async function syncEmployees() {
     }
     
     console.log(`✅ [UserSyncService] Synchronization complete. Synced ${syncedCount} users with full profile details successfully.`);
+    await recalculateEligibleOrganizers({ triggerSource: 'EMPLOYEE_DIRECTORY_SYNC' }).catch(() => {});
   } catch (err) {
     console.error('❌ [UserSyncService] Error during employee synchronization:', err.message);
   }

@@ -62,3 +62,85 @@ export function requireRole(allowedRoles) {
 export function requirePermission(allowedRoles) {
   return requireRole(allowedRoles);
 }
+
+/**
+ * Verifies Admin privilege against the live DB Users profile (in addition to JWT).
+ */
+export async function requireDbAdmin(req, res, next) {
+  if (!req.user) {
+    return res.status(401).json({ error: 'User is not authenticated' });
+  }
+  try {
+    const { db } = await import('../config/database.js');
+    const userDoc = await db.collection('users').doc(req.user.uid).get();
+    const userProfile = userDoc.exists ? userDoc.data() : null;
+    const isAdmin =
+      (userProfile && (userProfile.role === 'Admin' || userProfile.userType === 'Admin')) ||
+      (!userProfile && (req.user.role === 'Admin' || req.user.userType === 'Admin'));
+
+    if (!isAdmin) {
+      return res.status(403).json({ error: 'Forbidden: Administrator authorization is required.' });
+    }
+    req.userProfile = userProfile;
+    return next();
+  } catch (err) {
+    return res.status(500).json({ error: 'Failed to verify administrator permissions.' });
+  }
+}
+
+/**
+ * Resolves the set of accountIds a user may view under CRM RBAC rules
+ * (Admin and CEO see all; other roles see owned accounts and stakeholder accounts).
+ */
+export async function getPermittedAccountIdsForUser(user) {
+  const { db } = await import('../config/database.js');
+  const userDoc = await db.collection('users').doc(user.uid).get();
+  const userProfile = userDoc.exists ? userDoc.data() : null;
+
+  const isTrueAdmin =
+    (userProfile && (userProfile.userType === 'Admin' || userProfile.role === 'Admin')) ||
+    (!userProfile && (user.role === 'Admin' || user.userType === 'Admin'));
+  const isCeo =
+    (userProfile && (userProfile.userType === 'CEO' || userProfile.position === 'CEO' || userProfile.position === 'Chief Executive Officer')) ||
+    (!userProfile && (user.userType === 'CEO' || user.position === 'CEO'));
+
+  if (isTrueAdmin || isCeo) {
+    return { unrestricted: true, accountIds: null };
+  }
+
+  const userEmail = user.email?.toLowerCase();
+  const userName = user.name?.toLowerCase();
+  const isMatch = (entity) => {
+    if (entity.ownerId === user.uid || entity.assignedTo === user.uid || entity.userId === user.uid) return true;
+    if (userEmail && (entity.ownerEmail?.toLowerCase() === userEmail || entity.assignedToEmail?.toLowerCase() === userEmail || entity.email?.toLowerCase() === userEmail)) return true;
+    if (userName && (entity.ownerName?.toLowerCase().includes(userName.split(' ')[0]) || entity.assignedToName?.toLowerCase().includes(userName.split(' ')[0]))) return true;
+    return false;
+  };
+
+  const [accountsSnap, contactsSnap] = await Promise.all([
+    db.collection('accounts').get(),
+    db.collection('contacts').get(),
+  ]);
+
+  const ownedAccountIds = new Set(
+    accountsSnap.docs.map(d => d.data()).filter(a => isMatch(a)).map(a => a.accountId || a.id)
+  );
+  const stakeholderAccountIds = new Set(
+    contactsSnap.docs.map(d => d.data()).filter(c => isMatch(c)).map(c => c.accountId).filter(Boolean)
+  );
+
+  return {
+    unrestricted: false,
+    accountIds: new Set([...ownedAccountIds, ...stakeholderAccountIds]),
+  };
+}
+
+/**
+ * Verifies whether req.user has RBAC read access to the specified accountId.
+ */
+export async function canUserAccessAccount(user, accountId) {
+  if (!user || !accountId) return false;
+  const { unrestricted, accountIds } = await getPermittedAccountIdsForUser(user);
+  if (unrestricted) return true;
+  return accountIds.has(accountId);
+}

@@ -87,7 +87,7 @@ export default function InteractionsTab({ account, allActivities = [] }) {
     let type = 'Activity';
     if (a.itemType === 'interaction') {
       const hasAssociatedTask = Array.isArray(a.actionMentions) && a.actionMentions.length > 0;
-      if (a.source === 'Teams') type = 'Teams Meeting';
+      if (a.source === 'Teams' || a.source === 'Teams Meeting' || String(a.source || '').toLowerCase().includes('teams')) type = 'Teams Meeting';
       else if (a.source === 'Outlook Mail' || a.source === 'Email') type = 'Outlook Mail';
       else type = hasAssociatedTask ? 'Log Interaction with Task' : 'Log Interaction';
     } else if (a.itemType === 'task') {
@@ -101,7 +101,7 @@ export default function InteractionsTab({ account, allActivities = [] }) {
     }
 
     let rawTitle = a.title || a.subject || a.taskHeader || a.name || 'Logged Activity';
-    let rawSummary = a.details || a.messageText || a.description || a.task || a.notes || '';
+    let rawSummary = a.aiSummary || a.details || a.messageText || a.description || a.task || a.notes || '';
     
     let title = formatCleanInteractionTitle(rawTitle, account?.companyName || account?.name);
     let summary = formatCleanInteractionContent(rawSummary);
@@ -140,6 +140,13 @@ export default function InteractionsTab({ account, allActivities = [] }) {
     if (a.clientContactName) participants.push(a.clientContactName);
     if (a.toEmail) participants.push(a.toEmail);
     if (a.recipientEmail) participants.push(a.recipientEmail);
+    if (a.organizerEmail) participants.push(a.organizerEmail);
+    if (Array.isArray(a.externalAttendees)) {
+      a.externalAttendees.forEach(p => participants.push(p.name || p.email));
+    }
+    if (Array.isArray(a.internalAttendees)) {
+      a.internalAttendees.forEach(p => participants.push(p.name || p.email));
+    }
     if (a.actionMentions && Array.isArray(a.actionMentions)) {
       a.actionMentions.forEach(m => {
         if (m.name) participants.push(m.name);
@@ -168,13 +175,15 @@ export default function InteractionsTab({ account, allActivities = [] }) {
     ].filter(Boolean).join(' ').toLowerCase();
 
     return {
-      id: a.id || a.interactionId || a.taskId || Math.random().toString(),
+      id: a.id || a.interactionId || a.meetingId || a.taskId || Math.random().toString(),
       type,
       title,
-      date: formatDate(a.date || a.timestamp || a.createdAt),
+      date: formatDate(a.date || a.startDateTime || a.timestamp || a.createdAt),
       participants: uniqueParticipants,
       summary,
-      status,
+      status: status || (a.transcriptStatus === 'AVAILABLE' ? 'Transcript Ready' : ''),
+      keyDecisions: Array.isArray(a.keyDecisions) ? a.keyDecisions : [],
+      actionItems: Array.isArray(a.actionItems) ? a.actionItems : [],
       searchableText
     };
   });
@@ -367,6 +376,27 @@ export default function InteractionsTab({ account, allActivities = [] }) {
                     )}
                   </div>
                   <p className="text-sm text-gray-700 font-medium leading-relaxed mb-4">{interaction.summary}</p>
+
+                  {(interaction.keyDecisions?.length > 0 || interaction.actionItems?.length > 0) && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 mb-3 text-xs">
+                      {interaction.keyDecisions?.length > 0 && (
+                        <div className="bg-emerald-50/60 border border-emerald-100 rounded-lg p-2.5">
+                          <span className="font-bold text-emerald-800 block mb-1">Key Decisions ({interaction.keyDecisions.length})</span>
+                          <ul className="list-disc pl-4 space-y-0.5 text-slate-700">
+                            {interaction.keyDecisions.slice(0, 3).map((d, idx) => <li key={idx}>{d}</li>)}
+                          </ul>
+                        </div>
+                      )}
+                      {interaction.actionItems?.length > 0 && (
+                        <div className="bg-indigo-50/60 border border-indigo-100 rounded-lg p-2.5">
+                          <span className="font-bold text-indigo-800 block mb-1">Action Items ({interaction.actionItems.length})</span>
+                          <ul className="list-disc pl-4 space-y-0.5 text-slate-700">
+                            {interaction.actionItems.slice(0, 3).map((item, idx) => <li key={idx}>{item}</li>)}
+                          </ul>
+                        </div>
+                      )}
+                    </div>
+                  )}
                   
                   <div className="flex items-center gap-2">
                     <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Participants:</span>

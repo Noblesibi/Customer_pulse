@@ -3,6 +3,7 @@ import { analyzeCommunication, generateTaskHeader } from './ai.service.js';
 import { calculateAccountHealth } from './health.service.js';
 import { sendTaskAssignmentEmail, sendInteractionLoggedEmail } from './email.service.js';
 import { getSystemDateString, getSystemTimeString } from '../utils/dateUtils.js';
+import { stageAiRecommendationsFromAnalysis } from './aiRecommendationReview.service.js';
 
 /**
  * Creates an interaction, runs AI analysis, updates health, and triggers notifications.
@@ -117,16 +118,19 @@ export async function createInteraction(data, user) {
 
   await db.collection('interactions').doc(interactionId).set(newInteraction);
 
-  // Handle risk detection
+  // Handle AI risk detection (staged as "Pending Review" until approved by an employee)
+  let stagedRiskRecord = null;
   if (newInteraction.riskDetected) {
     const riskId = 'risk-' + Math.random().toString(36).substring(2, 11);
-    await db.collection('risks').doc(riskId).set({
+    stagedRiskRecord = {
       riskId,
       accountId,
+      contactId: contactId || null,
       category: analysis.riskCategory,
       severity: analysis.riskLevel,
       description: analysis.summary,
-      status: 'Open',
+      status: 'Pending Review',
+      verificationStatus: 'PENDING_REVIEW',
       source: 'AI',
       interactionId,
       interactionSource: source,
@@ -134,18 +138,19 @@ export async function createInteraction(data, user) {
       involvedEmployee: loggedByName || '',
       involvedContact: contactName || '',
       createdAt: new Date().toISOString()
-    });
+    };
+    await db.collection('risks').doc(riskId).set(stagedRiskRecord);
 
-    // Add risk notification for the account owner
+    // Add risk review notification for the account owner
     const riskNotifId = 'notif-' + Math.random().toString(36).substring(2, 11);
     const ownerId = accountDoc.data().ownerId;
     await db.collection('notifications').doc(riskNotifId).set({
       notificationId: riskNotifId,
       accountId,
-      toUserId: ownerId || null, // notify the responsible person
+      toUserId: ownerId || null,
       riskId,
       type: 'New Risk',
-      message: `New risk alert detected: [${analysis.riskCategory}] - ${analysis.summary}`,
+      message: `AI risk recommendation pending review: [${analysis.riskCategory}] - ${analysis.summary}`,
       severity: analysis.riskLevel,
       read: false,
       readAt: null,
@@ -154,6 +159,38 @@ export async function createInteraction(data, user) {
       timestamp: new Date().toISOString()
     });
   }
+
+  // Stage AI-generated recommendations (Follow-up Tasks, Opportunities, Risks, Engagement Insights)
+  // with full source provenance for employee Approve / Edit / Reject / Defer review.
+  const recSourceType =
+    source === 'Outlook Mail'
+      ? 'OUTLOOK_MAIL'
+      : source === 'Teams Meeting'
+        ? 'TEAMS_MEETING'
+        : 'MANUAL_INTERACTION';
+
+  const stagedRecommendations = await stageAiRecommendationsFromAnalysis({
+    accountId,
+    contactId: contactId || null,
+    sourceType: recSourceType,
+    sourceId: data.meetingId || internetMessageId || interactionId,
+    interactionId,
+    meetingId: data.meetingId || null,
+    internetMessageId: internetMessageId || null,
+    sourceTimestamp: newInteraction.timestamp,
+    evidenceExcerpt: messageText.slice(0, 350),
+    defaultOwnerUid: accountDoc.data().ownerId || user.uid,
+    defaultOwnerName: accountDoc.data().ownerName || loggedByName,
+    followUpTasks: analysis.followUpSignals || [],
+    businessOpportunities: analysis.businessOpportunities || [],
+    risks: stagedRiskRecord
+      ? [{ riskId: stagedRiskRecord.riskId, title: stagedRiskRecord.category, description: stagedRiskRecord.description, severity: stagedRiskRecord.severity }]
+      : [],
+    engagementInsights: [
+      ...(analysis.engagementOpportunities || []),
+      ...(analysis.requirements || []),
+    ],
+  }).catch(() => []);
 
   // Add generic activity feed notification (system-wide)
   const activityNotifId = 'notif-' + Math.random().toString(36).substring(2, 11);
@@ -254,6 +291,7 @@ export async function createInteraction(data, user) {
       notifications: mentionNotifications
     },
     analysis,
-    health: updatedHealth
+    health: updatedHealth,
+    recommendations: stagedRecommendations
   };
 }

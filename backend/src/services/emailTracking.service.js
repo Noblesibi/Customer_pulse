@@ -1,5 +1,9 @@
 import { db } from '../config/database.js';
-import { fetchRecentMessages } from './outlookSync.service.js';
+import { fetchRecentMessages, assertAuthorizedOutlookMailbox } from './outlookSync.service.js';
+import {
+  listAuthorizedOutlookMailboxes,
+  isInternalCorporateEmail,
+} from './organizerSync.service.js';
 import { createInteraction } from './interaction.service.js';
 import dotenv from 'dotenv';
 
@@ -19,12 +23,41 @@ export function isSyncInProgress() {
   return isSyncing;
 }
 
+async function getOutlookSyncCheckpoint(mailboxEmail) {
+  const cleanEmail = String(mailboxEmail || '').trim().toLowerCase();
+  const checkpointId = `outlook:${cleanEmail}`;
+  const doc = await db.collection('synccheckpoints').doc(checkpointId).get();
+  return doc.exists ? doc.data() : null;
+}
+
+async function saveOutlookSyncCheckpoint(mailboxEmail, { status, itemsProcessed = 0, lastSyncedAt = null, lastError = null } = {}) {
+  const cleanEmail = String(mailboxEmail || '').trim().toLowerCase();
+  const checkpointId = `outlook:${cleanEmail}`;
+  const nowIso = new Date().toISOString();
+  const existing = await getOutlookSyncCheckpoint(cleanEmail);
+  const record = {
+    checkpointId,
+    provider: 'OUTLOOK_MAIL',
+    organizerEmail: cleanEmail,
+    deltaLink: existing?.deltaLink || null,
+    lastSyncedAt: lastSyncedAt || existing?.lastSyncedAt || nowIso,
+    lastStatus: status || 'SUCCESS',
+    lastError: lastError || null,
+    itemsProcessed: (existing?.itemsProcessed || 0) + itemsProcessed,
+    updatedAt: nowIso,
+  };
+  await db.collection('synccheckpoints').doc(checkpointId).set(record, { merge: true });
+  return record;
+}
+
 /**
  * Core automatic email sync:
- * Ingests recent emails from Microsoft 365, matching them by contact/account
- * and automatically logs them as interactions in real-time.
+ * Ingests recent emails (Inbox & Sent Items) ONLY for organizers whose Outlook mailbox
+ * authorization (`outlookStatus === 'Authorized'`) and `Mail.Read` permission have been verified.
+ * Supports incremental `SyncCheckpoints` (`provider = 'OUTLOOK_MAIL'`) and routes ambiguous
+ * multi-account messages to `CommunicationReviewQueue`.
  */
-export async function syncEmails(invokedByUser = null) {
+export async function syncEmails(invokedByUser = null, { mailboxEmail = null, limit = 50, useIncrementalCheckpoint = false } = {}) {
   if (isSyncing) {
     console.log('🔄 [EmailTrackingService] Auto-sync already in progress, skipping concurrent run.');
     return { skipped: true, reason: 'Already in progress' };
@@ -34,162 +67,293 @@ export async function syncEmails(invokedByUser = null) {
   lastSyncTimestamp = Date.now();
 
   try {
-    const mailbox = process.env.MICROSOFT_TEST_MAILBOX;
-    if (!mailbox) {
-      console.warn('⚠️ [EmailTrackingService] MICROSOFT_TEST_MAILBOX is not configured. Skipping sync.');
-      return { error: 'MICROSOFT_TEST_MAILBOX is not configured' };
-    }
+    let targetMailboxes = [];
 
-    // Identify fallback user
-    let defaultUser = invokedByUser || { uid: 'system', name: 'System Auto-Sync', email: mailbox };
-    if (!invokedByUser) {
-      const userQuery = await db.collection('users').where('email', '==', mailbox).limit(1).get();
-      if (!userQuery.empty) {
-        const u = userQuery.docs[0].data();
-        defaultUser = { uid: u.uid, name: u.name, email: u.email };
+    if (mailboxEmail) {
+      const authRes = await assertAuthorizedOutlookMailbox(mailboxEmail);
+      targetMailboxes = [authRes.record || { email: authRes.email }];
+    } else {
+      const authorizedRecords = await listAuthorizedOutlookMailboxes();
+      if (authorizedRecords.length > 0) {
+        targetMailboxes = authorizedRecords;
+      } else if (process.env.MICROSOFT_TEST_MAILBOX) {
+        // Even if MICROSOFT_TEST_MAILBOX is set, enforce authorization check before reading
+        const authRes = await assertAuthorizedOutlookMailbox(process.env.MICROSOFT_TEST_MAILBOX);
+        targetMailboxes = [authRes.record || { email: authRes.email }];
       }
     }
 
-    // Fetch recent emails from Outlook
-    const messages = await fetchRecentMessages(mailbox, 50);
+    if (targetMailboxes.length === 0) {
+      return {
+        skipped: true,
+        reason: 'NO_AUTHORIZED_OUTLOOK_MAILBOXES',
+        syncRecord: {
+          results: {
+            mailboxesChecked: 0,
+            totalRead: 0,
+            synced: 0,
+            queuedForReview: 0,
+          },
+        },
+      };
+    }
 
-    const results = {
-      totalRead: messages.length,
+    const [usersSnap, contactsSnap, accountsSnap] = await Promise.all([
+      db.collection('users').get(),
+      db.collection('contacts').get(),
+      db.collection('accounts').get(),
+    ]);
+    const allUsers = usersSnap.docs.map(d => d.data());
+    const allContacts = contactsSnap.docs.map(d => ({ contactId: d.id, ...d.data() }));
+    const allAccounts = accountsSnap.docs.map(d => ({ accountId: d.id, ...d.data() }));
+
+    const aggregateResults = {
+      mailboxesChecked: targetMailboxes.length,
+      totalRead: 0,
       internalSkipped: 0,
       unmatchedSkipped: 0,
       duplicatesSkipped: 0,
+      queuedForReview: 0,
       synced: 0,
-      errors: 0
+      errors: 0,
     };
 
-    // Pre-fetch users for fast attribution mapping
-    const usersSnap = await db.collection('users').get();
-    const allUsers = usersSnap.docs.map(d => d.data());
+    for (const orgRecord of targetMailboxes) {
+      const mailbox = String(orgRecord.email || '').trim().toLowerCase();
+      if (!mailbox) continue;
 
-    for (const msg of messages) {
-      const allEmails = [
-        msg.from?.emailAddress?.address,
-        ...(msg.toRecipients || []).map(r => r.emailAddress?.address),
-        ...(msg.ccRecipients || []).map(r => r.emailAddress?.address)
-      ].filter(Boolean).map(e => e.toLowerCase());
-
-      const externalEmails = allEmails.filter(e => !e.endsWith('@nestgroup.net'));
-
-      // If there are no external emails, this is an internal-only email
-      if (externalEmails.length === 0) {
-        results.internalSkipped++;
-        continue;
-      }
-
-      // Duplicate Check (by internetMessageId)
-      const existingQuery = await db.collection('interactions')
-        .where('internetMessageId', '==', msg.internetMessageId)
-        .limit(1)
-        .get();
-
-      if (!existingQuery.empty) {
-        results.duplicatesSkipped++;
-        continue;
-      }
-
-      let matchedAccountId = null;
-      let matchedContactId = null;
-
-      // 1. Match Contact by Email first
-      for (const extEmail of externalEmails) {
-        const contactQuery = await db.collection('contacts').where('email', '==', extEmail).limit(1).get();
-        if (!contactQuery.empty) {
-          const contact = contactQuery.docs[0].data();
-          matchedAccountId = contact.accountId;
-          matchedContactId = contact.contactId || contactQuery.docs[0].id;
-          break;
+      let defaultUser = invokedByUser || {
+        uid: orgRecord.uid || 'system',
+        name: orgRecord.name || 'System Auto-Sync',
+        email: mailbox,
+      };
+      if (!invokedByUser) {
+        const matchedUser = allUsers.find(u => u.email?.toLowerCase() === mailbox);
+        if (matchedUser) {
+          defaultUser = { uid: matchedUser.uid, name: matchedUser.name, email: matchedUser.email };
         }
       }
 
-      // 2. If no contact match, check Account's general email
-      if (!matchedAccountId) {
-        for (const extEmail of externalEmails) {
-          const accountQuery = await db.collection('accounts').where('email', '==', extEmail).limit(1).get();
-          if (!accountQuery.empty) {
-            matchedAccountId = accountQuery.docs[0].data().accountId || accountQuery.docs[0].id;
-            break;
+      const existingCheckpoint = await getOutlookSyncCheckpoint(mailbox);
+      const sinceDateTime = useIncrementalCheckpoint ? (existingCheckpoint?.lastSyncedAt || null) : null;
+
+      let messages = [];
+      try {
+        messages = await fetchRecentMessages(mailbox, limit, {
+          includeSentItems: true,
+          sinceDateTime,
+        });
+      } catch (fetchErr) {
+        await saveOutlookSyncCheckpoint(mailbox, {
+          status: 'FAILED',
+          itemsProcessed: 0,
+          lastError: fetchErr.message,
+        });
+        throw fetchErr;
+      }
+
+      aggregateResults.totalRead += messages.length;
+      let mailboxSyncedCount = 0;
+      let latestMessageIso = existingCheckpoint?.lastSyncedAt || null;
+
+      for (const msg of messages) {
+        const msgTimestamp = msg.receivedDateTime || msg.sentDateTime || new Date().toISOString();
+        if (!latestMessageIso || new Date(msgTimestamp) > new Date(latestMessageIso)) {
+          latestMessageIso = new Date(msgTimestamp).toISOString();
+        }
+
+        const allEmails = [
+          msg.from?.emailAddress?.address,
+          ...(msg.toRecipients || []).map(r => r.emailAddress?.address),
+          ...(msg.ccRecipients || []).map(r => r.emailAddress?.address),
+        ]
+          .filter(Boolean)
+          .map(e => e.toLowerCase());
+
+        const externalEmails = Array.from(new Set(allEmails.filter(e => !isInternalCorporateEmail(e))));
+        const internalEmails = Array.from(new Set(allEmails.filter(e => isInternalCorporateEmail(e))));
+
+        // Skip internal-only emails
+        if (externalEmails.length === 0) {
+          aggregateResults.internalSkipped++;
+          continue;
+        }
+
+        // Duplicate Check (by internetMessageId)
+        if (msg.internetMessageId) {
+          const existingQuery = await db
+            .collection('interactions')
+            .where('internetMessageId', '==', msg.internetMessageId)
+            .limit(1)
+            .get();
+
+          if (!existingQuery.empty) {
+            aggregateResults.duplicatesSkipped++;
+            continue;
           }
         }
-      }
 
-      if (!matchedAccountId) {
-        results.unmatchedSkipped++;
-        continue;
-      }
+        // Match external emails against all CRM Contacts and Accounts to detect multi-account ambiguity
+        const matchedAccountIdsSet = new Set();
+        const matchedContactsList = [];
 
-      // Ensure Account exists
-      const accountDoc = await db.collection('accounts').doc(matchedAccountId).get();
-      if (!accountDoc.exists) {
-        results.unmatchedSkipped++;
-        continue;
-      }
-      const accountData = accountDoc.data();
+        for (const extEmail of externalEmails) {
+          const matchingContacts = allContacts.filter(
+            c => c.email && c.email.trim().toLowerCase() === extEmail
+          );
+          for (const mc of matchingContacts) {
+            if (mc.accountId) {
+              matchedAccountIdsSet.add(mc.accountId);
+              matchedContactsList.push(mc);
+            }
+          }
 
-      // Determine who logged this interaction
-      let userToLog = defaultUser;
-      const senderEmail = msg.from?.emailAddress?.address?.toLowerCase();
-      if (senderEmail && senderEmail.endsWith('@nestgroup.net')) {
-        const matchedSender = allUsers.find(u => u.email?.toLowerCase() === senderEmail);
-        if (matchedSender) {
-          userToLog = { uid: matchedSender.uid, name: matchedSender.name, email: matchedSender.email };
+          const matchingAccounts = allAccounts.filter(
+            a => a.email && a.email.trim().toLowerCase() === extEmail
+          );
+          for (const ma of matchingAccounts) {
+            const aId = ma.accountId || ma.id;
+            if (aId) matchedAccountIdsSet.add(aId);
+          }
         }
-      } else if (accountData.ownerId) {
-        userToLog = {
-          uid: accountData.ownerId,
-          name: accountData.ownerName || 'Account Owner',
-          email: accountData.ownerEmail || ''
-        };
+
+        const candidateAccountIds = Array.from(matchedAccountIdsSet);
+
+        if (candidateAccountIds.length === 0) {
+          aggregateResults.unmatchedSkipped++;
+          continue;
+        }
+
+        // If external participants span 2+ distinct CRM accounts, route to CommunicationReviewQueue instead of guessing
+        if (candidateAccountIds.length > 1) {
+          const extResId = msg.internetMessageId || msg.id || `outlook_${Date.now()}`;
+          const reviewId = `rev_outlook_${extResId.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 65)}`;
+          const nowIso = new Date().toISOString();
+          await db.collection('communicationreviewqueue').doc(reviewId).set(
+            {
+              reviewId,
+              channel: 'OUTLOOK_MAIL',
+              externalResourceId: extResId,
+              organizerEmail: mailbox,
+              subject: msg.subject || '(No Subject)',
+              occurredAt: msgTimestamp,
+              externalParticipants: externalEmails.map(e => ({ email: e })),
+              internalParticipants: internalEmails.map(e => ({ email: e })),
+              candidateAccounts: candidateAccountIds.map(accId => {
+                const accObj = allAccounts.find(a => (a.accountId || a.id) === accId);
+                return { accountId: accId, companyName: accObj?.companyName || accId };
+              }),
+              reason: 'AMBIGUOUS_MULTIPLE_ACCOUNTS',
+              payload: {
+                internetMessageId: msg.internetMessageId || null,
+                subject: msg.subject || '(No Subject)',
+                messageText: msg.body?.content || '',
+                receivedDateTime: msgTimestamp,
+                folder: msg.folder || 'inbox',
+              },
+              status: 'PENDING_REVIEW',
+              createdAt: nowIso,
+              updatedAt: nowIso,
+            },
+            { merge: true }
+          );
+          aggregateResults.queuedForReview++;
+          continue;
+        }
+
+        const matchedAccountId = candidateAccountIds[0];
+        const matchedContactId =
+          matchedContactsList.find(c => c.accountId === matchedAccountId)?.contactId || null;
+
+        const accountDoc = await db.collection('accounts').doc(matchedAccountId).get();
+        if (!accountDoc.exists) {
+          aggregateResults.unmatchedSkipped++;
+          continue;
+        }
+        const accountData = accountDoc.data();
+
+        let userToLog = defaultUser;
+        const senderEmail = msg.from?.emailAddress?.address?.toLowerCase();
+        if (senderEmail && isInternalCorporateEmail(senderEmail)) {
+          const matchedSender = allUsers.find(u => u.email?.toLowerCase() === senderEmail);
+          if (matchedSender) {
+            userToLog = { uid: matchedSender.uid, name: matchedSender.name, email: matchedSender.email };
+          }
+        } else if (accountData.ownerId) {
+          userToLog = {
+            uid: accountData.ownerId,
+            name: accountData.ownerName || 'Account Owner',
+            email: accountData.ownerEmail || '',
+          };
+        }
+
+        try {
+          await createInteraction(
+            {
+              accountId: matchedAccountId,
+              contactId: matchedContactId,
+              source: 'Outlook Mail',
+              subject: msg.subject || '(No Subject)',
+              messageText: msg.body?.content || '(No Content)',
+              internetMessageId: msg.internetMessageId,
+              isManual: false,
+              date: new Date(msgTimestamp).toISOString().split('T')[0],
+              time: new Date(msgTimestamp).toTimeString().slice(0, 5),
+            },
+            userToLog
+          );
+
+          aggregateResults.synced++;
+          mailboxSyncedCount++;
+        } catch (interactionError) {
+          console.error(
+            '❌ [EmailTrackingService] Error creating interaction for message:',
+            msg.internetMessageId,
+            interactionError.message
+          );
+          aggregateResults.errors++;
+        }
       }
 
-      // Create Interaction in DB
-      try {
-        await createInteraction({
-          accountId: matchedAccountId,
-          contactId: matchedContactId,
-          source: 'Outlook Mail',
-          subject: msg.subject || '(No Subject)',
-          messageText: msg.body?.content || '(No Content)',
-          internetMessageId: msg.internetMessageId,
-          isManual: false,
-          date: new Date(msg.receivedDateTime).toISOString().split('T')[0],
-          time: new Date(msg.receivedDateTime).toTimeString().slice(0, 5)
-        }, userToLog);
-
-        results.synced++;
-      } catch (interactionError) {
-        console.error('❌ [EmailTrackingService] Error creating interaction for message:', msg.internetMessageId, interactionError.message);
-        results.errors++;
-      }
+      await saveOutlookSyncCheckpoint(mailbox, {
+        status: 'SUCCESS',
+        itemsProcessed: mailboxSyncedCount,
+        lastSyncedAt: latestMessageIso || new Date().toISOString(),
+        lastError: null,
+      });
     }
 
-    // Save SyncHistory for auditability
     const syncId = 'sync-auto-' + Math.random().toString(36).substring(2, 11);
     const syncRecord = {
       syncId,
       provider: 'Microsoft 365',
-      mailbox,
-      triggeredByUid: defaultUser.uid,
-      triggeredByName: invokedByUser ? (invokedByUser.name || 'User') : 'Automated Scheduler',
+      mailbox: targetMailboxes.map(m => m.email).join(','),
+      triggeredByUid: invokedByUser?.uid || 'system',
+      triggeredByName: invokedByUser ? invokedByUser.name || 'User' : 'Automated Scheduler',
       timestamp: new Date().toISOString(),
-      results
+      results: aggregateResults,
     };
 
     await db.collection('syncHistory').doc(syncId).set(syncRecord);
-    
-    if (results.synced > 0) {
-      console.log(`✅ [EmailTrackingService] Auto-sync complete. Synced ${results.synced} new interaction(s).`);
+
+    if (aggregateResults.synced > 0) {
+      console.log(`✅ [EmailTrackingService] Auto-sync complete. Synced ${aggregateResults.synced} new interaction(s).`);
     }
 
     return { success: true, syncRecord };
   } catch (error) {
     const msg = error?.message || String(error);
+    if (error.code === 'UNAUTHORIZED_OUTLOOK_MAILBOX' || error.code === 'MISSING_GRAPH_PERMISSION' || error.code === 'TENANT_MISMATCH_BLOCKED') {
+      return {
+        error: msg,
+        code: error.code,
+        reason: error.reason,
+      };
+    }
     if (msg.includes('AADSTS7000112') || msg.includes('unauthorized_client')) {
-      console.warn(`⚠️ [EmailTrackingService] Azure AD Application (${process.env.MICROSOFT_CLIENT_ID || 'CustomerPulse'}) is disabled or unauthorized in Azure tenant. Pausing background Outlook sync until re-enabled.`);
+      console.warn(
+        `⚠️ [EmailTrackingService] Azure AD Application (${process.env.MICROSOFT_CLIENT_ID || 'CustomerPulse'}) is disabled or unauthorized in Azure tenant. Pausing background Outlook sync until re-enabled.`
+      );
       if (!invokedByUser && syncTimer) {
         clearInterval(syncTimer);
         syncTimer = null;
@@ -207,15 +371,15 @@ export function startEmailTrackingScheduler() {
   if (syncTimer) {
     clearInterval(syncTimer);
   }
-  
+
   // Run synchronization immediately on startup
   syncEmails();
-  
+
   // Set up periodic background sync
   syncTimer = setInterval(() => {
     syncEmails();
   }, SYNC_INTERVAL);
-  
+
   console.log(`⏰ [EmailTrackingService] Live background scheduler started. Interval: ${SYNC_INTERVAL / 1000}s.`);
 }
 

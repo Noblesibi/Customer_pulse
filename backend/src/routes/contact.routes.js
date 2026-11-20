@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { db, logActivity } from '../config/database.js';
 import { authenticateToken, requireRole } from '../middleware/auth.middleware.js';
 import { calculateAccountHealth } from '../services/health.service.js';
+import { recalculateEligibleOrganizers } from '../services/organizerSync.service.js';
 
 const router = Router();
 
@@ -198,8 +199,13 @@ router.post('/', requireRole(['Admin', 'Sales Manager', 'Employee', 'Executive']
       projectName: projectName || '',
       projectIndustry: projectIndustry || '',
       projectType: projectType || '',
+      keyContact: req.body.keyContact !== undefined ? String(req.body.keyContact) : 'Yes',
+      isActive: req.body.isActive !== undefined ? Boolean(req.body.isActive) : true,
+      status: req.body.status || 'Active',
       ownerId: finalOwnerId,
       ownerName: finalOwnerName,
+      ownerEmail: req.body.ownerEmail || '',
+      ownerEmployeeId: req.body.ownerEmployeeId || null,
       createdAt: new Date().toISOString()
     };
 
@@ -207,6 +213,7 @@ router.post('/', requireRole(['Admin', 'Sales Manager', 'Employee', 'Executive']
 
     // Update health score since relationship depth might have changed
     await calculateAccountHealth(accountId);
+    await recalculateEligibleOrganizers({ triggerSource: 'CONTACT_CREATED' }).catch(() => {});
 
     await logActivity(req.user.uid, req.user.name, 'Create Contact', `Created contact ${name} (${designation || 'Staff'}) for account ID ${accountId}`);
     return res.status(201).json(newContact);
@@ -257,6 +264,11 @@ router.put('/:id', requireRole(['Admin', 'Sales Manager', 'Employee', 'Executive
     if (projectName !== undefined) updates.projectName = projectName;
     if (projectIndustry !== undefined) updates.projectIndustry = projectIndustry;
     if (projectType !== undefined) updates.projectType = projectType;
+    if (req.body.keyContact !== undefined) updates.keyContact = String(req.body.keyContact);
+    if (req.body.isActive !== undefined) updates.isActive = Boolean(req.body.isActive);
+    if (req.body.status !== undefined) updates.status = req.body.status;
+    if (req.body.ownerEmail !== undefined) updates.ownerEmail = req.body.ownerEmail;
+    if (req.body.ownerEmployeeId !== undefined) updates.ownerEmployeeId = req.body.ownerEmployeeId;
 
     if (ownerId !== undefined) {
       updates.ownerId = ownerId;
@@ -278,6 +290,7 @@ router.put('/:id', requireRole(['Admin', 'Sales Manager', 'Employee', 'Executive
 
     // Recalculate health since tags might have changed
     await calculateAccountHealth(currentData.accountId);
+    await recalculateEligibleOrganizers({ triggerSource: 'CONTACT_UPDATED' }).catch(() => {});
 
     const updatedDoc = await docRef.get();
     await logActivity(req.user.uid, req.user.name, 'Update Contact', `Updated details for contact ${updatedDoc.data().name} (ID: ${id})`);
@@ -323,6 +336,7 @@ router.delete('/:id', requireRole(['Admin', 'Sales Manager', 'Executive']), asyn
 
     // Recalculate health
     await calculateAccountHealth(accountId);
+    await recalculateEligibleOrganizers({ triggerSource: 'CONTACT_DELETED' }).catch(() => {});
 
     await logActivity(req.user.uid, req.user.name, 'Delete Contact', `Deleted contact ${doc.data().name} (ID: ${id})`);
     return res.json({ message: 'Contact deleted successfully' });

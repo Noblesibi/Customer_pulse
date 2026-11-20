@@ -18,8 +18,10 @@
  */
 
 import { db, logActivity } from '../config/database.js';
+import { microsoftConfig, microsoftDevConfig } from '../config/microsoft.js';
 import { fetchGoogleContacts, fetchGoogleCalendarEvents, getAllActiveGoogleIntegrations } from './google.service.js';
 import { fetchMicrosoftContacts } from './microsoftGraph.service.js';
+import { isInternalCorporateEmail } from './organizerSync.service.js';
 import { getSystemDateString, getSystemTimeString } from '../utils/dateUtils.js';
 import { syncFestivalOccasionsForAccounts } from './festivalCelebration.service.js';
 
@@ -1115,80 +1117,153 @@ export class CustomerPulseSourceAdapter extends CelebrationSourceAdapter {
   }
 }
 
-// Microsoft Graph adapter (disabled until MS_CELEBRATION_SOURCE_ENABLED=true)
+// Microsoft Graph adapter (disabled until MICROSOFT_CELEBRATION_SOURCE_ENABLED=true)
 export class MicrosoftCelebrationAdapter extends CelebrationSourceAdapter {
   constructor() {
     super(SOURCE_TYPES.MICROSOFT, 'Microsoft 365');
     this.enabled = (process.env.MICROSOFT_CELEBRATION_SOURCE_ENABLED || 'false') === 'true';
     this.contactsCache = new Map();
+    this.inFlightCache = new Map();
+    this.skippedOwners = new Set();
+    this.organizerMapPromise = null;
     this.authDisabled = false;
+  }
+
+  async _getOrganizerMap() {
+    if (!this.organizerMapPromise) {
+      this.organizerMapPromise = db.collection('authorizedorganizers').get()
+        .then((snap) => {
+          const map = new Map();
+          for (const d of snap.docs) {
+            const data = d.data();
+            const email = String(data?.email || '').trim().toLowerCase();
+            if (email) map.set(email, data);
+          }
+          return map;
+        })
+        .catch(() => new Map());
+    }
+    return this.organizerMapPromise;
+  }
+
+  async _isOwnerVerifiedForMicrosoftContacts(cleanOwnerEmail) {
+    // Never use a separate development tenant to query corporate NeST Group employees
+    const isCrossTenantDevApp = Boolean(
+      microsoftDevConfig.isConfigured &&
+      microsoftConfig.tenantId &&
+      microsoftDevConfig.tenantId &&
+      microsoftDevConfig.tenantId !== microsoftConfig.tenantId
+    );
+    if (isCrossTenantDevApp && isInternalCorporateEmail(cleanOwnerEmail)) {
+      return { allowed: false, reason: 'CROSS_TENANT_DEV_APP_CORPORATE_USER_SKIPPED' };
+    }
+
+    // Require verified live Microsoft authorization in AuthorizedOrganizers
+    const organizerMap = await this._getOrganizerMap();
+    const orgRecord = organizerMap.get(cleanOwnerEmail);
+    const hasLiveVerification = Boolean(
+      orgRecord &&
+      (orgRecord.livePolicyVerified === true || orgRecord.outlookLiveVerified === true)
+    );
+    if (!hasLiveVerification) {
+      return { allowed: false, reason: 'OWNER_MICROSOFT_LIVE_VERIFICATION_REQUIRED' };
+    }
+
+    return { allowed: true, reason: 'VERIFIED' };
+  }
+
+  async _fetchContactsOnceForOwner(cleanOwnerEmail) {
+    if (this.contactsCache.has(cleanOwnerEmail)) {
+      return this.contactsCache.get(cleanOwnerEmail);
+    }
+    if (this.inFlightCache.has(cleanOwnerEmail)) {
+      return this.inFlightCache.get(cleanOwnerEmail);
+    }
+
+    const fetchPromise = (async () => {
+      try {
+        const contacts = (await fetchMicrosoftContacts(cleanOwnerEmail)) || [];
+        this.contactsCache.set(cleanOwnerEmail, contacts);
+        return contacts;
+      } catch (err) {
+        // Cache empty result so we never repeatedly call Graph for the same failing owner
+        this.contactsCache.set(cleanOwnerEmail, []);
+        this.skippedOwners.add(cleanOwnerEmail);
+        if (err.message && (err.message.includes('AADSTS7000112') || err.message.includes('unauthorized_client'))) {
+          this.authDisabled = true;
+          console.warn(`[MicrosoftCelebrationAdapter] Azure AD Application (${process.env.MICROSOFT_CLIENT_ID || 'CustomerPulse'}) is disabled or unauthorized in Azure tenant. Disabling Microsoft celebration sync for this run.`);
+        } else {
+          console.warn(`[MicrosoftCelebrationAdapter] Skipping Microsoft contacts for owner ${cleanOwnerEmail}: ${err.message}`);
+        }
+        return [];
+      } finally {
+        this.inFlightCache.delete(cleanOwnerEmail);
+      }
+    })();
+
+    this.inFlightCache.set(cleanOwnerEmail, fetchPromise);
+    return fetchPromise;
   }
 
   async enrichContact({ contact, account, owner }) {
     if (!this.enabled || this.authDisabled) return [];
 
-    const ownerEmail = owner && owner.email;
-    if (!ownerEmail) {
+    const cleanOwnerEmail = String(owner?.email || '').trim().toLowerCase();
+    if (!cleanOwnerEmail || this.skippedOwners.has(cleanOwnerEmail)) {
+      return [];
+    }
+
+    const eligibility = await this._isOwnerVerifiedForMicrosoftContacts(cleanOwnerEmail);
+    if (!eligibility.allowed) {
+      this.skippedOwners.add(cleanOwnerEmail);
+      this.contactsCache.set(cleanOwnerEmail, []);
       return [];
     }
 
     const enrichmentEvents = [];
-    try {
-      let msContacts = this.contactsCache.get(ownerEmail);
-      if (!msContacts) {
-        msContacts = await fetchMicrosoftContacts(ownerEmail);
-        this.contactsCache.set(ownerEmail, msContacts || []);
+    const msContacts = await this._fetchContactsOnceForOwner(cleanOwnerEmail);
+
+    for (const mc of msContacts) {
+      if (!mc.birthday) continue;
+
+      let bdayStr = mc.birthday;
+      if (bdayStr.includes('T')) {
+        bdayStr = bdayStr.split('T')[0];
       }
 
-      for (const mc of msContacts) {
-        if (!mc.birthday) continue;
+      const sourceEventId = mc.id;
+      let isMatch = false;
 
-        let bdayStr = mc.birthday;
-        if (bdayStr.includes('T')) {
-          bdayStr = bdayStr.split('T')[0];
-        }
-
-        const sourceEventId = mc.id;
-        let isMatch = false;
-
-        // 6. Matching priority: exact normalized email match first
-        if (mc.emailAddresses && mc.emailAddresses.length > 0) {
-          for (const emailObj of mc.emailAddresses) {
-            const email = (emailObj.address || emailObj).toLowerCase();
-            if (contact.email && contact.email.toLowerCase() === email) {
-              isMatch = true;
-              break;
-            }
-          }
-        }
-
-        // if no email match, do not create a Microsoft-derived celebration from name alone unless the existing implementation already explicitly supports that fallback.
-        // Existing implementation did support name fallback, so preserving it.
-        if (!isMatch && mc.displayName && contact.name) {
-          if (mc.displayName.toLowerCase() === contact.name.toLowerCase()) {
+      // 6. Matching priority: exact normalized email match first
+      if (mc.emailAddresses && mc.emailAddresses.length > 0) {
+        for (const emailObj of mc.emailAddresses) {
+          const email = (emailObj.address || emailObj).toLowerCase();
+          if (contact.email && contact.email.toLowerCase() === email) {
             isMatch = true;
+            break;
           }
         }
+      }
 
-        if (isMatch) {
-          enrichmentEvents.push({
-            eventType: EVENT_TYPES.BIRTHDAY,
-            eventTitle: `${contact.name}'s Birthday`,
-            eventDate: bdayStr,
-            sourceEventId: sourceEventId,
-            confidence: 'High',
-            matchConfidence: 70
-          });
+      // Preserve existing name fallback
+      if (!isMatch && mc.displayName && contact.name) {
+        if (mc.displayName.toLowerCase() === contact.name.toLowerCase()) {
+          isMatch = true;
         }
       }
-    } catch (err) {
-      if (err.message && (err.message.includes('AADSTS7000112') || err.message.includes('unauthorized_client'))) {
-        this.authDisabled = true;
-        console.warn(`[MicrosoftCelebrationAdapter] Azure AD Application (${process.env.MICROSOFT_CLIENT_ID || 'CustomerPulse'}) is disabled or unauthorized in Azure tenant. Disabling Microsoft celebration sync for this run.`);
-      } else {
-        console.error(`[MicrosoftCelebrationAdapter] Failed to sync Microsoft contacts for owner ${ownerEmail}:`, err.message);
+
+      if (isMatch) {
+        enrichmentEvents.push({
+          eventType: EVENT_TYPES.BIRTHDAY,
+          eventTitle: `${contact.name}'s Birthday`,
+          eventDate: bdayStr,
+          sourceEventId: sourceEventId,
+          confidence: 'High',
+          matchConfidence: 70
+        });
       }
     }
+
     return enrichmentEvents;
   }
 }

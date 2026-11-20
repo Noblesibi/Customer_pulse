@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { getCurrentKolkataTime, formatDate } from '../../utils/dateFormat.js';
 import { getAccountHealthConfig } from '../../utils/healthUtils.js';
+import AiRecommendationsReviewPanel from './AiRecommendationsReviewPanel.jsx';
 
 export default function SmartInsightsTab({
   account,
@@ -492,10 +493,15 @@ export default function SmartInsightsTab({
       return src.includes('outlook');
     });
 
+    const teamsActivities = allActivities.filter(a => {
+      const src = (a.source || a.type || '').toLowerCase();
+      return a.itemType === 'teams_tracking' || src.includes('teams');
+    });
+
     const manualActivities = allActivities.filter(a => {
       const src = (a.source || a.type || '').toLowerCase();
-      return !src.includes('outlook') && (
-        ['manual', 'call', 'meeting', 'note', 'email', 'interaction', 'teams'].includes(src) ||
+      return !src.includes('outlook') && !src.includes('teams') && a.itemType !== 'teams_tracking' && (
+        ['manual', 'call', 'meeting', 'note', 'email', 'interaction'].includes(src) ||
         a.itemType === 'interaction'
       );
     });
@@ -520,6 +526,8 @@ export default function SmartInsightsTab({
     return {
       outlookCount: outlookActivities.length,
       hasOutlook: outlookActivities.length > 0,
+      teamsCount: teamsActivities.length,
+      hasTeams: teamsActivities.length > 0,
       manualCount: manualActivities.length,
       hasManual: manualActivities.length > 0,
       tasksCount: taskItems.length,
@@ -1274,6 +1282,19 @@ export default function SmartInsightsTab({
               </span>
 
               <span
+                className={`px-3 py-1 text-xs font-bold rounded-full border flex items-center gap-1 cursor-help transition-all shadow-2xs ${dataCoverageMetrics.hasTeams
+                  ? 'bg-[#ECFDF5] text-[#15803D] border-[#BBF7D0]'
+                  : 'bg-slate-50 text-slate-500 border-slate-200'
+                  }`}
+                title={dataCoverageMetrics.hasTeams
+                  ? `Active: ${dataCoverageMetrics.teamsCount} Teams meeting(s) synchronized.`
+                  : 'Inactive: No Microsoft Teams meetings synchronized for this account yet.'}
+              >
+                Teams {dataCoverageMetrics.teamsCount > 0 && `(${dataCoverageMetrics.teamsCount})`}{' '}
+                {dataCoverageMetrics.hasTeams ? <Check className="w-3 h-3 text-emerald-600" /> : <span className="text-[10px] text-slate-400 font-normal">Inactive</span>}
+              </span>
+
+              <span
                 onClick={onNavigateToInteractions ? onNavigateToInteractions : undefined}
                 className={`px-3 py-1 text-xs font-bold rounded-full border flex items-center gap-1 cursor-pointer transition-all shadow-2xs ${dataCoverageMetrics.hasManual
                   ? 'bg-[#ECFDF5] text-[#15803D] border-[#BBF7D0] hover:bg-emerald-100/80'
@@ -1314,6 +1335,15 @@ export default function SmartInsightsTab({
 
         {/* RIGHT COLUMN (4 cols) */}
         <div className="lg:col-span-4 space-y-4">
+          <AiRecommendationsReviewPanel
+            accountId={accId}
+            token={token}
+            onReviewed={() => {
+              if (fetchStaffTasks) fetchStaffTasks('all-tasks');
+              handleRegenerateAi();
+            }}
+          />
+
           <h3 className="text-xs font-extrabold text-slate-800 uppercase tracking-wider flex items-center gap-2 pt-1">
             <ShieldAlert className="w-4 h-4 text-slate-700" />
             Recommended actions

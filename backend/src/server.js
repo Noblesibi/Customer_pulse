@@ -30,6 +30,7 @@ import { startCelebrationSyncCron } from './services/celebration.service.js';
 import { startEmailScheduler } from './services/notification/EmailScheduler.js';
 import { startEmailTrackingScheduler } from './services/emailTracking.service.js';
 import { startCustomerIntelligenceScheduler } from './services/customerIntelligenceScheduler.service.js';
+import { startTeamsSyncScheduler } from './services/teamsSync.service.js';
 import emailEngineRouter from './routes/email-engine.routes.js';
 
 import helmet from 'helmet';
@@ -172,4 +173,6 @@ app.listen(PORT, () => {
   startEmailTrackingScheduler();
   // Start the customer intelligence background scheduler (Phase 2)
   startCustomerIntelligenceScheduler();
+  // Start the Teams meeting & transcript sync scheduler (runs only if MICROSOFT_TEAMS_SOURCE_ENABLED=true)
+  startTeamsSyncScheduler();
 });

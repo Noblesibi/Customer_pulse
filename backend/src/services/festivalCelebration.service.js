@@ -412,9 +412,9 @@ export function detectAccountGeography(acc) {
     text.includes('@nestgroup.net') ||
     text.includes('nest digital') ||
     text.includes('nest group') ||
-    /\b(\+?91|9847\d{6}|8891\d{6}|8590\d{6}|[6-9]\d{9})\b/.test(account.phone || '') ||
-    account.accountId === 'acc-hh43i0629' ||
-    (account.region && account.region.toLowerCase().trim() === 'test')
+    /\b(\+?91|9847\d{6}|8891\d{6}|8590\d{6}|[6-9]\d{9})\b/.test(acc.phone || '') ||
+    acc.accountId === 'acc-hh43i0629' ||
+    (acc.region && acc.region.toLowerCase().trim() === 'test')
   ) {
     return 'India';
   }

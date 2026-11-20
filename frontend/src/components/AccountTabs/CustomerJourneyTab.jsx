@@ -202,8 +202,8 @@ export default function CustomerJourneyTab({
       const detectedStage = detectActivityStage(i);
       const category = classifyTouchpointCategory(i);
       const isManualLog = i.itemType === 'interaction' && !i.externalId && category !== 'Greeting Emails';
-      const rawTimestamp = i.timestamp || i.createdAt || i.date;
-      const cleanDetails = stripHtmlText(i.notes || i.details || i.description || i.messageText || '');
+      const rawTimestamp = i.timestamp || i.startDateTime || i.createdAt || i.date;
+      const cleanDetails = stripHtmlText(i.aiSummary || i.notes || i.details || i.description || i.messageText || '');
       const cleanTitle = i.subject || i.title || i.channel || i.source || '';
       return {
         id: i.interactionId || i.id,
