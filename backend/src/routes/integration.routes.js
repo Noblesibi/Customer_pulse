@@ -63,6 +63,11 @@ router.get('/google/callback', async (req, res) => {
 
     const { origin } = await handleGoogleCallback(code, state);
 
+    // Immediately trigger live Celebrations contact/calendar sync in the background
+    import('../services/celebration.service.js')
+      .then(({ detectFromContacts }) => detectFromContacts?.())
+      .catch((syncErr) => console.warn('[Google Callback] Background celebration sync note:', syncErr.message));
+
     // Determine the actual frontend origin: priority to decrypted state origin, then FRONTEND_URL env, then 5173
     let baseOrigin = (origin || process.env.FRONTEND_URL || 'http://localhost:5173').trim();
     // Safety check: Never redirect to dead port 3000 if active frontend is Vite (5173)
@@ -71,7 +76,7 @@ router.get('/google/callback', async (req, res) => {
     }
     baseOrigin = baseOrigin.replace(/\/+$/, '');
 
-    res.redirect(`${baseOrigin}/CustomerPulse/dashboard?google_connected=true`);
+    res.redirect(`${baseOrigin}/CustomerPulse/notification-center?google_connected=true`);
   } catch (err) {
     console.error('[Google Callback]', err);
     res.status(400).send(`Integration failed: ${err.message}`);
@@ -88,12 +93,19 @@ router.get('/google/status', authenticateToken, async (req, res) => {
     const integrationsRef = db.collection('userintegrations');
     const existingDocs = await integrationsRef.where('userId', '==', req.user.uid).get();
 
-    const googleIntegration = existingDocs.docs
+    const allGoogleDocs = existingDocs.docs
       .map(d => d.data())
-      .find(i => i.provider === 'GOOGLE' && i.status === 'ACTIVE');
+      .filter(i => i.provider === 'GOOGLE');
+
+    const googleIntegration = allGoogleDocs.find(i => i.status === 'ACTIVE');
+    const reconnectDoc = allGoogleDocs.find(i => i.status === 'RECONNECT_REQUIRED');
 
     if (!googleIntegration || !googleIntegration.accessToken) {
-      return res.json({ connected: false });
+      return res.json({
+        connected: false,
+        reconnectRequired: Boolean(reconnectDoc),
+        lastCheckedAt: reconnectDoc?.updatedAt || null,
+      });
     }
 
     let formattedExpiry = null;

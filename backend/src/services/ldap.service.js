@@ -308,29 +308,13 @@ function mapAdGroupsToRole(memberOf, username, domain) {
  */
 function simulateLdapAuth(username, password) {
   const MOCK_LDAP_USERS = {
-    'amina.rashad@nestgroup.net': { email: 'amina.rashad@nestgroup.net', name: 'Amina Rashad',   role: 'Employee',     department: 'Engineering', position: 'CRM Professional' },
-    'amina.rashad':               { email: 'amina.rashad@nestgroup.net', name: 'Amina Rashad',   role: 'Employee',     department: 'Engineering', position: 'CRM Professional' },
     'admin@pulse.com':            { email: 'admin@pulse.com',            name: 'Admin User',      role: 'Admin',        department: 'IT',          position: 'System Administrator' },
     'admin':                      { email: 'admin@pulse.com',            name: 'Admin User',      role: 'Admin',        department: 'IT',          position: 'System Administrator' },
-    'executive@pulse.com':        { email: 'executive@pulse.com',        name: 'Executive User',  role: 'Executive',    department: 'Management',  position: 'Chief Executive Officer' },
-    'executive':                  { email: 'executive@pulse.com',        name: 'Executive User',  role: 'Executive',    department: 'Management',  position: 'Chief Executive Officer' },
-    'manager@pulse.com':          { email: 'manager@pulse.com',          name: 'Manager User',    role: 'Sales Manager',department: 'Sales',       position: 'Logistics Division Lead' },
-    'manager':                    { email: 'manager@pulse.com',          name: 'Manager User',    role: 'Sales Manager',department: 'Sales',       position: 'Logistics Division Lead' },
-    'employee@pulse.com':         { email: 'employee@pulse.com',         name: 'Employee User',   role: 'Employee',     department: 'Engineering', position: 'Frontend Engineer' },
-    'employee':                   { email: 'employee@pulse.com',         name: 'Employee User',   role: 'Employee',     department: 'Engineering', position: 'Frontend Engineer' },
   };
 
   const MOCK_LDAP_PASSWORDS = {
-    'amina.rashad@nestgroup.net': 'nestgroup',
-    'amina.rashad':               'nestgroup',
     'admin@pulse.com':            'Admin123',
     'admin':                      'Admin123',
-    'executive@pulse.com':        'exec123',
-    'executive':                  'exec123',
-    'manager@pulse.com':          'manager123',
-    'manager':                    'manager123',
-    'employee@pulse.com':         'employee123',
-    'employee':                   'employee123'
   };
 
   const cleanUser      = (username || '').trim().toLowerCase();

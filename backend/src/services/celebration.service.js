@@ -24,6 +24,7 @@ import { fetchMicrosoftContacts } from './microsoftGraph.service.js';
 import { isInternalCorporateEmail } from './organizerSync.service.js';
 import { getSystemDateString, getSystemTimeString } from '../utils/dateUtils.js';
 import { syncFestivalOccasionsForAccounts } from './festivalCelebration.service.js';
+import { renderTemplate } from './notification/TemplateEngine.js';
 
 // ─── CONSTANTS ────────────────────────────────────────────────────────────────
 
@@ -919,18 +920,23 @@ export async function sendCelebrationGreeting(celebrationId, { recipientEmail, s
 
   const queueId = `celgreet_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
   const now = new Date().toISOString();
+  const normalizedEventType = String(event.eventType || 'custom_greeting').toLowerCase();
+  const bodyVars = {
+    EmployeeName: contactName || 'Valued Partner',
+    GreetingTitle: subject,
+    GreetingMessage: message,
+  };
+  const rendered = renderTemplate(normalizedEventType, bodyVars);
 
   const queueItem = {
     queueId,
     recipientEmail,
     recipientName: contactName || 'Valued Partner',
-    eventType: event.eventType.toLowerCase(),
+    eventType: normalizedEventType,
+    templateId: normalizedEventType,
     subject,
-    bodyVars: {
-      EmployeeName: contactName || 'Valued Partner',
-      GreetingTitle: subject,
-      GreetingMessage: message,
-    },
+    htmlBody: rendered.html,
+    bodyVars,
     status: scheduledFor ? 'scheduled_marker' : 'queued',
     scheduledFor: scheduledFor || null,
     createdAt: now,

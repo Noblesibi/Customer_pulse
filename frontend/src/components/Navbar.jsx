@@ -212,7 +212,7 @@ export default function Navbar() {
     return links.filter(link => link.roles.includes(role));
   };
 
-  const canAccessNotificationEngine = user?.role === 'Admin' || user?.userType === 'Admin' || user?.name?.toLowerCase().includes('nazneen') || user?.email?.toLowerCase().includes('nazneen') || user?.email === 'nj@gmail.com';
+  const canAccessNotificationEngine = user?.role === 'Admin' || user?.userType === 'Admin' || user?.userType === 'CEO' || user?.email?.toLowerCase() === 'nazneen.jehangir@nestgroup.net';
 
   return (
     <header className="h-20 bg-white border-b border-slate-100 px-3 sm:px-5 xl:px-8 flex items-center justify-between gap-3 sticky top-0 shrink-0 select-none z-40">

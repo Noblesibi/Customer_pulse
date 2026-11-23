@@ -281,26 +281,8 @@ function evaluateAllScoringRules({
     appliedAdjustments.push({ id: 'greet_birthday_anniv', label: 'Celebration greeting touchpoint logged', points: +10, category: 'Greetings' });
   }
 
-  // 8. Commitments & SLA Rules
-  let overdueCount = 0;
-  const todayMs = new Date().setHours(0, 0, 0, 0);
-  tasks.forEach(t => {
-    const st = (t.status || '').toLowerCase();
-    if (!st.includes('complete') && !st.includes('decline') && t.dueDate) {
-      const dueMs = new Date(t.dueDate).setHours(0, 0, 0, 0);
-      if (todayMs > dueMs) overdueCount++;
-    }
-  });
-
-  if (isRuleActive('comm_overdue_tasks')) {
-    if (overdueCount > 0) {
-      commitmentsAdjustment -= 15;
-      appliedAdjustments.push({ id: 'comm_overdue_tasks', label: `${overdueCount} overdue task commitment(s)`, points: -15, category: 'Commitments' });
-    } else {
-      commitmentsAdjustment += 10;
-      appliedAdjustments.push({ id: 'comm_overdue_tasks', label: 'All commitments on schedule', points: +10, category: 'Commitments' });
-    }
-  }
+  // 8. Tasks & Associated Tasks are intentionally excluded from Health & Risk calculations
+  // (Only Outlook Mail, Teams Meetings & Transcripts, Manual Interaction Logs, and Stakeholders/Key Contacts are valued.)
 
   // 9. Risk Flags Rules
   const openRisks = risks.filter(r => r.status === 'Open');
@@ -547,67 +529,13 @@ export async function calculateAccountHealth(accountId) {
     factors.riskSignals.score = riskScore;
     factors.riskSignals.reason = `Risk assessment considering severity and recurrence.`;
 
-    // --- 6. Commitments & Actions (10%) ---
-    let commitmentsCompleted = 0;
-    let commitmentsOverdue = 0;
-    let hasOverdueTask = false;
-
-    // 1. Fetch real tasks from tasks collection
-    const tasksSnapshot = await db.collection('tasks')
-      .where('accountId', '==', accountId)
-      .get();
-    const accountTasks = tasksSnapshot.docs.map(doc => doc.data()).filter(t => !t.taskId?.includes('DUMMY'));
-
-    for (const t of accountTasks) {
-      const status = (t.status || '').toLowerCase();
-      if (status.includes('completed') || status.includes('complete')) {
-        commitmentsCompleted++;
-      } else if (t.dueDate && !status.includes('decline')) {
-        const dueDateObj = new Date(t.dueDate);
-        dueDateObj.setHours(0, 0, 0, 0);
-        if (today.getTime() > dueDateObj.getTime()) {
-          commitmentsOverdue++;
-          const diffDays = (today.getTime() - dueDateObj.getTime()) / (1000 * 60 * 60 * 24);
-          if (diffDays >= 7) hasOverdueTask = true;
-        }
-      }
-    }
-
-    // 2. Also check any standalone interaction actionMentions
-    for (const inter of allInteractions) {
-      const mentions = inter.actionMentions || [];
-      for (const m of mentions) {
-        if (m.status === 'Completed') {
-          commitmentsCompleted++;
-        } else if (m.dueDate) {
-          const dueDateObj = new Date(m.dueDate);
-          dueDateObj.setHours(0, 0, 0, 0);
-          if (today.getTime() > dueDateObj.getTime()) {
-            commitmentsOverdue++;
-            const diffDays = (today.getTime() - dueDateObj.getTime()) / (1000 * 60 * 60 * 24);
-            if (diffDays >= 7) hasOverdueTask = true;
-          }
-        }
-      }
-    }
-    let commScore = 100;
-    const isCommOverdueActive = activeRules ? (activeRules['comm_overdue_tasks'] !== undefined ? Boolean(activeRules['comm_overdue_tasks']) : false) : false;
-    if (isCommOverdueActive && commitmentsOverdue > 0) {
-      commScore = Math.max(0, 100 - (commitmentsOverdue * 15));
-    }
-    factors.commitments.score = commScore;
-    factors.commitments.reason = `Completed: ${commitmentsCompleted}, Overdue: ${commitmentsOverdue}`;
-    if (commitmentsOverdue > 0) {
-      factors.commitments.signals.push(`${commitmentsOverdue} overdue task commitment(s) detected`);
-    }
-
-    // Overdue Risk automation
-    if (hasOverdueTask) {
-      const existingOverdue = risks.find(r => r.category === 'Overdue Action');
-      if (!existingOverdue) {
-        await db.collection('risks').add({ accountId, category: 'Overdue Action', severity: 'High', description: 'A task is 7+ days overdue.', status: 'Open', createdAt: new Date().toISOString() });
-      }
-    }
+    // --- 6. Tasks & Associated Tasks Excluded from Health & Risk Calculations ---
+    const commitmentsCompleted = 0;
+    const commitmentsOverdue = 0;
+    const accountTasks = [];
+    const commScore = 100;
+    factors.commitments.score = 100;
+    factors.commitments.reason = 'Tasks & associated tasks are excluded from health and risk calculations.';
 
     // --- 7. Business / Expansion Signals (10%) ---
     let expansionSignalsCount = 0;
@@ -640,16 +568,25 @@ export async function calculateAccountHealth(accountId) {
     factors.commitments.score = Math.max(0, Math.min(100, (commitmentsOverdue === 0 ? 100 : commScore) + ruleEval.commitmentsAdjustment));
     factors.businessSignals.score = Math.max(0, Math.min(100, busScore + ruleEval.meetingAdjustment + ruleEval.greetingsAdjustment));
 
-    // --- Aggregate Phase 2 Score ---
+    // --- Aggregate Phase 2 Score (Excluding Tasks/Commitments; Re-normalized across valued pillars) ---
     const WEIGHTS = await getAccountWeights(accountId);
+    const activeWeightSum =
+      (WEIGHTS.engagementFrequency || 0) +
+      (WEIGHTS.communicationResponsiveness || 0) +
+      (WEIGHTS.sentimentTrend || 0) +
+      (WEIGHTS.stakeholderCoverage || 0) +
+      (WEIGHTS.riskSignals || 0) +
+      (WEIGHTS.businessSignals || 0);
+    const weightScale = activeWeightSum > 0 ? (1 / activeWeightSum) : 1;
     const baseAggScore = Math.round(
-      (WEIGHTS.engagementFrequency * factors.engagementFrequency.score) +
-      (WEIGHTS.communicationResponsiveness * factors.communicationResponsiveness.score) +
-      (WEIGHTS.sentimentTrend * factors.sentimentTrend.score) +
-      (WEIGHTS.stakeholderCoverage * factors.stakeholderCoverage.score) +
-      (WEIGHTS.riskSignals * factors.riskSignals.score) +
-      (WEIGHTS.commitments * factors.commitments.score) +
-      (WEIGHTS.businessSignals * factors.businessSignals.score)
+      (
+        (WEIGHTS.engagementFrequency * factors.engagementFrequency.score) +
+        (WEIGHTS.communicationResponsiveness * factors.communicationResponsiveness.score) +
+        (WEIGHTS.sentimentTrend * factors.sentimentTrend.score) +
+        (WEIGHTS.stakeholderCoverage * factors.stakeholderCoverage.score) +
+        (WEIGHTS.riskSignals * factors.riskSignals.score) +
+        (WEIGHTS.businessSignals * factors.businessSignals.score)
+      ) * weightScale
     );
     const healthScore = Math.max(5, Math.min(100, baseAggScore + (ruleEval.customAdjustment || 0)));
 

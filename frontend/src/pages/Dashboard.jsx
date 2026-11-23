@@ -329,7 +329,7 @@ export default function Dashboard() {
     return 'Good evening';
   };
 
-  const canViewAllTasks = user?.role === 'Admin' || user?.userType === 'Admin' || user?.name?.toLowerCase().includes('nazneen') || user?.email?.toLowerCase().includes('nazneen') || user?.email === 'nj@gmail.com';
+  const canViewAllTasks = user?.role === 'Admin' || user?.userType === 'Admin' || user?.userType === 'CEO' || user?.email?.toLowerCase() === 'nazneen.jehangir@nestgroup.net';
 
   // Task processing
   const realMyTasks = [];
@@ -528,9 +528,9 @@ export default function Dashboard() {
   const handleCreateTaskFromAction = (nba) => {
     if (!nba) return;
     // 1. Identify Account
-    const acc = (accounts || []).find(a => 
-      (a.accountId && String(a.accountId) === String(nba.accountId)) || 
-      (a.id && String(a.id) === String(nba.accountId)) || 
+    const acc = (accounts || []).find(a =>
+      (a.accountId && String(a.accountId) === String(nba.accountId)) ||
+      (a.id && String(a.id) === String(nba.accountId)) ||
       (a.companyName && a.companyName.toLowerCase().trim() === (nba.companyName || '').toLowerCase().trim())
     );
     const targetAccountId = nba.accountId || acc?.accountId || acc?.id || '';
@@ -553,7 +553,7 @@ export default function Dashboard() {
     const accOwnerEmail = acc?.ownerEmail;
 
     // Filter contacts belonging to this account
-    const accContacts = (contacts || []).filter(c => 
+    const accContacts = (contacts || []).filter(c =>
       targetAccountId && (String(c.accountId) === String(targetAccountId) || String(c.account_id) === String(targetAccountId))
     );
 
@@ -599,8 +599,8 @@ export default function Dashboard() {
     let chosenTarget = null;
     if (isCurrentUserAdmin) {
       // 1. When Admin clicks -> DO NOT assign Admin! Choose the Account Owner!
-      let accOwnerCandidate = (accOwnerId || accOwnerName) 
-        ? { ownerId: accOwnerId, ownerName: accOwnerName, ownerEmail: accOwnerEmail } 
+      let accOwnerCandidate = (accOwnerId || accOwnerName)
+        ? { ownerId: accOwnerId, ownerName: accOwnerName, ownerEmail: accOwnerEmail }
         : null;
 
       if (accOwnerCandidate && !isAdminUser(accOwnerCandidate)) {
@@ -618,8 +618,8 @@ export default function Dashboard() {
       chosenTarget = (accOwnerId || accOwnerName) ? { ownerId: accOwnerId, ownerName: accOwnerName, ownerEmail: accOwnerEmail } : null;
     } else {
       // 4. Default / third party -> choose Account Owner first
-      let accOwnerCandidate = (accOwnerId || accOwnerName) 
-        ? { ownerId: accOwnerId, ownerName: accOwnerName, ownerEmail: accOwnerEmail } 
+      let accOwnerCandidate = (accOwnerId || accOwnerName)
+        ? { ownerId: accOwnerId, ownerName: accOwnerName, ownerEmail: accOwnerEmail }
         : null;
       if (accOwnerCandidate && !isAdminUser(accOwnerCandidate)) {
         chosenTarget = accOwnerCandidate;
@@ -631,7 +631,7 @@ export default function Dashboard() {
     let preselectUid = '';
     let preselectName = '';
     if (chosenTarget) {
-      const staffMatch = (staffList || []).find(s => 
+      const staffMatch = (staffList || []).find(s =>
         (chosenTarget.ownerId && String(s.uid) === String(chosenTarget.ownerId)) ||
         (chosenTarget.ownerEmail && s.email && s.email.toLowerCase().trim() === chosenTarget.ownerEmail.toLowerCase().trim()) ||
         (chosenTarget.ownerName && s.name && s.name.toLowerCase().trim() === chosenTarget.ownerName.toLowerCase().trim())
@@ -651,7 +651,7 @@ export default function Dashboard() {
 
     // Safety fallback: If current user is Admin, ensure Admin is never passed as assignee
     if (isCurrentUserAdmin && (!preselectUid || preselectUid === user?.uid || preselectUid === 'mock-admin-uid')) {
-      const staffAccOwner = (staffList || []).find(s => 
+      const staffAccOwner = (staffList || []).find(s =>
         !isAdminUser(s) && (
           (accOwnerId && String(s.uid) === String(accOwnerId)) ||
           (accOwnerEmail && s.email && s.email.toLowerCase().trim() === accOwnerEmail.toLowerCase().trim()) ||
@@ -663,7 +663,7 @@ export default function Dashboard() {
         preselectName = staffAccOwner.name;
       } else {
         for (const k of keyContactOwners) {
-          const kStaff = (staffList || []).find(s => 
+          const kStaff = (staffList || []).find(s =>
             !isAdminUser(s) && (
               (k.ownerId && String(s.uid) === String(k.ownerId)) ||
               (k.ownerEmail && s.email && s.email.toLowerCase().trim() === k.ownerEmail.toLowerCase().trim()) ||
@@ -688,7 +688,7 @@ export default function Dashboard() {
     // 6. Title and Description
     const cleanAction = (nba.suggestedAction || '').replace(/\.$/, '').trim();
     const preselectTitle = cleanAction || `${targetCompanyName} - Follow-up`;
-    
+
     let preselectDescription = cleanAction;
     if (nba.reason && nba.reason !== nba.suggestedAction) {
       preselectDescription += `\n\nContext / Reason:\n${nba.reason}`;
@@ -787,79 +787,79 @@ export default function Dashboard() {
               {user?.position || user?.userType || user?.role || 'Employee'}
             </div>
             <div style={{ display: 'flex', gap: 8, marginTop: 16, flexWrap: 'wrap' }}>
-              <span 
-                onClick={() => navigate('/risks')} 
-                style={{ 
-                  padding: '6px 12px', 
-                  background: openRisksCount > 0 ? '#ef4444' : 'rgba(255,255,255,0.18)', 
-                  color: 'white', 
-                  fontSize: 11, 
-                  fontWeight: 700, 
-                  borderRadius: 999, 
-                  cursor: 'pointer', 
-                  transition: 'all 0.15s ease' 
-                }} 
-                onMouseEnter={e => e.currentTarget.style.filter = 'brightness(1.15)'} 
-                onMouseLeave={e => e.currentTarget.style.filter = 'none'} 
+              <span
+                onClick={() => navigate('/risks')}
+                style={{
+                  padding: '6px 12px',
+                  background: openRisksCount > 0 ? '#ef4444' : 'rgba(255,255,255,0.18)',
+                  color: 'white',
+                  fontSize: 11,
+                  fontWeight: 700,
+                  borderRadius: 999,
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease'
+                }}
+                onMouseEnter={e => e.currentTarget.style.filter = 'brightness(1.15)'}
+                onMouseLeave={e => e.currentTarget.style.filter = 'none'}
                 title="Review Risks in Account Health"
               >
                 {openRisksCount} risk{openRisksCount === 1 ? '' : 's'} to review
               </span>
 
-              <span 
-                onClick={() => navigate('/staff-tasks')} 
-                style={{ 
-                  padding: '6px 12px', 
-                  background: overdueTasksCount > 0 ? '#d97706' : 'rgba(255,255,255,0.18)', 
-                  color: 'white', 
-                  fontSize: 11, 
-                  fontWeight: 700, 
-                  borderRadius: 999, 
-                  cursor: 'pointer', 
-                  transition: 'all 0.15s ease' 
-                }} 
-                onMouseEnter={e => e.currentTarget.style.filter = 'brightness(1.15)'} 
-                onMouseLeave={e => e.currentTarget.style.filter = 'none'} 
+              <span
+                onClick={() => navigate('/staff-tasks')}
+                style={{
+                  padding: '6px 12px',
+                  background: overdueTasksCount > 0 ? '#d97706' : 'rgba(255,255,255,0.18)',
+                  color: 'white',
+                  fontSize: 11,
+                  fontWeight: 700,
+                  borderRadius: 999,
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease'
+                }}
+                onMouseEnter={e => e.currentTarget.style.filter = 'brightness(1.15)'}
+                onMouseLeave={e => e.currentTarget.style.filter = 'none'}
                 title="Review Overdue Tasks"
               >
                 {overdueTasksCount} overdue task{overdueTasksCount === 1 ? '' : 's'}
               </span>
 
-              <span 
-                onClick={() => navigate('/risks')} 
-                style={{ 
-                  padding: '6px 12px', 
-                  background: droppingCount > 0 ? '#ef4444' : 'rgba(255,255,255,0.18)', 
-                  color: 'white', 
-                  fontSize: 11, 
-                  fontWeight: 700, 
-                  borderRadius: 999, 
-                  cursor: 'pointer', 
-                  transition: 'all 0.15s ease' 
-                }} 
-                onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.35)'} 
-                onMouseLeave={e => e.currentTarget.style.background = droppingCount > 0 ? '#ef4444' : 'rgba(255,255,255,0.18)'} 
+              <span
+                onClick={() => navigate('/risks')}
+                style={{
+                  padding: '6px 12px',
+                  background: droppingCount > 0 ? '#ef4444' : 'rgba(255,255,255,0.18)',
+                  color: 'white',
+                  fontSize: 11,
+                  fontWeight: 700,
+                  borderRadius: 999,
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease'
+                }}
+                onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.35)'}
+                onMouseLeave={e => e.currentTarget.style.background = droppingCount > 0 ? '#ef4444' : 'rgba(255,255,255,0.18)'}
                 title="Review Health Drops in Account Health"
               >
                 {droppingCount} health drop{droppingCount === 1 ? '' : 's'}
               </span>
 
-              <span 
-                onClick={() => navigate('/accounts')} 
-                style={{ 
-                  padding: '6px 12px', 
-                  background: todayGreetingsCount > 0 ? 'rgba(255,255,255,0.32)' : 'rgba(255,255,255,0.18)', 
-                  color: 'white', 
-                  fontSize: 11, 
-                  fontWeight: 700, 
-                  borderRadius: 999, 
-                  display: 'flex', 
-                  alignItems: 'center', 
-                  cursor: 'pointer', 
-                  transition: 'all 0.15s ease' 
-                }} 
-                onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.35)'} 
-                onMouseLeave={e => e.currentTarget.style.background = todayGreetingsCount > 0 ? 'rgba(255,255,255,0.32)' : 'rgba(255,255,255,0.18)'} 
+              <span
+                onClick={() => navigate('/accounts')}
+                style={{
+                  padding: '6px 12px',
+                  background: todayGreetingsCount > 0 ? 'rgba(255,255,255,0.32)' : 'rgba(255,255,255,0.18)',
+                  color: 'white',
+                  fontSize: 11,
+                  fontWeight: 700,
+                  borderRadius: 999,
+                  display: 'flex',
+                  alignItems: 'center',
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease'
+                }}
+                onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.35)'}
+                onMouseLeave={e => e.currentTarget.style.background = todayGreetingsCount > 0 ? 'rgba(255,255,255,0.32)' : 'rgba(255,255,255,0.18)'}
                 title="Review Greetings Due in Accounts"
               >
                 {todayGreetingsCount} greeting{todayGreetingsCount === 1 ? '' : 's'} due
@@ -891,8 +891,8 @@ export default function Dashboard() {
             <span style={{ background: '#fee2e2', color: '#b91c1c', padding: '3px 8px', borderRadius: 999, fontSize: 10, fontWeight: 700 }}>Alert</span>
           </div>
           <div style={{ display: 'flex', gap: 10 }}>
-            <button 
-              onClick={() => navigate('/risks')} 
+            <button
+              onClick={() => navigate('/risks')}
               style={{ padding: '8px 16px', background: 'transparent', border: '1px solid #d97706', borderRadius: 8, color: '#92400e', fontSize: 12, fontWeight: 700, cursor: 'pointer', transition: 'all 0.15s ease' }}
               onMouseEnter={e => { e.currentTarget.style.background = '#d97706'; e.currentTarget.style.color = '#ffffff'; }}
               onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#92400e'; }}
@@ -900,8 +900,8 @@ export default function Dashboard() {
             >
               Review
             </button>
-            <button 
-              onClick={handleDismissAlert} 
+            <button
+              onClick={handleDismissAlert}
               style={{ padding: '8px 16px', background: '#fde68a', border: '1px solid #fcd34d', borderRadius: 8, color: '#92400e', fontSize: 12, fontWeight: 700, cursor: 'pointer', transition: 'all 0.15s ease' }}
               onMouseEnter={e => { e.currentTarget.style.background = '#fcd34d'; }}
               onMouseLeave={e => { e.currentTarget.style.background = '#fde68a'; }}
@@ -1254,286 +1254,286 @@ export default function Dashboard() {
           </div>
           <div style={{ padding: '14px 16px', display: 'flex', flexDirection: 'column', flex: 1, justifyContent: 'space-between' }}>
             <div style={{ display: 'flex', flexDirection: 'column' }}>
-            {filteredTasks.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '36px 0', color: '#94a3b8' }}>
-                <CheckCheck size={32} style={{ margin: '0 auto 10px', opacity: 0.35 }} />
-                <p style={{ fontSize: 13, fontWeight: 600 }}>
-                  {taskTab === 'overdue' && 'No overdue tasks. All caught up!'}
-                  {taskTab === 'today' && 'No tasks due today.'}
-                  {taskTab === 'new' && 'No new tasks pending.'}
-                  {taskTab === 'all' && 'No tasks assigned to you yet.'}
-                </p>
-              </div>
-            ) : paginatedTasks.map((task, idx) => {
-              const taskKey = task.isInteractionTask ? `${task.interactionId}-${task.uid}` : task.taskId;
-              const currentStatus = taskStatuses[taskKey] || task.status || 'Pending';
-              const forwardedTo = taskStatuses[`${taskKey}-forwardedToName`] || task.forwardedToName;
-              const today = new Date(); today.setHours(0,0,0,0);
-              const taskDue = task.dueDate ? new Date(task.dueDate) : null;
-              if (taskDue) taskDue.setHours(0,0,0,0);
-              const isTaskOverdue = taskDue && taskDue < today && !currentStatus.toLowerCase().includes('complet') && !currentStatus.toLowerCase().includes('decline');
-              const isStatusUnchanged = currentStatus === 'Pending' || currentStatus === 'Task Assigned';
-              const showAsOverdued = isTaskOverdue && isStatusUnchanged;
+              {filteredTasks.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '36px 0', color: '#94a3b8' }}>
+                  <CheckCheck size={32} style={{ margin: '0 auto 10px', opacity: 0.35 }} />
+                  <p style={{ fontSize: 13, fontWeight: 600 }}>
+                    {taskTab === 'overdue' && 'No overdue tasks. All caught up!'}
+                    {taskTab === 'today' && 'No tasks due today.'}
+                    {taskTab === 'new' && 'No new tasks pending.'}
+                    {taskTab === 'all' && 'No tasks assigned to you yet.'}
+                  </p>
+                </div>
+              ) : paginatedTasks.map((task, idx) => {
+                const taskKey = task.isInteractionTask ? `${task.interactionId}-${task.uid}` : task.taskId;
+                const currentStatus = taskStatuses[taskKey] || task.status || 'Pending';
+                const forwardedTo = taskStatuses[`${taskKey}-forwardedToName`] || task.forwardedToName;
+                const today = new Date(); today.setHours(0, 0, 0, 0);
+                const taskDue = task.dueDate ? new Date(task.dueDate) : null;
+                if (taskDue) taskDue.setHours(0, 0, 0, 0);
+                const isTaskOverdue = taskDue && taskDue < today && !currentStatus.toLowerCase().includes('complet') && !currentStatus.toLowerCase().includes('decline');
+                const isStatusUnchanged = currentStatus === 'Pending' || currentStatus === 'Task Assigned';
+                const showAsOverdued = isTaskOverdue && isStatusUnchanged;
 
-              let displayStatus = currentStatus === 'Pending' ? 'Task Assigned' : currentStatus;
-              if (displayStatus === 'Accept/Decline') displayStatus = 'Accepted';
-              if (displayStatus === 'Accept' || displayStatus === 'In Progress') displayStatus = 'Accepted';
-              if (displayStatus === 'Decline' || displayStatus === 'Declined') displayStatus = 'Declined';
-              if (displayStatus === 'Completed/Forwarded') displayStatus = 'Completed';
-              if (showAsOverdued) displayStatus = 'Overdued';
+                let displayStatus = currentStatus === 'Pending' ? 'Task Assigned' : currentStatus;
+                if (displayStatus === 'Accept/Decline') displayStatus = 'Accepted';
+                if (displayStatus === 'Accept' || displayStatus === 'In Progress') displayStatus = 'Accepted';
+                if (displayStatus === 'Decline' || displayStatus === 'Declined') displayStatus = 'Declined';
+                if (displayStatus === 'Completed/Forwarded') displayStatus = 'Completed';
+                if (showAsOverdued) displayStatus = 'Overdued';
 
-              let selectValue = currentStatus === 'Pending' ? 'Task Assigned' : currentStatus;
-              if (selectValue === 'Accept/Decline') selectValue = 'Accept';
-              if (selectValue === 'Completed/Forwarded') selectValue = 'Completed';
-              if (selectValue === 'Accepted' || selectValue === 'In Progress') selectValue = 'Accept';
-              if (selectValue === 'Declined' || selectValue === 'Decline') selectValue = 'Decline';
-              if (showAsOverdued) selectValue = 'Overdued';
+                let selectValue = currentStatus === 'Pending' ? 'Task Assigned' : currentStatus;
+                if (selectValue === 'Accept/Decline') selectValue = 'Accept';
+                if (selectValue === 'Completed/Forwarded') selectValue = 'Completed';
+                if (selectValue === 'Accepted' || selectValue === 'In Progress') selectValue = 'Accept';
+                if (selectValue === 'Declined' || selectValue === 'Decline') selectValue = 'Decline';
+                if (showAsOverdued) selectValue = 'Overdued';
 
-              const stBadge = SBStyle(displayStatus);
+                const stBadge = SBStyle(displayStatus);
 
-              const isTaskFinal = (currentStatus || '').toLowerCase() === 'completed' ||
-                                  (currentStatus || '').toLowerCase() === 'complete' ||
-                                  (currentStatus || '').toLowerCase() === 'declined' ||
-                                  (currentStatus || '').toLowerCase() === 'decline' ||
-                                  (currentStatus || '').toLowerCase().includes('forward') ||
-                                  (currentStatus || '').toLowerCase() === 'accepted & completed';
+                const isTaskFinal = (currentStatus || '').toLowerCase() === 'completed' ||
+                  (currentStatus || '').toLowerCase() === 'complete' ||
+                  (currentStatus || '').toLowerCase() === 'declined' ||
+                  (currentStatus || '').toLowerCase() === 'decline' ||
+                  (currentStatus || '').toLowerCase().includes('forward') ||
+                  (currentStatus || '').toLowerCase() === 'accepted & completed';
 
-              const noteInfo = resolveTaskNote(task);
+                const noteInfo = resolveTaskNote(task);
 
-              return (
-                <div
-                  key={task.isInteractionTask ? `${task.interactionId}-${idx}` : task.taskId}
-                  style={{
-                    background: showAsOverdued ? 'linear-gradient(135deg,#fff8f8,#fff)' : '#ffffff',
-                    border: `1px solid ${showAsOverdued ? '#fecaca' : '#e2e8f0'}`,
-                    borderRadius: 14,
-                    padding: '16px 18px',
-                    cursor: 'pointer',
-                    marginBottom: 12,
-                    boxShadow: '0 2px 8px -2px rgba(15,23,42,0.04)',
-                    transition: 'all 0.2s ease'
-                  }}
-                  onMouseEnter={e => {
-                    e.currentTarget.style.borderColor = showAsOverdued ? '#f87171' : '#cbd5e1';
-                    e.currentTarget.style.boxShadow = '0 6px 16px -4px rgba(15,23,42,0.08)';
-                  }}
-                  onMouseLeave={e => {
-                    e.currentTarget.style.borderColor = showAsOverdued ? '#fecaca' : '#e2e8f0';
-                    e.currentTarget.style.boxShadow = '0 2px 8px -2px rgba(15,23,42,0.04)';
-                  }}
-                  onClick={() => {
-                    if (task.isInteractionTask) navigate('/interaction-log', { state: { selectedInteractionId: task.interactionId, from: '/dashboard' } });
-                    else navigate('/staff-tasks', { state: { selectedTaskId: task.taskId, from: '/dashboard' } });
-                  }}
-                >
-                  {/* Top Row: Account & Category & Priority & Status Badge */}
-                  <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10, marginBottom: 8 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                      {task.accountId ? (
-                        <span
-                          style={{ fontSize: 12, fontWeight: 800, color: '#223670', cursor: 'pointer' }}
-                          onClick={e => { e.stopPropagation(); navigate(`/accounts/${task.accountId}`, { state: { from: '/dashboard' } }); }}
-                          title="View Account"
-                        >
-                          {task.companyName || 'Account'}
-                        </span>
-                      ) : (
-                        <span style={{ fontSize: 12, fontWeight: 800, color: '#334155' }}>
-                          {task.companyName || 'Internal'}
-                        </span>
-                      )}
+                return (
+                  <div
+                    key={task.isInteractionTask ? `${task.interactionId}-${idx}` : task.taskId}
+                    style={{
+                      background: showAsOverdued ? 'linear-gradient(135deg,#fff8f8,#fff)' : '#ffffff',
+                      border: `1px solid ${showAsOverdued ? '#fecaca' : '#e2e8f0'}`,
+                      borderRadius: 14,
+                      padding: '16px 18px',
+                      cursor: 'pointer',
+                      marginBottom: 12,
+                      boxShadow: '0 2px 8px -2px rgba(15,23,42,0.04)',
+                      transition: 'all 0.2s ease'
+                    }}
+                    onMouseEnter={e => {
+                      e.currentTarget.style.borderColor = showAsOverdued ? '#f87171' : '#cbd5e1';
+                      e.currentTarget.style.boxShadow = '0 6px 16px -4px rgba(15,23,42,0.08)';
+                    }}
+                    onMouseLeave={e => {
+                      e.currentTarget.style.borderColor = showAsOverdued ? '#fecaca' : '#e2e8f0';
+                      e.currentTarget.style.boxShadow = '0 2px 8px -2px rgba(15,23,42,0.04)';
+                    }}
+                    onClick={() => {
+                      if (task.isInteractionTask) navigate('/interaction-log', { state: { selectedInteractionId: task.interactionId, from: '/dashboard' } });
+                      else navigate('/staff-tasks', { state: { selectedTaskId: task.taskId, from: '/dashboard' } });
+                    }}
+                  >
+                    {/* Top Row: Account & Category & Priority & Status Badge */}
+                    <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10, marginBottom: 8 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                        {task.accountId ? (
+                          <span
+                            style={{ fontSize: 12, fontWeight: 800, color: '#223670', cursor: 'pointer' }}
+                            onClick={e => { e.stopPropagation(); navigate(`/accounts/${task.accountId}`, { state: { from: '/dashboard' } }); }}
+                            title="View Account"
+                          >
+                            {task.companyName || 'Account'}
+                          </span>
+                        ) : (
+                          <span style={{ fontSize: 12, fontWeight: 800, color: '#334155' }}>
+                            {task.companyName || 'Internal'}
+                          </span>
+                        )}
 
-                      <span style={{ fontSize: 10, color: '#cbd5e1' }}>·</span>
+                        <span style={{ fontSize: 10, color: '#cbd5e1' }}>·</span>
 
-                      <span style={{
-                        fontSize: 9, fontWeight: 800, padding: '2px 8px', borderRadius: 999,
-                        background: task.isInteractionTask ? '#eef2f9' : '#f5f3ff',
-                        color: task.isInteractionTask ? '#223670' : '#7c3aed',
-                        border: `1px solid ${task.isInteractionTask ? '#c7d1e8' : '#ddd6fe'}`,
-                        letterSpacing: '0.04em'
-                      }}>
-                        {task.isInteractionTask ? 'INTERACTION LOG' : 'STAFF TASK'}
-                      </span>
-
-                      {task.priority && (
                         <span style={{
                           fontSize: 9, fontWeight: 800, padding: '2px 8px', borderRadius: 999,
-                          background: task.priority === 'High' ? '#fef2f2' : task.priority === 'Medium' ? '#fffbeb' : '#f0fdf4',
-                          color: task.priority === 'High' ? '#dc2626' : task.priority === 'Medium' ? '#d97706' : '#16a34a',
-                          border: `1px solid ${task.priority === 'High' ? '#fecaca' : task.priority === 'Medium' ? '#fde68a' : '#bbf7d0'}`
+                          background: task.isInteractionTask ? '#eef2f9' : '#f5f3ff',
+                          color: task.isInteractionTask ? '#223670' : '#7c3aed',
+                          border: `1px solid ${task.isInteractionTask ? '#c7d1e8' : '#ddd6fe'}`,
+                          letterSpacing: '0.04em'
                         }}>
-                          {task.priority} Priority
+                          {task.isInteractionTask ? 'INTERACTION LOG' : 'STAFF TASK'}
                         </span>
-                      )}
-                    </div>
 
-                    <span style={{
-                      flexShrink: 0, fontSize: 10, fontWeight: 800, padding: '4px 10px',
-                      borderRadius: 999, background: stBadge.bg, color: stBadge.color,
-                      border: `1px solid ${stBadge.border}`, whiteSpace: 'nowrap'
-                    }}>
-                      {displayStatus === 'Forwarded' && forwardedTo ? `→ @${forwardedTo}` : displayStatus}
-                    </span>
-                  </div>
-
-                  {/* Task Title */}
-                  <h4 style={{ fontSize: 14, fontWeight: 800, color: '#0f172a', margin: '0 0 6px', lineHeight: 1.35 }}>
-                    {resolveTaskTitle(task)}
-                  </h4>
-
-                  {/* Description Snippet */}
-                  {task.description && (
-                    <p style={{
-                      fontSize: 12, fontWeight: 500, color: '#475569', margin: '0 0 10px', lineHeight: 1.45,
-                      display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden'
-                    }}>
-                      {task.description}
-                    </p>
-                  )}
-
-                  {/* Metadata Details Grid */}
-                  <div style={{
-                    display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
-                    gap: 8, padding: '8px 10px', background: '#f8fafc',
-                    borderRadius: 10, border: '1px solid #f1f5f9', marginBottom: 10
-                  }}>
-                    {/* Due Date */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 700, color: isTaskOverdue ? '#dc2626' : '#475569' }}>
-                      <Calendar size={13} color={isTaskOverdue ? '#dc2626' : '#94a3b8'} />
-                      <span>Due: {task.dueDate ? formatDate(task.dueDate) : '—'}</span>
-                      {isTaskOverdue && (
-                        <span style={{ fontSize: 9, fontWeight: 800, color: '#dc2626', background: '#fee2e2', padding: '1px 6px', borderRadius: 4 }}>
-                          OVERDUE
-                        </span>
-                      )}
-                    </div>
-
-                    {/* Logged Date & Time */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 600, color: '#64748b' }}>
-                      <Clock size={13} color="#94a3b8" />
-                      <span>Logged: {formatDateTime(task.date, task.time, task.timestamp || task.createdAt) || '—'}</span>
-                    </div>
-
-                    {/* Assigned By */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 600, color: '#475569' }}>
-                      <div style={{ width: 18, height: 18, borderRadius: '50%', background: '#e2e8f0', color: '#1e293b', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, fontWeight: 800 }}>
-                        {(task.assignedByName || task.loggedByName || 'AD').substring(0, 2).toUpperCase()}
-                      </div>
-                      <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>By: <strong style={{ color: '#0f172a' }}>{task.assignedByName || task.loggedByName || 'Admin User'}</strong></span>
-                    </div>
-
-                    {/* Assigned To (Replaced Contact with recipient to whom task is assigned) */}
-                    {(() => {
-                      const toName = task.forwardedToName || task.assignedToName || task.name || user?.name || 'Me';
-                      const toInitials = (toName || 'US').substring(0, 2).toUpperCase();
-                      return (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 600, color: '#475569' }}>
-                          <div style={{ width: 18, height: 18, borderRadius: '50%', background: '#e0e7ff', color: '#3730a3', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, fontWeight: 800 }}>
-                            {toInitials}
-                          </div>
-                          <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>To: <strong style={{ color: '#0f172a' }}>{toName}</strong></span>
-                        </div>
-                      );
-                    })()}
-                  </div>
-
-                  {/* Status Note / Note Added display */}
-                  {noteInfo && (
-                    <div style={{
-                      marginTop: 8, marginBottom: 8, padding: '8px 12px',
-                      background: '#f8fafc', border: '1px solid #e2e8f0',
-                      borderLeft: '3px solid #223670', borderRadius: 8,
-                      display: 'flex', alignItems: 'flex-start', gap: 8
-                    }}>
-                      <MessageSquare size={13} color="#223670" style={{ flexShrink: 0, marginTop: 2 }} />
-                      <div style={{ minWidth: 0, flex: 1 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                          <span style={{ fontSize: 10, fontWeight: 800, color: '#223670', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                            {noteInfo.label}:
-                          </span>
-                          <span style={{ fontSize: 9, fontWeight: 700, color: '#1e40af', background: '#dbeafe', padding: '1px 6px', borderRadius: 999 }}>Note Added</span>
-                        </div>
-                        <p style={{ margin: '3px 0 0', fontSize: 11, color: '#334155', fontWeight: 600, lineHeight: 1.45, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
-                          {noteInfo.text}
-                        </p>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Action Bar (Replaces [Mark done] [Notify] [Open account]) */}
-                  <div
-                    style={{
-                      marginTop: 10, paddingTop: 10, borderTop: '1px solid #f1f5f9',
-                      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                      flexWrap: 'wrap', gap: 10
-                    }}
-                    onClick={e => e.stopPropagation()}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                      <span style={{ fontSize: 11, fontWeight: 800, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                        Change Status:
-                      </span>
-                      {isTaskFinal ? (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        {task.priority && (
                           <span style={{
-                            fontSize: 11, fontWeight: 800, padding: '3px 10px', borderRadius: 8,
-                            background: stBadge.bg, color: stBadge.color, border: `1px solid ${stBadge.border}`
+                            fontSize: 9, fontWeight: 800, padding: '2px 8px', borderRadius: 999,
+                            background: task.priority === 'High' ? '#fef2f2' : task.priority === 'Medium' ? '#fffbeb' : '#f0fdf4',
+                            color: task.priority === 'High' ? '#dc2626' : task.priority === 'Medium' ? '#d97706' : '#16a34a',
+                            border: `1px solid ${task.priority === 'High' ? '#fecaca' : task.priority === 'Medium' ? '#fde68a' : '#bbf7d0'}`
                           }}>
-                            {displayStatus === 'Forwarded' && forwardedTo ? `Forwarded to @${forwardedTo}` : displayStatus}
+                            {task.priority} Priority
                           </span>
-                          <span style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', fontStyle: 'italic' }}>
-                            (Status Fixed)
-                          </span>
-                        </div>
-                      ) : (
-                        <select
-                          value={selectValue}
-                          onChange={(e) => handleStatusChange(task, e.target.value)}
-                          style={{
-                            padding: '5px 12px', borderRadius: 8, fontSize: 11, fontWeight: 800,
-                            background: '#ffffff',
-                            color: '#0f172a',
-                            border: '1px solid #cbd5e1',
-                            cursor: 'pointer',
-                            outline: 'none', transition: 'border-color 0.15s ease'
-                          }}
-                        >
-                          {showAsOverdued && <option value="Overdued">Overdue</option>}
-                          <option value="Task Assigned">Task Assigned</option>
-                          <option value="Accept">Accept</option>
-                          <option value="Completed">Completed</option>
-                          <option value="Decline">Decline</option>
-                          <option value="Forwarded">Forward</option>
-                        </select>
-                      )}
+                        )}
+                      </div>
+
+                      <span style={{
+                        flexShrink: 0, fontSize: 10, fontWeight: 800, padding: '4px 10px',
+                        borderRadius: 999, background: stBadge.bg, color: stBadge.color,
+                        border: `1px solid ${stBadge.border}`, whiteSpace: 'nowrap'
+                      }}>
+                        {displayStatus === 'Forwarded' && forwardedTo ? `→ @${forwardedTo}` : displayStatus}
+                      </span>
                     </div>
 
-                    {/* View Details Link */}
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        if (task.isInteractionTask) {
-                          navigate('/interaction-log', { state: { selectedInteractionId: task.interactionId, from: '/dashboard' } });
-                        } else {
-                          navigate('/staff-tasks', { state: { selectedTaskId: task.taskId, from: '/dashboard' } });
-                        }
-                      }}
+                    {/* Task Title */}
+                    <h4 style={{ fontSize: 14, fontWeight: 800, color: '#0f172a', margin: '0 0 6px', lineHeight: 1.35 }}>
+                      {resolveTaskTitle(task)}
+                    </h4>
+
+                    {/* Description Snippet */}
+                    {task.description && (
+                      <p style={{
+                        fontSize: 12, fontWeight: 500, color: '#475569', margin: '0 0 10px', lineHeight: 1.45,
+                        display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden'
+                      }}>
+                        {task.description}
+                      </p>
+                    )}
+
+                    {/* Metadata Details Grid */}
+                    <div style={{
+                      display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+                      gap: 8, padding: '8px 10px', background: '#f8fafc',
+                      borderRadius: 10, border: '1px solid #f1f5f9', marginBottom: 10
+                    }}>
+                      {/* Due Date */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 700, color: isTaskOverdue ? '#dc2626' : '#475569' }}>
+                        <Calendar size={13} color={isTaskOverdue ? '#dc2626' : '#94a3b8'} />
+                        <span>Due: {task.dueDate ? formatDate(task.dueDate) : '—'}</span>
+                        {isTaskOverdue && (
+                          <span style={{ fontSize: 9, fontWeight: 800, color: '#dc2626', background: '#fee2e2', padding: '1px 6px', borderRadius: 4 }}>
+                            OVERDUE
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Logged Date & Time */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 600, color: '#64748b' }}>
+                        <Clock size={13} color="#94a3b8" />
+                        <span>Logged: {formatDateTime(task.date, task.time, task.timestamp || task.createdAt) || '—'}</span>
+                      </div>
+
+                      {/* Assigned By */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 600, color: '#475569' }}>
+                        <div style={{ width: 18, height: 18, borderRadius: '50%', background: '#e2e8f0', color: '#1e293b', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, fontWeight: 800 }}>
+                          {(task.assignedByName || task.loggedByName || 'AD').substring(0, 2).toUpperCase()}
+                        </div>
+                        <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>By: <strong style={{ color: '#0f172a' }}>{task.assignedByName || task.loggedByName || 'Admin User'}</strong></span>
+                      </div>
+
+                      {/* Assigned To (Replaced Contact with recipient to whom task is assigned) */}
+                      {(() => {
+                        const toName = task.forwardedToName || task.assignedToName || task.name || user?.name || 'Me';
+                        const toInitials = (toName || 'US').substring(0, 2).toUpperCase();
+                        return (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 600, color: '#475569' }}>
+                            <div style={{ width: 18, height: 18, borderRadius: '50%', background: '#e0e7ff', color: '#3730a3', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, fontWeight: 800 }}>
+                              {toInitials}
+                            </div>
+                            <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>To: <strong style={{ color: '#0f172a' }}>{toName}</strong></span>
+                          </div>
+                        );
+                      })()}
+                    </div>
+
+                    {/* Status Note / Note Added display */}
+                    {noteInfo && (
+                      <div style={{
+                        marginTop: 8, marginBottom: 8, padding: '8px 12px',
+                        background: '#f8fafc', border: '1px solid #e2e8f0',
+                        borderLeft: '3px solid #223670', borderRadius: 8,
+                        display: 'flex', alignItems: 'flex-start', gap: 8
+                      }}>
+                        <MessageSquare size={13} color="#223670" style={{ flexShrink: 0, marginTop: 2 }} />
+                        <div style={{ minWidth: 0, flex: 1 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <span style={{ fontSize: 10, fontWeight: 800, color: '#223670', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                              {noteInfo.label}:
+                            </span>
+                            <span style={{ fontSize: 9, fontWeight: 700, color: '#1e40af', background: '#dbeafe', padding: '1px 6px', borderRadius: 999 }}>Note Added</span>
+                          </div>
+                          <p style={{ margin: '3px 0 0', fontSize: 11, color: '#334155', fontWeight: 600, lineHeight: 1.45, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                            {noteInfo.text}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Action Bar (Replaces [Mark done] [Notify] [Open account]) */}
+                    <div
                       style={{
-                        display: 'inline-flex', alignItems: 'center', gap: 4,
-                        background: 'none', border: 'none', padding: 0,
-                        fontSize: 11, fontWeight: 800, color: '#223670', cursor: 'pointer'
+                        marginTop: 10, paddingTop: 10, borderTop: '1px solid #f1f5f9',
+                        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                        flexWrap: 'wrap', gap: 10
                       }}
-                      onMouseEnter={e => e.currentTarget.style.textDecoration = 'underline'}
-                      onMouseLeave={e => e.currentTarget.style.textDecoration = 'none'}
+                      onClick={e => e.stopPropagation()}
                     >
-                      <span>View Task Details</span>
-                      <ChevronRight size={13} />
-                    </button>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                        <span style={{ fontSize: 11, fontWeight: 800, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                          Change Status:
+                        </span>
+                        {isTaskFinal ? (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <span style={{
+                              fontSize: 11, fontWeight: 800, padding: '3px 10px', borderRadius: 8,
+                              background: stBadge.bg, color: stBadge.color, border: `1px solid ${stBadge.border}`
+                            }}>
+                              {displayStatus === 'Forwarded' && forwardedTo ? `Forwarded to @${forwardedTo}` : displayStatus}
+                            </span>
+                            <span style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', fontStyle: 'italic' }}>
+                              (Status Fixed)
+                            </span>
+                          </div>
+                        ) : (
+                          <select
+                            value={selectValue}
+                            onChange={(e) => handleStatusChange(task, e.target.value)}
+                            style={{
+                              padding: '5px 12px', borderRadius: 8, fontSize: 11, fontWeight: 800,
+                              background: '#ffffff',
+                              color: '#0f172a',
+                              border: '1px solid #cbd5e1',
+                              cursor: 'pointer',
+                              outline: 'none', transition: 'border-color 0.15s ease'
+                            }}
+                          >
+                            {showAsOverdued && <option value="Overdued">Overdue</option>}
+                            <option value="Task Assigned">Task Assigned</option>
+                            <option value="Accept">Accept</option>
+                            <option value="Completed">Completed</option>
+                            <option value="Decline">Decline</option>
+                            <option value="Forwarded">Forward</option>
+                          </select>
+                        )}
+                      </div>
+
+                      {/* View Details Link */}
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (task.isInteractionTask) {
+                            navigate('/interaction-log', { state: { selectedInteractionId: task.interactionId, from: '/dashboard' } });
+                          } else {
+                            navigate('/staff-tasks', { state: { selectedTaskId: task.taskId, from: '/dashboard' } });
+                          }
+                        }}
+                        style={{
+                          display: 'inline-flex', alignItems: 'center', gap: 4,
+                          background: 'none', border: 'none', padding: 0,
+                          fontSize: 11, fontWeight: 800, color: '#223670', cursor: 'pointer'
+                        }}
+                        onMouseEnter={e => e.currentTarget.style.textDecoration = 'underline'}
+                        onMouseLeave={e => e.currentTarget.style.textDecoration = 'none'}
+                      >
+                        <span>View Task Details</span>
+                        <ChevronRight size={13} />
+                      </button>
+                    </div>
                   </div>
-                </div>
-              );
-            })}
+                );
+              })}
             </div>
 
             {/* Pagination Controls */}
@@ -1677,8 +1677,8 @@ export default function Dashboard() {
                     const badgeBg = isHigh ? '#fef2f2' : isMed ? '#fffbeb' : '#eff6ff';
                     const badgeColor = isHigh ? '#ef4444' : isMed ? '#f59e0b' : '#3b82f6';
                     return (
-                      <div 
-                        key={idx} 
+                      <div
+                        key={idx}
                         onClick={() => navigate(`/accounts/${nba.accountId}`, { state: { from: '/dashboard' } })}
                         style={{ borderBottom: '1px solid #f1f5f9', padding: '12px 0', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}
                       >
@@ -1688,10 +1688,10 @@ export default function Dashboard() {
                           </div>
                           <p style={{ fontSize: 11, color: '#64748b', margin: 0, lineHeight: 1.4 }}>{nba.suggestedAction}</p>
                         </div>
-                        <button 
-                          style={{ padding: '6px 14px', background: '#fff', border: '1px solid #cbd5e1', borderRadius: 8, fontSize: 12, fontWeight: 700, color: '#0f172a', cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }} 
-                          onClick={(e) => { 
-                            e.stopPropagation(); 
+                        <button
+                          style={{ padding: '6px 14px', background: '#fff', border: '1px solid #cbd5e1', borderRadius: 8, fontSize: 12, fontWeight: 700, color: '#0f172a', cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}
+                          onClick={(e) => {
+                            e.stopPropagation();
                             handleCreateTaskFromAction(nba);
                           }}
                           className="hover:bg-slate-50 transition-colors"
@@ -1710,7 +1710,7 @@ export default function Dashboard() {
 
       {/* CHARTS */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 mb-5">
-        
+
         <div style={{ ...P, padding: '18px 20px', display: 'flex', flexDirection: 'column' }}>
           <div style={{ fontSize: 11, fontWeight: 800, color: '#0f172a', marginBottom: 16 }}>Industry Health Profile</div>
           {trendData.length === 0 ? (
@@ -2157,7 +2157,7 @@ export default function Dashboard() {
             </div>
             <div style={{ padding: 24, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 12 }} className="custom-scrollbar">
               {managementDrillDown.list.length === 0 ? (
-                 <p style={{ fontSize: 14, color: '#64748b', fontWeight: 700, textAlign: 'center', padding: '32px 0', margin: 0 }}>No records found.</p>
+                <p style={{ fontSize: 14, color: '#64748b', fontWeight: 700, textAlign: 'center', padding: '32px 0', margin: 0 }}>No records found.</p>
               ) : (
                 managementDrillDown.list.map((item, idx) => {
                   if (managementDrillDown.type === 'accounts') {

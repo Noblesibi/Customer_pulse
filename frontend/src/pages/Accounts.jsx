@@ -404,7 +404,7 @@ export default function Accounts() {
   const handleBulkDelete = async () => {
     if (!selectedBulkAccounts.length) return;
     if (!window.confirm(`Are you sure you want to delete ${selectedBulkAccounts.length} selected account(s)? This will also delete their contacts, tasks, and interactions.`)) return;
-    
+
     setIsDeletingBulk(true);
     try {
       const deletedCount = selectedBulkAccounts.length;
@@ -461,7 +461,7 @@ export default function Accounts() {
         <div className="space-y-4 mb-6">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <h2 className="text-xl font-bold text-slate-900 tracking-tight">Client Portfolio</h2>
-            {(user?.role === 'Admin' || user?.position?.toLowerCase().includes('ceo') || user?.userType === 'CEO' || user?.email === 'nj@gmail.com') && (
+            {(user?.role === 'Admin' || user?.position?.toLowerCase().includes('ceo') || user?.userType === 'CEO' || user?.email?.toLowerCase() === 'nazneen.jehangir@nestgroup.net') && (
               <div className="flex items-center gap-2 flex-wrap">
                 {user?.role === 'Admin' && selectedBulkAccounts.length > 0 && (
                   <button
@@ -559,7 +559,7 @@ export default function Accounts() {
                 <div className="block md:hidden px-3 pt-2">
                   <label className="flex items-center justify-between p-2.5 rounded-xl bg-dark-900/60 border border-slate-800 text-xs text-slate-300 cursor-pointer">
                     <div className="flex items-center gap-2">
-                      <input 
+                      <input
                         type="checkbox"
                         className="w-4 h-4 cursor-pointer accent-rose-500"
                         checked={isAllSelected}
@@ -599,8 +599,8 @@ export default function Accounts() {
                     >
                       {user?.role === 'Admin' && (
                         <div className="absolute top-2 right-2" onClick={(e) => e.stopPropagation()}>
-                          <input 
-                            type="checkbox" 
+                          <input
+                            type="checkbox"
                             className="w-4 h-4 cursor-pointer accent-rose-500"
                             checked={selectedBulkAccounts.includes(id)}
                             onChange={(e) => {
@@ -637,7 +637,7 @@ export default function Accounts() {
                     <tr className="bg-slate-50/80 border-b border-slate-200/80 text-slate-500 font-semibold uppercase tracking-wider">
                       {user?.role === 'Admin' && (
                         <th className="p-4 sticky top-0 bg-slate-50/95 backdrop-blur-xs z-10 text-slate-600 w-12 text-center">
-                          <input 
+                          <input
                             type="checkbox"
                             className="w-4 h-4 cursor-pointer accent-rose-500"
                             title={isAllSelected ? "Deselect all companies" : `Select all ${availableAllIds.length} companies`}
@@ -675,7 +675,7 @@ export default function Accounts() {
                         >
                           {user?.role === 'Admin' && (
                             <td className="p-4 text-center" onClick={(e) => e.stopPropagation()}>
-                              <input 
+                              <input
                                 type="checkbox"
                                 className="w-4 h-4 cursor-pointer accent-rose-500"
                                 checked={selectedBulkAccounts.includes(id)}
@@ -1026,8 +1026,8 @@ export default function Accounts() {
 
                         <div className="flex items-center gap-2 pt-1.5 border-t border-slate-800/40 text-xs font-bold">
                           <span className={`px-1.5 py-0.5 rounded border ${item.sentiment === 'Positive' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' :
-                              item.sentiment === 'Negative' ? 'bg-rose-500/10 border-rose-500/20 text-rose-400' :
-                                'bg-slate-800 border-slate-700 text-slate-300'
+                            item.sentiment === 'Negative' ? 'bg-rose-500/10 border-rose-500/20 text-rose-400' :
+                              'bg-slate-800 border-slate-700 text-slate-300'
                             }`}>
                             {item.sentiment} Sentiment
                           </span>
@@ -1120,8 +1120,8 @@ export default function Accounts() {
                           type="button"
                           onClick={() => setInteractionSource(ch.id)}
                           className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold border transition-all duration-150 ${isActive
-                              ? 'bg-primary border-primary text-white shadow-lg shadow-primary/20'
-                              : 'bg-dark-900/60 border-slate-700 text-slate-300 hover:border-slate-500'
+                            ? 'bg-primary border-primary text-white shadow-lg shadow-primary/20'
+                            : 'bg-dark-900/60 border-slate-700 text-slate-300 hover:border-slate-500'
                             }`}
                         >
                           <Icon className={`w-3.5 h-3.5 ${isActive ? 'text-white' : ch.color}`} />
@@ -1573,9 +1573,9 @@ export default function Accounts() {
       )}
 
       {/* Bulk Upload Modal */}
-      <BulkUploadModal 
-        isOpen={isBulkUploadOpen} 
-        onClose={() => setIsBulkUploadOpen(false)} 
+      <BulkUploadModal
+        isOpen={isBulkUploadOpen}
+        onClose={() => setIsBulkUploadOpen(false)}
       />
     </div>
   );

@@ -8,6 +8,7 @@ import {
 import { useStore } from '../store/index.js';
 import { formatDateTime } from '../utils/dateFormat.js';
 import LoadingSpinner from '../components/LoadingSpinner.jsx';
+import MicrosoftAccessGovernancePanel from '../components/MicrosoftAccessGovernancePanel.jsx';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend
 } from 'recharts';
@@ -22,12 +23,12 @@ const eventLabel = (type) =>
   (type || '').split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
 
 const STATUS_COLORS = {
-  sent:      { bg: 'bg-emerald-500/10', text: 'text-emerald-700', border: 'border-emerald-500/30' },
-  mock_sent: { bg: 'bg-sky-500/10',     text: 'text-sky-700',     border: 'border-sky-500/30' },
-  queued:    { bg: 'bg-amber-500/10',   text: 'text-amber-700',   border: 'border-amber-500/30' },
-  processing:{ bg: 'bg-blue-500/10',    text: 'text-blue-700',    border: 'border-blue-500/30' },
-  failed:    { bg: 'bg-rose-500/10',    text: 'text-rose-700',    border: 'border-rose-500/30' },
-  cancelled: { bg: 'bg-slate-200',       text: 'text-black',       border: 'border-slate-300' },
+  sent: { bg: 'bg-emerald-500/10', text: 'text-emerald-700', border: 'border-emerald-500/30' },
+  mock_sent: { bg: 'bg-sky-500/10', text: 'text-sky-700', border: 'border-sky-500/30' },
+  queued: { bg: 'bg-amber-500/10', text: 'text-amber-700', border: 'border-amber-500/30' },
+  processing: { bg: 'bg-blue-500/10', text: 'text-blue-700', border: 'border-blue-500/30' },
+  failed: { bg: 'bg-rose-500/10', text: 'text-rose-700', border: 'border-rose-500/30' },
+  cancelled: { bg: 'bg-slate-200', text: 'text-black', border: 'border-slate-300' },
 };
 
 function StatusBadge({ status }) {
@@ -82,12 +83,13 @@ function Toggle({ checked, onChange, label, description }) {
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 const TABS = [
-  { id: 'dashboard',  label: 'Engine Dashboard',  icon: BarChart3 },
-  { id: 'queue',      label: 'Automatic Email Queue', icon: Clock },
-  { id: 'history',    label: 'Email Dispatch Logs', icon: List },
-  { id: 'templates',  label: 'Automatic Templates', icon: FileText },
-  { id: 'settings',   label: 'Notification Settings', icon: Settings },
-  { id: 'smtp',       label: 'SMTP Relay Status',  icon: Server },
+  { id: 'dashboard', label: 'Engine Dashboard', icon: BarChart3 },
+  { id: 'queue', label: 'Automatic Email Queue', icon: Clock },
+  { id: 'history', label: 'Email Dispatch Logs', icon: List },
+  { id: 'templates', label: 'Automatic Templates', icon: FileText },
+  { id: 'settings', label: 'Notification Settings', icon: Settings },
+  { id: 'smtp', label: 'SMTP Relay Status', icon: Server },
+  { id: 'm365',       label: 'Microsoft 365 Access', icon: Wifi },
 ];
 
 export default function NotificationCenter() {
@@ -95,6 +97,7 @@ export default function NotificationCenter() {
   const location = useLocation();
   const {
     user,
+    token,
     emailEngineStats, emailEngineStatsLoading, fetchEmailEngineStats,
     emailQueue, emailQueueLoading, fetchEmailQueue,
     emailLogs, emailLogsLoading, fetchEmailLogs,
@@ -105,7 +108,7 @@ export default function NotificationCenter() {
     sendTestEmail, fetchSmtpStatus
   } = useStore();
 
-  const isAuthorized = user?.role === 'Admin' || user?.userType === 'Admin' || user?.name?.toLowerCase().includes('nazneen') || user?.email?.toLowerCase().includes('nazneen') || user?.email === 'nj@gmail.com';
+  const isAuthorized = user?.role === 'Admin' || user?.userType === 'Admin' || user?.userType === 'CEO' || user?.email?.toLowerCase() === 'nazneen.jehangir@nestgroup.net';
 
   const [activeTab, setActiveTab] = useState('dashboard');
   const [toast, setToast] = useState(null);
@@ -115,6 +118,7 @@ export default function NotificationCenter() {
   const [logStatusFilter, setLogStatusFilter] = useState('');
   const [queueStatusFilter, setQueueStatusFilter] = useState('');
   const [expandedLog, setExpandedLog] = useState(null);
+  const [templateCategoryFilter, setTemplateCategoryFilter] = useState('ALL');
   const [smtpStatus, setSmtpStatus] = useState(null);
   const [smtpLoading, setSmtpLoading] = useState(false);
   const [testTemplateSending, setTestTemplateSending] = useState(null);
@@ -209,8 +213,12 @@ export default function NotificationCenter() {
     else showToast('Failed to save preferences.', 'error');
   };
 
-  // Filter templates to show automatic notification templates
-  const autoTemplates = (emailTemplates || []).filter(t => !['birthday', 'work_anniversary', 'festival', 'welcome', 'farewell', 'promotion', 'achievement', 'custom_greeting'].includes(t.id));
+  // Show ALL registered project email templates (Tasks, Interactions, Risks, Account Governance, Celebrations/Greetings)
+  const allTemplates = emailTemplates || [];
+  const templateCategories = Array.from(new Set(allTemplates.map(t => t.category).filter(Boolean)));
+  const autoTemplates = templateCategoryFilter === 'ALL'
+    ? allTemplates
+    : allTemplates.filter(t => t.category === templateCategoryFilter);
 
   const filteredLogs = emailLogs.filter(l => {
     const q = logSearch.toLowerCase();
@@ -261,11 +269,10 @@ export default function NotificationCenter() {
 
       {/* Toast */}
       {toast && (
-        <div className={`fixed top-6 right-6 z-50 px-4 py-3 rounded-xl shadow-xl text-sm font-bold border flex items-center gap-2 ${
-          toast.type === 'error'
-            ? 'bg-rose-500/10 border-rose-500/20 text-rose-600'
-            : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-700'
-        }`}>
+        <div className={`fixed top-6 right-6 z-50 px-4 py-3 rounded-xl shadow-xl text-sm font-bold border flex items-center gap-2 ${toast.type === 'error'
+          ? 'bg-rose-500/10 border-rose-500/20 text-rose-600'
+          : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-700'
+          }`}>
           {toast.type === 'error' ? <XCircle className="w-4 h-4" /> : <CheckCircle2 className="w-4 h-4" />}
           {toast.msg}
         </div>
@@ -322,11 +329,10 @@ export default function NotificationCenter() {
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-extrabold border cursor-pointer transition-all ${
-                activeTab === tab.id
-                  ? 'bg-primary border-primary text-white shadow-md'
-                  : 'bg-dark-900 border-dark-800 text-black hover:bg-dark-800'
-              }`}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-extrabold border cursor-pointer transition-all ${activeTab === tab.id
+                ? 'bg-primary border-primary text-white shadow-md'
+                : 'bg-dark-900 border-dark-800 text-black hover:bg-dark-800'
+                }`}
             >
               <tab.icon className="w-4 h-4" />
               {tab.label}
@@ -566,9 +572,23 @@ export default function NotificationCenter() {
         {/* ─── TAB 4: Automatic Templates ─────────────────────────────────── */}
         {activeTab === 'templates' && (
           <div className="space-y-4">
-            <p className="text-xs text-black font-extrabold">
-              Built-in automatic notification templates triggered by CRM events (Task Assigned, Status Updated, Due Reminders, Overdue Alerts, Comments, etc.).
-            </p>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <p className="text-xs text-black font-extrabold">
+                All {allTemplates.length} automatic email templates across the CRM (Tasks, Risks, Interactions, Account Ownership, and Celebrations/Greetings).
+              </p>
+              <select
+                value={templateCategoryFilter}
+                onChange={(e) => setTemplateCategoryFilter(e.target.value)}
+                className="text-xs font-bold text-black bg-white border border-slate-300 rounded-lg px-3 py-1.5"
+              >
+                <option value="ALL">All Categories ({allTemplates.length})</option>
+                {templateCategories.map(cat => (
+                  <option key={cat} value={cat}>
+                    {cat} ({allTemplates.filter(t => t.category === cat).length})
+                  </option>
+                ))}
+              </select>
+            </div>
             {previewLoading && (
               <div className="flex justify-center py-6"><LoadingSpinner size="sm" /></div>
             )}
@@ -652,6 +672,60 @@ export default function NotificationCenter() {
                     checked={localPrefs.taskComments ?? true}
                     onChange={v => handlePrefChange('taskComments', v)}
                   />
+                  <Toggle
+                    label="Task Detail Update Emails"
+                    description="Automatically receive an email when task details, priority, or due dates are updated."
+                    checked={localPrefs.taskUpdated ?? true}
+                    onChange={v => handlePrefChange('taskUpdated', v)}
+                  />
+                  <Toggle
+                    label="Task Completion Emails"
+                    description="Automatically receive an email when an assigned or associated task is completed."
+                    checked={localPrefs.taskCompleted ?? true}
+                    onChange={v => handlePrefChange('taskCompleted', v)}
+                  />
+                  <Toggle
+                    label="Task Cancellation Alerts"
+                    description="Automatically receive an email when a task is cancelled."
+                    checked={localPrefs.taskCancelled ?? true}
+                    onChange={v => handlePrefChange('taskCancelled', v)}
+                  />
+                  <Toggle
+                    label="Task Attachment Uploads"
+                    description="Automatically receive an email when a new attachment is added to a task."
+                    checked={localPrefs.taskAttachments ?? true}
+                    onChange={v => handlePrefChange('taskAttachments', v)}
+                  />
+                  <Toggle
+                    label="Customer Risk & Escalation Alerts"
+                    description="Automatically receive an email when a risk is flagged or an account risk level escalates."
+                    checked={localPrefs.riskAlerts ?? true}
+                    onChange={v => handlePrefChange('riskAlerts', v)}
+                  />
+                  <Toggle
+                    label="Interaction & Communication Logs"
+                    description="Automatically receive an email when a new customer interaction, Outlook email, or Teams meeting log is recorded."
+                    checked={localPrefs.interactionLogged ?? true}
+                    onChange={v => handlePrefChange('interactionLogged', v)}
+                  />
+                  <Toggle
+                    label="Account & Key Contact Ownership Changes"
+                    description="Automatically receive an email when an account or key contact owner assignment changes."
+                    checked={localPrefs.accountAssignments ?? true}
+                    onChange={v => handlePrefChange('accountAssignments', v)}
+                  />
+                  <Toggle
+                    label="Celebrations & Greeting Emails"
+                    description="Automatically send/receive birthday, work anniversary, festival, promotion, and milestone greeting notifications."
+                    checked={localPrefs.greetingEmails ?? true}
+                    onChange={v => handlePrefChange('greetingEmails', v)}
+                  />
+                  <Toggle
+                    label="Company Announcements"
+                    description="Receive company-wide announcements and system broadcasts."
+                    checked={localPrefs.companyAnnouncements ?? true}
+                    onChange={v => handlePrefChange('companyAnnouncements', v)}
+                  />
                 </div>
               ) : (
                 <div className="flex justify-center py-8"><LoadingSpinner size="md" /></div>
@@ -678,38 +752,48 @@ export default function NotificationCenter() {
 
               <div className="space-y-3 text-sm">
                 <div className="flex items-center gap-3">
-                  <span className="text-[10px] font-black uppercase tracking-widest text-black w-28 shrink-0">SMTP Host</span>
-                  <span className="font-extrabold text-black">10.45.0.12</span>
+                  <span className="text-[10px] font-black uppercase tracking-widest text-black w-32 shrink-0">SMTP Host</span>
+                  <span className="font-extrabold text-black font-mono">
+                    {smtpStatus?.smtpConfig?.host || emailEngineStats?.smtpConfig?.host || 'Not configured'}
+                  </span>
                 </div>
                 <div className="flex items-center gap-3">
-                  <span className="text-[10px] font-black uppercase tracking-widest text-black w-28 shrink-0">Port</span>
-                  <span className="font-extrabold text-black">25</span>
-                  <span className="font-extrabold text-black font-mono">Configured</span>
+                  <span className="text-[10px] font-black uppercase tracking-widest text-black w-32 shrink-0">Port</span>
+                  <span className="font-extrabold text-black font-mono">
+                    {smtpStatus?.smtpConfig?.port || emailEngineStats?.smtpConfig?.port || '—'}
+                  </span>
                 </div>
                 <div className="flex items-center gap-3">
-                  <span className="text-[10px] font-black uppercase tracking-widest text-black w-28 shrink-0">Port</span>
-                  <span className="font-extrabold text-black font-mono">Not displayed</span>
+                  <span className="text-[10px] font-black uppercase tracking-widest text-black w-32 shrink-0">TLS / Secure</span>
+                  <span className="font-extrabold text-black">
+                    {(smtpStatus?.smtpConfig?.secure ?? emailEngineStats?.smtpConfig?.secure) ? 'Enabled (TLS)' : 'Plain / STARTTLS'}
+                  </span>
                 </div>
                 <div className="flex items-center gap-3">
-                  <span className="text-[10px] font-black uppercase tracking-widest text-black w-28 shrink-0">Authentication</span>
-                  <span className="font-extrabold text-black">Anonymous Internal Relay</span>
+                  <span className="text-[10px] font-black uppercase tracking-widest text-black w-32 shrink-0">Authentication</span>
+                  <span className="font-extrabold text-black">
+                    {smtpStatus?.smtpConfig?.authMode || emailEngineStats?.smtpConfig?.authMode || 'Not configured'}
+                  </span>
                 </div>
                 <div className="flex items-center gap-3">
-                  <span className="text-[10px] font-black uppercase tracking-widest text-black w-28 shrink-0">Sender Email</span>
-                  <span className="font-extrabold text-black">test@nestgroup.net</span>
+                  <span className="text-[10px] font-black uppercase tracking-widest text-black w-32 shrink-0">Sender Email</span>
+                  <span className="font-extrabold text-black">
+                    {smtpStatus?.smtpConfig?.from || emailEngineStats?.smtpConfig?.from || 'Not configured'}
+                  </span>
                 </div>
                 <div className="flex items-center gap-3">
-                  <span className="text-[10px] font-black uppercase tracking-widest text-black w-28 shrink-0">Network Access</span>
-                  <span className="font-extrabold text-black">Office Network & WFH (VPN)</span>
+                  <span className="text-[10px] font-black uppercase tracking-widest text-black w-32 shrink-0">Status</span>
+                  <span className="font-extrabold text-black">
+                    {(smtpStatus?.smtpConfig?.configured ?? emailEngineStats?.smtpConfig?.configured) ? 'Configured via Environment' : 'Mock Mode (No SMTP_HOST)'}
+                  </span>
                 </div>
               </div>
 
               {smtpStatus && (
-                <div className={`mt-4 flex items-center gap-3 p-3.5 rounded-xl border ${
-                  smtpStatus.ok
-                    ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-700'
-                    : 'bg-rose-500/10 border-rose-500/30 text-rose-700'
-                }`}>
+                <div className={`mt-4 flex items-center gap-3 p-3.5 rounded-xl border ${smtpStatus.ok
+                  ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-700'
+                  : 'bg-rose-500/10 border-rose-500/30 text-rose-700'
+                  }`}>
                   {smtpStatus.ok ? <Wifi className="w-5 h-5 shrink-0 text-emerald-600" /> : <WifiOff className="w-5 h-5 shrink-0 text-rose-600" />}
                   <div>
                     <p className="text-sm font-black">{smtpStatus.ok ? 'SMTP Relay Connection Active & Healthy' : 'SMTP Connection Failed'}</p>
@@ -724,6 +808,10 @@ export default function NotificationCenter() {
               )}
             </div>
           </div>
+        )}
+
+        {activeTab === 'm365' && (
+          <MicrosoftAccessGovernancePanel token={token} />
         )}
 
       </div>

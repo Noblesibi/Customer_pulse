@@ -33,10 +33,21 @@ router.get('/stats', async (req, res) => {
       totalMockSentToday: logs.filter(l => l.isMock && (l.sentAt || '').startsWith(todayStr)).length,
       totalSentAllTime: logs.filter(l => l.status === 'sent').length,
       totalFailedAllTime: logs.filter(l => l.status === 'failed').length,
-      reminderEmails: logs.filter(l => l.eventType === 'task_reminder').length,
+      reminderEmails: logs.filter(l => (l.eventType || '').includes('reminder')).length,
       greetingEmails: logs.filter(l => ['birthday', 'work_anniversary', 'festival', 'welcome', 'farewell', 'promotion', 'achievement', 'custom_greeting'].includes(l.eventType)).length,
-      taskNotifications: logs.filter(l => l.eventType && l.eventType.startsWith('task_')).length,
-      smtpMode: smtpProvider.getProviderName()
+      taskNotifications: logs.filter(l => (l.eventType || '').includes('task')).length,
+      riskAlerts: logs.filter(l => (l.eventType || '').includes('risk')).length,
+      smtpMode: smtpProvider.getProviderName(),
+      smtpConfig: {
+        host: process.env.SMTP_HOST || 'Not configured',
+        port: process.env.SMTP_PORT || '25',
+        secure: process.env.SMTP_SECURE === 'true',
+        authMode: process.env.SMTP_USER
+          ? 'Authenticated SMTP'
+          : (process.env.SMTP_HOST ? 'Anonymous Internal Relay' : 'Mock Mode'),
+        from: process.env.EMAIL_FROM || 'Not configured',
+        configured: Boolean(process.env.SMTP_HOST),
+      }
     };
 
     // Monthly breakdown (last 6 months)
@@ -301,7 +312,20 @@ router.post('/test', requireRole(['Admin']), async (req, res) => {
 router.get('/smtp-status', requireRole(['Admin']), async (req, res) => {
   try {
     const result = await smtpProvider.verify();
-    return res.json({ ...result, provider: smtpProvider.getProviderName() });
+    return res.json({
+      ...result,
+      provider: smtpProvider.getProviderName(),
+      smtpConfig: {
+        host: process.env.SMTP_HOST || 'Not configured',
+        port: process.env.SMTP_PORT || '25',
+        secure: process.env.SMTP_SECURE === 'true',
+        authMode: process.env.SMTP_USER
+          ? 'Authenticated SMTP'
+          : (process.env.SMTP_HOST ? 'Anonymous Internal Relay' : 'Mock Mode'),
+        from: process.env.EMAIL_FROM || 'Not configured',
+        configured: Boolean(process.env.SMTP_HOST),
+      }
+    });
   } catch (err) {
     return res.status(500).json({ error: err.message });
   }
@@ -321,17 +345,22 @@ router.post('/send-greeting', async (req, res) => {
     }
 
     const queueId = `greeting_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+    const normalizedEventType = String(eventType || 'custom_greeting').toLowerCase();
+    const bodyVars = {
+      EmployeeName: recipientName || 'Valued Partner',
+      GreetingTitle: greetingTitle || 'Special Greeting',
+      GreetingMessage: message || 'Warm wishes from our team.'
+    };
+    const rendered = renderTemplate(normalizedEventType, bodyVars);
     const queueItem = {
       queueId,
       recipientEmail,
       recipientName: recipientName || 'Valued Partner',
-      eventType: eventType || 'custom_greeting',
-      subject: greetingTitle || 'Season Greetings from NeST Digital',
-      bodyVars: {
-        EmployeeName: recipientName || 'Valued Partner',
-        GreetingTitle: greetingTitle || 'Special Greeting',
-        GreetingMessage: message || 'Warm wishes from our team.'
-      },
+      eventType: normalizedEventType,
+      templateId: normalizedEventType,
+      subject: greetingTitle || rendered.subject || 'Season Greetings from NeST Digital',
+      htmlBody: rendered.html,
+      bodyVars,
       status: 'queued',
       scheduledFor: scheduledFor || null,
       createdAt: new Date().toISOString(),

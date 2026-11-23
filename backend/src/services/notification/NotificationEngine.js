@@ -18,7 +18,9 @@ const DEFAULT_PREFERENCES = {
   greetingEmails: true,
   companyAnnouncements: true,
   customerFollowups: true,
-  interactionLogged: true
+  interactionLogged: true,
+  riskAlerts: true,
+  accountAssignments: true
 };
 
 // Maps event types to preference keys so preferences are respected per-event
@@ -56,7 +58,11 @@ const EVENT_PREF_MAP = {
   achievement:               'greetingEmails',
   custom_greeting:           'greetingEmails',
   company_announcement:      'companyAnnouncements',
-  interaction_logged:        'interactionLogged'
+  interaction_logged:        'interactionLogged',
+  interaction_log_entered:   'interactionLogged',
+  risk_stakeholder_alert:    'riskAlerts',
+  account_risk_level_changed:'riskAlerts',
+  account_assignment_changed:'accountAssignments'
 };
 
 /**
