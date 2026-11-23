@@ -25,8 +25,8 @@ async function processQueue() {
       .map(d => d.data())
       .filter(item =>
         item.status === 'queued' &&
-        item.retryCount < (item.maxRetries || 3) &&
-        new Date(item.scheduledAt || item.createdAt) <= now
+        (item.retryCount || 0) < (item.maxRetries || 3) &&
+        new Date(item.scheduledAt || item.scheduledFor || item.createdAt) <= now
       )
       .slice(0, BATCH_SIZE);
 

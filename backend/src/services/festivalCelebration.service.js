@@ -473,7 +473,20 @@ export function isFestivalApplicableToAccount(festival, account) {
 /**
  * High-performance, bulk synchronization of festival celebrations for CRM Accounts.
  */
+const inFlightFestivalSyncs = new Map();
+
 export async function syncFestivalOccasionsForAccounts({ accountId = null, lookaheadDays = 365, userId = 'system' } = {}) {
+  const lockKey = accountId ? `acc:${accountId}` : 'ALL';
+  if (inFlightFestivalSyncs.has(lockKey)) {
+    return inFlightFestivalSyncs.get(lockKey);
+  }
+  const runPromise = _runSyncFestivalOccasionsForAccounts({ accountId, lookaheadDays, userId })
+    .finally(() => inFlightFestivalSyncs.delete(lockKey));
+  inFlightFestivalSyncs.set(lockKey, runPromise);
+  return runPromise;
+}
+
+async function _runSyncFestivalOccasionsForAccounts({ accountId = null, lookaheadDays = 365, userId = 'system' } = {}) {
   const now = new Date();
   const currentYear = now.getFullYear();
   const targetYears = [currentYear, currentYear + 1];
@@ -505,9 +518,11 @@ export async function syncFestivalOccasionsForAccounts({ accountId = null, looka
   // 3. Pre-load existing festivals to avoid repeated roundtrip queries
   const existingSnap = await db.collection('celebrationEvents').where('eventType', '==', EVENT_TYPES.FESTIVAL).get();
   const existingSet = new Set();
+  const normalizeFestivalKey = (aIdVal, titleVal, dateVal) =>
+    `${String(aIdVal || '').trim()}_${String(titleVal || '').trim().toLowerCase()}_${String(dateVal || '').slice(0, 10)}`;
   existingSnap.docs.forEach(d => {
     const data = d.data();
-    existingSet.add(`${data.accountId}_${data.eventTitle}_${data.eventDate}`);
+    existingSet.add(normalizeFestivalKey(data.accountId, data.eventTitle, data.eventDate));
   });
 
   // 4. Identify upcoming festivals in lookahead window
@@ -549,7 +564,7 @@ export async function syncFestivalOccasionsForAccounts({ accountId = null, looka
       }
 
       const title = `Happy ${festival.name}`;
-      const dedupKey = `${aId}_${title}_${eventDate}`;
+      const dedupKey = normalizeFestivalKey(aId, title, eventDate);
 
       if (existingSet.has(dedupKey)) {
         continue;
@@ -559,7 +574,8 @@ export async function syncFestivalOccasionsForAccounts({ accountId = null, looka
       const contactGreeting = primaryContact?.name ? `Dear ${primaryContact.name},` : `Dear ${account.companyName} Team,`;
       const draftMessage = `${contactGreeting}\n\n${festival.defaultGreeting}\n\nWarm regards,\nNeST Digital Team`;
       const draftSubject = `${festival.defaultSubject} — ${account.companyName}`;
-      const id = newId('cel');
+      const slug = String(festival.id || festival.name || 'festival').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+      const id = `cel-fest-${aId}-${slug}-${eventDate}`;
       const nowIso = new Date().toISOString();
 
       const eventData = {

@@ -297,6 +297,13 @@ router.post('/test', requireRole(['Admin']), async (req, res) => {
       DueDate: formatSystemDate(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)),
       AssignedBy: req.user.name || 'System',
       CompanyName: 'Internal Test',
+      FestivalName: 'Festive',
+      FestivalEmoji: '🎉',
+      Years: 3,
+      GreetingTitle: 'CustomerPulse Test Greeting',
+      GreetingMessage: 'This is a verification email from the CustomerPulse Notification & Email Engine.',
+      AnnouncementTitle: 'Test Company Announcement',
+      AnnouncementBody: 'This is a test announcement sent from the CustomerPulse Notification Center.',
       InAppMessage: `Test email sent via NotificationEngine using template: ${templateId}`
     }, [targetUid], { skipInAppNotification: false });
     return res.json({ success: true, message: `Test notification queued for uid: ${targetUid}` });

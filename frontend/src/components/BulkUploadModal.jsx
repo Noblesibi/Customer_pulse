@@ -1148,7 +1148,7 @@ export default function BulkUploadModal({ isOpen, onClose }) {
                 </div>
               ) : previewResult ? (
                 <>
-                  <div className="grid grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     <div className="bg-white border border-slate-200 rounded-xl p-4 flex flex-col items-center justify-center text-center shadow-sm">
                       <div className="text-2xl font-bold text-slate-900 mb-1">{previewResult.readyAccounts}</div>
                       <div className="text-xs text-slate-500 font-semibold uppercase tracking-wider">Accounts to Import</div>

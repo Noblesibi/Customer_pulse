@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { 
-  Sparkles, Activity, ShieldAlert, Terminal, ArrowRight, ShieldCheck, Heart, 
-  MessageSquare, Users, Award, Zap, ChevronRight 
+import {
+  Sparkles, Activity, ShieldAlert, Terminal, ArrowRight, ShieldCheck, Heart,
+  MessageSquare, Users, Award, Zap, ChevronRight
 } from 'lucide-react';
 import { useStore } from '../store/index.js';
 import nestLogo from '../assets/nest-digital-logo.png';
@@ -36,7 +36,7 @@ export default function Landing() {
 
   return (
     <div className="min-h-screen bg-dark-950 text-slate-100 font-sans selection:bg-primary selection:text-white relative overflow-hidden select-none">
-      
+
       {/* Background ambient lighting */}
       <div className="absolute top-[-20%] left-[-20%] w-[60%] h-[60%] rounded-full bg-primary/10 blur-[130px] pointer-events-none" />
       <div className="absolute bottom-[-15%] right-[-15%] w-[55%] h-[55%] rounded-full bg-emerald-500/5 blur-[130px] pointer-events-none" />
@@ -65,14 +65,14 @@ export default function Landing() {
 
         <div className="flex items-center gap-5">
           {user ? (
-            <button 
+            <button
               onClick={() => { logout(); navigate('/'); }}
               className="text-xs font-semibold text-slate-500 cursor-pointer"
             >
               Sign Out
             </button>
           ) : (
-            <button 
+            <button
               onClick={() => navigate('/login')}
               className="text-xs font-semibold text-slate-500 cursor-pointer"
             >
@@ -88,21 +88,21 @@ export default function Landing() {
 
           <h1 className="text-4xl md:text-6xl font-black text-white leading-[1.15] tracking-tight">
             Stop Guessing. <br />
-            Know Your <span style={{background: 'linear-gradient(90deg, #1a3a8f, #cc1f27)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text'}}>Relationship Pulse</span>.
+            Know Your <span style={{ background: 'linear-gradient(90deg, #1a3a8f, #cc1f27)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>Relationship Pulse</span>.
           </h1>
           <p className="text-sm md:text-base text-slate-400 leading-relaxed max-w-xl mx-auto lg:mx-0">
             Monitor client accounts, transcribe communication sentiments with Gemini, flag churn risks in real-time, and compute relationship health using weighted Graph analytics.
           </p>
 
           <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start pt-4">
-            <button 
+            <button
               onClick={() => navigate(user ? '/dashboard' : '/login')}
               className="bg-primary hover:bg-blue-600 active:scale-98 text-xs font-bold px-7 py-4 rounded-xl shadow-lg shadow-primary/20 flex items-center justify-center gap-2 transition-all text-white"
             >
               Get Started Free
               <ArrowRight className="w-4 h-4" />
             </button>
-            <a 
+            <a
               href="#calculator"
               className="glass hover:bg-slate-800/40 text-xs font-bold px-7 py-4 rounded-xl flex items-center justify-center gap-1.5 transition-all"
             >
@@ -118,7 +118,7 @@ export default function Landing() {
               <span className="text-xs uppercase font-bold text-slate-500 tracking-wider">AI Insight Feed</span>
               <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping" />
             </div>
-            
+
             <div className="space-y-4">
               <div className="bg-dark-900/60 border border-slate-800 p-4 rounded-xl space-y-2">
                 <div className="flex items-center justify-between text-xs font-bold">
@@ -252,9 +252,9 @@ export default function Landing() {
                 <span className="text-slate-300 font-medium">Engagement Frequency</span>
                 <span className="text-primary font-bold">{calcEngagement}%</span>
               </div>
-              <input 
-                type="range" min="0" max="100" 
-                value={calcEngagement} 
+              <input
+                type="range" min="0" max="100"
+                value={calcEngagement}
                 onChange={(e) => setCalcEngagement(parseInt(e.target.value))}
                 className="w-full h-1.5 bg-dark-900 rounded-lg appearance-none cursor-pointer accent-primary"
               />
@@ -266,9 +266,9 @@ export default function Landing() {
                 <span className="text-slate-300 font-medium">Relationship/Contact Depth</span>
                 <span className="text-emerald-400 font-bold">{calcDepth}%</span>
               </div>
-              <input 
-                type="range" min="0" max="100" 
-                value={calcDepth} 
+              <input
+                type="range" min="0" max="100"
+                value={calcDepth}
                 onChange={(e) => setCalcDepth(parseInt(e.target.value))}
                 className="w-full h-1.5 bg-dark-900 rounded-lg appearance-none cursor-pointer accent-emerald-500"
               />
@@ -280,9 +280,9 @@ export default function Landing() {
                 <span className="text-slate-300 font-medium">Rolling sentiment</span>
                 <span className="text-amber-400 font-bold">{calcSentiment}%</span>
               </div>
-              <input 
-                type="range" min="0" max="100" 
-                value={calcSentiment} 
+              <input
+                type="range" min="0" max="100"
+                value={calcSentiment}
                 onChange={(e) => setCalcSentiment(parseInt(e.target.value))}
                 className="w-full h-1.5 bg-dark-900 rounded-lg appearance-none cursor-pointer accent-amber-500"
               />
@@ -294,9 +294,9 @@ export default function Landing() {
                 <span className="text-slate-300 font-medium">Risk Signal Cleanliness</span>
                 <span className="text-rose-500 font-bold">{calcRisk}%</span>
               </div>
-              <input 
-                type="range" min="0" max="100" 
-                value={calcRisk} 
+              <input
+                type="range" min="0" max="100"
+                value={calcRisk}
                 onChange={(e) => setCalcRisk(parseInt(e.target.value))}
                 className="w-full h-1.5 bg-dark-900 rounded-lg appearance-none cursor-pointer accent-rose-500"
               />
@@ -338,10 +338,10 @@ export default function Landing() {
             <h2 className="text-2xl md:text-4xl font-black text-white leading-tight">Engineering Transformation <br />Through Technology</h2>
             <p className="text-sm text-slate-400 leading-relaxed">NeST Digital is a global technology company delivering enterprise-grade digital transformation solutions. With decades of experience across industries, we build intelligent platforms that help organizations make data-driven decisions, optimize operations, and accelerate growth.</p>
             <p className="text-sm text-slate-400 leading-relaxed">CustomerPulse is our flagship AI-powered CRM intelligence platform — built to give sales teams unprecedented visibility into the health and trajectory of every client relationship.</p>
-            <div className="grid grid-cols-3 gap-4 pt-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-4">
               {[['20+', 'Years Experience'], ['500+', 'Enterprise Clients'], ['50+', 'Countries Served']].map(([num, label]) => (
                 <div key={label} className="glass rounded-xl p-4 border border-slate-800/60 text-center">
-                  <div className="text-2xl font-black" style={{color: '#cc1f27'}}>{num}</div>
+                  <div className="text-2xl font-black" style={{ color: '#cc1f27' }}>{num}</div>
                   <div className="text-xs text-slate-400 font-semibold mt-1">{label}</div>
                 </div>
               ))}
