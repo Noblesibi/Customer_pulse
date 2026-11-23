@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { analyzeInteraction, generateTaskHeader, generateContactReconnectBrief, generateActivityNextSteps, generateSmartHealthAnalysis } from '../services/ai.service.js';
+import { analyzeCommunication as analyzeInteraction, generateTaskHeader, generateContactReconnectBrief, generateActivityNextSteps, generateSmartHealthAnalysis } from '../services/ai.service.js';
 import { db } from '../config/database.js';
 import { authenticateToken, canUserAccessAccount, getPermittedAccountIdsForUser } from '../middleware/auth.middleware.js';
 import { listAiRecommendations, reviewAiRecommendation } from '../services/aiRecommendationReview.service.js';
@@ -22,7 +22,7 @@ router.post('/sentiment', async (req, res) => {
       sentiment: analysis.sentiment || 'Neutral',
       executiveSummary: analysis.executiveSummary || analysis.summary || '',
       followUpSignals: analysis.followUpSignals || [],
-      riskSignals: analysis.riskSignals || [],
+      riskSignals: analysis.riskSignals || analysis.concerns || [],
       businessOpportunities: analysis.businessOpportunities || [],
     });
   } catch (err) {
