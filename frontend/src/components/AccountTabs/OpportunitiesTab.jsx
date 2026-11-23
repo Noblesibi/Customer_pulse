@@ -6,6 +6,7 @@ import {
   Building2, X, Check, Target, TrendingUp, Plus, ChevronDown, ChevronLeft, ChevronRight
 } from 'lucide-react';
 import { formatDate } from '../../utils/dateFormat.js';
+import { detectAccountOpportunities } from '../../utils/opportunityUtils.js';
 
 const POTENTIAL_AREAS = [
   'Embedded & Hardware Engineering',
@@ -125,148 +126,13 @@ export default function OpportunitiesTab({ account, allActivities, nbas = [] }) 
     ) || [];
   }, [allActivities, interactions, account]);
 
-  /* ── Auto-detect Opportunities ── */
+  /* ── Auto-detect Opportunities (shared with Overview tab) ── */
   const detectedOpportunities = useMemo(() => {
-    const opps = [];
-    const seen = new Set();
-
-    activitiesToScan.forEach((activity, actIdx) => {
-      // Exclude automated greetings & celebrations
-      if (
-        activity.itemType === 'greeting' ||
-        activity.isCelebration ||
-        activity.source === 'System Email' ||
-        ['birthday', 'work_anniversary', 'company_anniversary', 'festival'].includes(String(activity.eventType || '').toLowerCase())
-      ) {
-        return;
-      }
-
-      // Exclude internal staff tasks and administrative alerts
-      if (
-        activity.itemType === 'task' ||
-        activity.relatedTaskId ||
-        String(activity.eventType || '').toLowerCase().includes('task') ||
-        String(activity.subject || activity.title || '').toLowerCase().includes('task assigned') ||
-        String(activity.subject || activity.title || '').toLowerCase().includes('risk alert')
-      ) {
-        return;
-      }
-
-      const rawText = stripHtml(
-        (activity.messageText || '') + ' ' +
-        (activity.details || '') + ' ' +
-        (activity.subject || '') + ' ' +
-        (activity.taskHeader || '') + ' ' +
-        (activity.taskDescription || '') + ' ' +
-        (activity.notes || '') + ' ' +
-        (activity.title || '')
-      );
-      const lowerText = rawText.toLowerCase();
-      const actDate = activity.timestamp || activity.date || activity.createdAt || activity.dueDate;
-      const ownerName = activity.loggedByName || activity.assignedToName || account?.ownerName || 'Unassigned';
-      const source = activity.source || activity.channel || activity.itemType || 'Interaction';
-
-      // 1. Structured businessOpportunities field (highest fidelity)
-      if (Array.isArray(activity.businessOpportunities) && activity.businessOpportunities.length > 0) {
-        activity.businessOpportunities.forEach((opp, idx) => {
-          if (!opp || typeof opp !== 'string') return;
-          const trimmedOpp = opp.trim();
-          if (EXCLUDED_OPPORTUNITY_PATTERNS.some(p => p.test(trimmedOpp))) return;
-          const norm = trimmedOpp.toLowerCase().substring(0, 60);
-          if (seen.has(norm)) return;
-          seen.add(norm);
-          const { type, area, confidence } = classifyOppText(trimmedOpp);
-          opps.push({
-            id: `${actIdx}-bi-${idx}`,
-            title: trimmedOpp,
-            fullTitle: trimmedOpp,
-            type, potentialArea: area, source, confidence,
-            status: 'Active', ownerName,
-            lastUpdated: actDate ? formatDate(actDate) : 'Recent',
-            description: `Identified from ${source}: ${rawText.substring(0, 220)}\u2026`,
-            history: [{ date: actDate ? formatDate(actDate) : 'Recent', text: `Discussed during ${source}: ${activity.subject || activity.taskHeader || ''}` }],
-            nextStep: `Follow up on: ${trimmedOpp}`,
-          });
-        });
-        return;
-      }
-
-      // 2. Keyword / rule-based detection for high-value business expansion
-      for (const rule of DETECTION_RULES) {
-        const matchedKeyword = rule.keywords.find(k => lowerText.includes(k));
-        if (matchedKeyword) {
-          const oppTitle = activity.subject && activity.subject.length > 6
-            ? activity.subject
-            : `${rule.area} Expansion Opportunity`;
-          const norm = oppTitle.trim().toLowerCase().substring(0, 60);
-          if (seen.has(norm)) continue;
-          seen.add(norm);
-          opps.push({
-            id: `${actIdx}-kw`,
-            title: oppTitle,
-            fullTitle: oppTitle,
-            type: rule.type, potentialArea: rule.area, source, confidence: rule.confidence,
-            status: 'Discovery', ownerName,
-            lastUpdated: actDate ? formatDate(actDate) : 'Recent',
-            description: `High-value signal "${matchedKeyword}" detected in ${source}: ${rawText.substring(0, 220)}\u2026`,
-            history: [{ date: actDate ? formatDate(actDate) : 'Recent', text: `Discussed during ${source}: ${activity.subject || activity.taskHeader || ''}` }],
-            nextStep: `Follow up on ${rule.area} requirements`,
-          });
-          break;
-        }
-      }
+    return detectAccountOpportunities({
+      account,
+      activities: activitiesToScan,
+      nbas,
     });
-
-    // 3. Recommended Actions & Opportunities from AI NBA (Strictly high-value business expansion only)
-    (nbas || []).forEach((nba, nIdx) => {
-      // Exclude generic relationship gaps, check-in reminders, stakeholder mapping, and operational tasks
-      if (
-        !nba.suggestedAction ||
-        nba.type === 'Relationship Engagement' ||
-        nba.type === 'Risk Mitigation' ||
-        nba.type === 'Urgent Follow-Up'
-      ) {
-        return;
-      }
-
-      const text = `${nba.suggestedAction} ${nba.reason || ''} ${nba.type || ''}`.toLowerCase();
-      const isRoutineAction = EXCLUDED_OPPORTUNITY_PATTERNS.some(p => p.test(text));
-      if (isRoutineAction) return;
-
-      // Only accept if it is genuine account expansion or matches high-value commercial opportunity rules
-      const isExpansionType = nba.type === 'Account Expansion' || nba.type === 'Opportunity';
-      const matchedRule = DETECTION_RULES.find(r => r.keywords.some(k => text.includes(k)));
-
-      if (!isExpansionType && !matchedRule) {
-        return; // Filter out low-value / non-commercial items
-      }
-
-      const area = matchedRule ? matchedRule.area : 'Growth & Innovation';
-      const oppType = matchedRule ? matchedRule.type : 'Expansion';
-      const title = nba.suggestedAction;
-      const norm = title.trim().toLowerCase().substring(0, 60);
-      if (seen.has(norm)) return;
-      seen.add(norm);
-
-      opps.push({
-        id: nba.id || `nba-opp-${nIdx}`,
-        title: title,
-        fullTitle: title,
-        type: oppType,
-        potentialArea: area,
-        source: 'AI Recommendation',
-        confidence: 'High',
-        status: 'Active',
-        ownerName: account?.ownerName || 'Account Owner',
-        lastUpdated: 'Recent',
-        description: nba.reason || nba.suggestedAction,
-        history: [{ date: 'Recent', text: nba.suggestedAction || nba.reason }],
-        nextStep: nba.suggestedAction
-      });
-    });
-
-    const order = { High: 0, Medium: 1, Low: 2 };
-    return opps.sort((a, b) => (order[a.confidence] ?? 3) - (order[b.confidence] ?? 3) || a.title.localeCompare(b.title));
   }, [activitiesToScan, account, nbas]);
 
   // Merge manual + auto-detected, manual always on top
@@ -435,21 +301,19 @@ export default function OpportunitiesTab({ account, allActivities, nbas = [] }) 
                         Source: {opp.source}
                       </span>
                       {opp.type && (
-                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase border ${
-                          opp.type === 'Expansion' ? 'bg-blue-50 text-blue-700 border-blue-200' :
-                          opp.type === 'Renewal' ? 'bg-purple-50 text-purple-700 border-purple-200' :
-                          opp.type === 'Cross-sell' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
-                          'bg-gray-100 text-gray-700 border-gray-200'
-                        }`}>
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase border ${opp.type === 'Expansion' ? 'bg-blue-50 text-blue-700 border-blue-200' :
+                            opp.type === 'Renewal' ? 'bg-purple-50 text-purple-700 border-purple-200' :
+                              opp.type === 'Cross-sell' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                                'bg-gray-100 text-gray-700 border-gray-200'
+                          }`}>
                           {opp.type}
                         </span>
                       )}
                       {opp.confidence && (
-                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase border ${
-                          opp.confidence === 'High' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
-                          opp.confidence === 'Medium' ? 'bg-amber-50 text-amber-700 border-amber-200' :
-                          'bg-rose-50 text-rose-700 border-rose-200'
-                        }`}>
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase border ${opp.confidence === 'High' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                            opp.confidence === 'Medium' ? 'bg-amber-50 text-amber-700 border-amber-200' :
+                              'bg-rose-50 text-rose-700 border-rose-200'
+                          }`}>
                           {opp.confidence} Confidence
                         </span>
                       )}
@@ -683,17 +547,17 @@ export default function OpportunitiesTab({ account, allActivities, nbas = [] }) 
                   </span>
                   {selectedOpp.type && (
                     <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black tracking-wide uppercase border ${selectedOpp.type === 'Expansion' ? 'bg-blue-50 text-blue-700 border-blue-200' :
-                        selectedOpp.type === 'Renewal' ? 'bg-purple-50 text-purple-700 border-purple-200' :
-                          selectedOpp.type === 'Cross-sell' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
-                            'bg-gray-100 text-gray-700 border-gray-200'
+                      selectedOpp.type === 'Renewal' ? 'bg-purple-50 text-purple-700 border-purple-200' :
+                        selectedOpp.type === 'Cross-sell' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                          'bg-gray-100 text-gray-700 border-gray-200'
                       }`}>
                       {selectedOpp.type}
                     </span>
                   )}
                   {selectedOpp.confidence && (
                     <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black tracking-wide uppercase border ${selectedOpp.confidence === 'High' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
-                        selectedOpp.confidence === 'Medium' ? 'bg-amber-50 text-amber-700 border-amber-200' :
-                          'bg-rose-50 text-rose-700 border-rose-200'
+                      selectedOpp.confidence === 'Medium' ? 'bg-amber-50 text-amber-700 border-amber-200' :
+                        'bg-rose-50 text-rose-700 border-rose-200'
                       }`}>
                       Confidence: {selectedOpp.confidence}
                     </span>

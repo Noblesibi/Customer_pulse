@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useStore } from '../store/index.js';
+import { goBackToOrigin } from '../utils/navigation.js';
 import { 
   ChevronLeft, Mail, MessageSquare, Phone, Users, Video, Clock, 
   CheckCheck, Send, CheckSquare, X, Building2, User, FileText,
@@ -13,6 +14,7 @@ import { formatDate, formatDateTime } from '../utils/dateFormat.js';
 export default function UserAccountActivity() {
   const { id, uid } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const { 
     token, 
     user, 
@@ -1022,15 +1024,7 @@ export default function UserAccountActivity() {
         <div className="flex items-center gap-4">
           <button
             type="button"
-            onClick={() => {
-              if (location.state?.from) {
-                navigate(location.state.from);
-              } else if (window.history.length > 1) {
-                navigate(-1);
-              } else {
-                navigate(`/accounts/${id}`);
-              }
-            }}
+            onClick={() => goBackToOrigin(navigate, location, `/accounts/${id}`)}
             className="back-btn"
           >
             <ChevronLeft className="w-5 h-5" strokeWidth={2.5} />

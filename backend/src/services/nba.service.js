@@ -3,7 +3,7 @@ import { calculateRelationshipGaps } from './relationship.service.js';
 
 export async function generateNextBestActions(accountId) {
   const actions = [];
-  
+
   // 1. Fetch Account Data
   const accDoc = await db.collection('accounts').doc(accountId).get();
   if (!accDoc.exists) return actions;
@@ -16,7 +16,7 @@ export async function generateNextBestActions(accountId) {
   // 3. Fetch Interactions (for AI opportunities)
   const interactionsSnap = await db.collection('interactions').where('accountId', '==', accountId).get();
   const interactions = interactionsSnap.docs.map(d => d.data());
-  
+
   // Process Risks
   for (const risk of openRisks) {
     if (risk.category === 'Overdue Action') {
@@ -46,13 +46,40 @@ export async function generateNextBestActions(accountId) {
 
   // Process Relationship Gaps
   const { gaps } = await calculateRelationshipGaps(accountId);
-  for (const gap of gaps) {
-      actions.push({
+  const missingRoleGaps = gaps.filter(g => g.type === 'Missing Relationship' && !g.contactId);
+  const contactSpecificGaps = gaps.filter(g => !(g.type === 'Missing Relationship' && !g.contactId));
+
+  // Consolidate multiple missing-role gaps into one clear NBA card so we don't show
+  // near-duplicate "Identify and map a key ... stakeholder" cards with different priorities.
+  if (missingRoleGaps.length > 0) {
+    const categories = Array.from(new Set(missingRoleGaps.map(g => g.category)));
+    const hasExecutiveGap = categories.includes('Executive');
+    const roleListText = categories.length === 1
+      ? `a key ${categories[0]} stakeholder`
+      : `key ${categories.join(' & ')} stakeholders`;
+    const missingReason = categories.length === 1
+      ? `No ${categories[0]} stakeholders are mapped for this account.`
+      : `No ${categories.join(' or ')} stakeholders are mapped for this account.`;
+
+    actions.push({
+      id: `nba-gap-missing-${categories.join('-').toLowerCase()}`,
+      type: 'Relationship Engagement',
+      priority: hasExecutiveGap ? 'High' : 'Medium',
+      reason: missingReason,
+      suggestedAction: `Identify and map ${roleListText} for this account.`,
+      suggestedOwner: account.ownerId,
+      linkType: 'contact',
+      linkId: null
+    });
+  }
+
+  for (const gap of contactSpecificGaps) {
+    actions.push({
       id: `nba-gap-${gap.category}-${gap.contactId || 'missing'}`,
       type: 'Relationship Engagement',
       priority: gap.category === 'Executive' ? 'High' : 'Medium',
       reason: gap.message,
-      suggestedAction: gap.contactId 
+      suggestedAction: gap.contactId
         ? `Schedule a check-in or executive sync with ${gap.contactName}.`
         : `Identify and map a key ${gap.category} stakeholder for this account.`,
       suggestedOwner: account.ownerId,
@@ -69,7 +96,7 @@ export async function generateNextBestActions(accountId) {
   for (const interaction of recentInteractions) {
     if (Array.isArray(interaction.businessOpportunities) && interaction.businessOpportunities.length > 0) {
       interaction.businessOpportunities.forEach((opp, i) => {
-          actions.push({
+        actions.push({
           id: `nba-biz-opp-${interaction.interactionId}-${i}`,
           type: 'Account Expansion',
           priority: 'Medium',
@@ -84,7 +111,7 @@ export async function generateNextBestActions(accountId) {
 
     if (Array.isArray(interaction.engagementOpportunities) && interaction.engagementOpportunities.length > 0) {
       interaction.engagementOpportunities.forEach((opp, i) => {
-          actions.push({
+        actions.push({
           id: `nba-eng-opp-${interaction.interactionId}-${i}`,
           type: 'Stakeholder Connect',
           priority: 'Low',
@@ -97,7 +124,7 @@ export async function generateNextBestActions(accountId) {
       });
     }
   }
-  
+
   // Deduplicate and sort by priority (High -> Medium -> Low)
   const uniqueActions = [];
   const seenIds = new Set();

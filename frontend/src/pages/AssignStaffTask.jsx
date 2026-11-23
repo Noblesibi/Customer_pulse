@@ -4,19 +4,14 @@ import { ChevronLeft, ShieldAlert, Check, CheckSquare, Building2, Users, Search,
 import { useStore } from '../store/index.js';
 import SearchableSelect from '../components/SearchableSelect.jsx';
 import LoadingSpinner from '../components/LoadingSpinner.jsx';
+import { goBackToOrigin } from '../utils/navigation.js';
 
 export default function AssignStaffTask() {
   const navigate = useNavigate();
   const location = useLocation(); // Single declaration for routing and state context
 
   const handleBack = () => {
-    if (location.state?.from) {
-      navigate(location.state.from, location.state?.tab ? { state: { tab: location.state.tab } } : undefined);
-    } else if (window.history.length > 1) {
-      navigate(-1);
-    } else {
-      navigate('/staff-tasks');
-    }
+    goBackToOrigin(navigate, location, '/staff-tasks');
   };
   const {
     user,

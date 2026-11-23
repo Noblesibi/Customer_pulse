@@ -9,6 +9,7 @@ import { useStore } from '../store/index.js';
 import { formatDate, formatTime, formatDateTime } from '../utils/dateFormat.js';
 import TeamMemberSelect from '../components/TeamMemberSelect.jsx';
 import LoadingSpinner from '../components/LoadingSpinner.jsx';
+import { goBackToOrigin } from '../utils/navigation.js';
 
 const parseLogDetails = (details) => {
   if (!details) return { mainText: 'No additional parameters logged.', assignee: null };
@@ -249,7 +250,7 @@ export default function InteractionLog() {
 
   const handleCloseDetails = () => {
     if (location.state?.from) {
-      navigate(location.state.from);
+      goBackToOrigin(navigate, location, '/interaction-log');
     } else {
       setSelectedLog(null);
     }
