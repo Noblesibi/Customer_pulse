@@ -148,7 +148,7 @@ export function EventInfoTooltip({ item, accountName }) {
 
       {isOpen && (
         <div
-          className="absolute left-0 bottom-full mb-2 w-80 sm:w-96 p-4 bg-slate-900 text-white rounded-2xl shadow-2xl border border-slate-700/80 z-50 animate-in fade-in zoom-in-95 duration-150 pointer-events-auto"
+          className="absolute left-0 bottom-full mb-2 w-80 sm:w-96 max-w-[calc(100vw-2rem)] p-4 bg-slate-900 text-white rounded-2xl shadow-2xl border border-slate-700/80 z-50 animate-in fade-in zoom-in-95 duration-150 pointer-events-auto"
           onMouseEnter={() => setIsOpen(true)}
           onMouseLeave={() => setIsOpen(false)}
         >
@@ -181,9 +181,9 @@ export function EventInfoTooltip({ item, accountName }) {
 
             {/* Evidence or news snippet if available */}
             {(item.evidenceSummary || (cleanDescription && cleanDescription !== headline)) && (
-              <div className="p-2.5 bg-slate-800/90 rounded-xl border border-slate-700/60 text-slate-300 text-[11px]">
-                <span className="font-bold text-slate-200 block mb-0.5">Evidence & Context:</span>
-                <span className="line-clamp-4 leading-relaxed">
+              <div className="p-2.5 bg-slate-800/90 text-white rounded-xl border border-slate-700/60 text-[11px]">
+                <span className="font-bold text-slate-100 block mb-0.5">Evidence & Context:</span>
+                <span className="line-clamp-4 leading-relaxed text-slate-200">
                   {item.evidenceSummary || cleanDescription}
                 </span>
               </div>
@@ -767,13 +767,9 @@ export default function GreetingsTab({ account }) {
           >
             <div className="flex items-center justify-between mb-1.5">
               <span className="text-xs text-slate-800 font-bold">Today</span>
-              {quickFilter === 'today' ? (
+              {quickFilter === 'today' && (
                 <span className="text-[10px] font-extrabold text-emerald-700 bg-emerald-100/90 px-2 py-0.5 rounded-full shadow-2xs">
-                  âœ“ Active
-                </span>
-              ) : (
-                <span className="text-[10px] font-semibold text-slate-400 group-hover:text-emerald-700 transition-colors">
-                  Filter â†’
+                  Active
                 </span>
               )}
             </div>
@@ -792,13 +788,9 @@ export default function GreetingsTab({ account }) {
           >
             <div className="flex items-center justify-between mb-1.5">
               <span className="text-xs text-slate-800 font-bold">Tomorrow</span>
-              {quickFilter === 'tomorrow' ? (
+              {quickFilter === 'tomorrow' && (
                 <span className="text-[10px] font-extrabold text-teal-700 bg-teal-100/90 px-2 py-0.5 rounded-full shadow-2xs">
-                  âœ“ Active
-                </span>
-              ) : (
-                <span className="text-[10px] font-semibold text-slate-400 group-hover:text-teal-700 transition-colors">
-                  Filter â†’
+                  Active
                 </span>
               )}
             </div>
@@ -817,13 +809,9 @@ export default function GreetingsTab({ account }) {
           >
             <div className="flex items-center justify-between mb-1.5">
               <span className="text-xs text-slate-800 font-bold">This week</span>
-              {quickFilter === 'thisWeek' ? (
+              {quickFilter === 'thisWeek' && (
                 <span className="text-[10px] font-extrabold text-blue-700 bg-blue-100/90 px-2 py-0.5 rounded-full shadow-2xs">
-                  âœ“ Active
-                </span>
-              ) : (
-                <span className="text-[10px] font-semibold text-slate-400 group-hover:text-blue-700 transition-colors">
-                  Filter â†’
+                  Active
                 </span>
               )}
             </div>
@@ -842,13 +830,9 @@ export default function GreetingsTab({ account }) {
           >
             <div className="flex items-center justify-between mb-1.5">
               <span className="text-xs text-slate-800 font-bold">Needs verification</span>
-              {quickFilter === 'needsVerification' ? (
+              {quickFilter === 'needsVerification' && (
                 <span className="text-[10px] font-extrabold text-amber-700 bg-amber-100/90 px-2 py-0.5 rounded-full shadow-2xs">
-                  âœ“ Active
-                </span>
-              ) : (
-                <span className="text-[10px] font-semibold text-slate-400 group-hover:text-amber-700 transition-colors">
-                  Filter â†’
+                  Active
                 </span>
               )}
             </div>
@@ -867,13 +851,9 @@ export default function GreetingsTab({ account }) {
           >
             <div className="flex items-center justify-between mb-1.5">
               <span className="text-xs text-slate-800 font-bold">Drafts waiting</span>
-              {quickFilter === 'draftsWaiting' ? (
+              {quickFilter === 'draftsWaiting' && (
                 <span className="text-[10px] font-extrabold text-indigo-700 bg-indigo-100/90 px-2 py-0.5 rounded-full shadow-2xs">
-                  âœ“ Active
-                </span>
-              ) : (
-                <span className="text-[10px] font-semibold text-slate-400 group-hover:text-indigo-700 transition-colors">
-                  Filter â†’
+                  Active
                 </span>
               )}
             </div>
@@ -1598,33 +1578,48 @@ export default function GreetingsTab({ account }) {
               </div>
             </div>
 
-            {/* Intelligence sources */}
+            {/* Intelligence sources (100% live from PostgreSQL) */}
             <div className="bg-[#F8FAFC] p-5 rounded-2xl border border-slate-100">
-              <h3 className="text-[13px] font-bold text-slate-900 mb-4">Intelligence sources</h3>
-              <div className="space-y-3">
-                {(sources.length > 0 ? sources : [
-                  { sourceType: 'CUSTOMERPULSE', name: 'CustomerPulse CRM', enabled: true },
-                  { sourceType: 'PUBLIC_NEWS', name: 'Public News Monitoring', enabled: true },
-                  { sourceType: 'OFFICIAL_WEBSITE', name: 'Official Website & Press', enabled: true },
-                  { sourceType: 'CRM_EMAIL', name: 'CRM Email Intelligence', enabled: true },
-                  { sourceType: 'CUSTOMER_VERIFIED', name: 'Customer-Verified', enabled: true },
-                  { sourceType: 'MANUAL', name: 'Manual Entry', enabled: true }
-                ]).map(src => (
-                  <div key={src.sourceType} className="flex justify-between items-center text-[13px]">
-                    <div className="flex items-center gap-1.5 min-w-0">
-                      <span className="text-gray-700 font-medium truncate">{src.name}</span>
-                      {typeof src.activeCount === 'number' && src.activeCount > 0 && (
-                        <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100/80 px-1.5 py-0.5 rounded-full shrink-0">
-                          {src.activeCount}
-                        </span>
-                      )}
-                    </div>
-                    <span className="text-emerald-600 font-semibold flex items-center gap-1 text-xs shrink-0">
-                      <Check className="w-3.5 h-3.5 stroke-[2.5]" /> Active
-                    </span>
-                  </div>
-                ))}
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-[13px] font-bold text-slate-900">Intelligence sources</h3>
+                <span className="text-[10px] font-semibold text-slate-400">Live DB</span>
               </div>
+              {sources.length === 0 ? (
+                <p className="text-xs text-slate-400">Syncing live source status from database…</p>
+              ) : (
+                <div className="space-y-3">
+                  {sources.map(src => {
+                    const label = src.statusLabel || (src.activeCount > 0 ? 'Active' : 'No records');
+                    const isActive = label === 'Active';
+                    const isReadyOrMonitoring = label === 'Ready' || label === 'Monitoring';
+                    return (
+                      <div key={src.sourceType} className="flex justify-between items-center text-[13px]" title={src.description || ''}>
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <span className="text-gray-700 font-medium truncate">{src.name}</span>
+                          {typeof src.activeCount === 'number' && src.activeCount > 0 && (
+                            <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100/80 px-1.5 py-0.5 rounded-full shrink-0">
+                              {src.activeCount}
+                            </span>
+                          )}
+                        </div>
+                        {isActive ? (
+                          <span className="text-emerald-600 font-semibold flex items-center gap-1 text-xs shrink-0">
+                            <Check className="w-3.5 h-3.5 stroke-[2.5]" /> Active
+                          </span>
+                        ) : isReadyOrMonitoring ? (
+                          <span className="text-blue-600 font-semibold text-xs shrink-0">
+                            {label}
+                          </span>
+                        ) : (
+                          <span className="text-slate-400 font-medium text-xs shrink-0">
+                            {label}
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
 
           </div>
@@ -1686,9 +1681,11 @@ export default function GreetingsTab({ account }) {
               console.warn('Error saving draft to backend:', err);
             }
             setCelebrations(prev => prev.map(c => c.id === activeCelebration.id ? { ...c, ...updatedDraft, status: 'DRAFTED' } : c));
-            setIsDraftModalOpen(false);
-            setActiveCelebration(null);
-            showToast('Greeting draft saved to database successfully.', 'success');
+            if (!updatedDraft.keepOpen) {
+              setIsDraftModalOpen(false);
+              setActiveCelebration(null);
+              showToast('Greeting draft saved to database successfully.', 'success');
+            }
             fetchSummarySilent();
           }}
           onSent={(sentData) => {
@@ -2261,6 +2258,8 @@ Warm regards,`,
   const [generalError, setGeneralError] = useState('');
   const [isGeneratingAI, setIsGeneratingAI] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isMarkingSent, setIsMarkingSent] = useState(false);
+  const [openedOutlook, setOpenedOutlook] = useState(false);
 
   // Sync available contacts if parent props update
   useEffect(() => {
@@ -2461,13 +2460,16 @@ Wishing you joy and congratulations on your special day! Best regards from our t
     const subject = draftData.subject || '';
     const body = draftData.message || '';
 
-    // Automatically save draft to database
+    // Automatically save draft to database (keep modal open so user can confirm "Mark as Sent" after sending in Outlook)
+    setOpenedOutlook(true);
+    setGeneralError('');
     onSaveDraft({
       draftSubject: subject,
       draftMessage: body,
       contactEmail: recipient,
       contactName: selectedContactName || celebration.contactName,
-      contactId: selectedContactId && selectedContactId !== 'custom' ? selectedContactId : null
+      contactId: selectedContactId && selectedContactId !== 'custom' ? selectedContactId : null,
+      keepOpen: true
     });
 
     const mailtoUrl = `mailto:${encodeURIComponent(recipient)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
@@ -2513,6 +2515,45 @@ Wishing you joy and congratulations on your special day! Best regards from our t
         window.open(webOutlookUrl, '_blank');
       }
     }, 2000);
+  };
+
+  // Mark as Sent after sending externally in Outlook
+  const handleMarkSentInOutlook = async () => {
+    if (!validateAll()) {
+      setGeneralError('Please resolve all validation errors before marking as sent.');
+      return;
+    }
+    setIsMarkingSent(true);
+    setGeneralError('');
+    try {
+      const markRes = await fetch(`${API_BASE}/celebrations/${celebration.id}/mark-sent`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          recipientEmail: draftData.recipientEmail,
+          subject: draftData.subject,
+          message: draftData.message
+        })
+      });
+      if (!markRes.ok) {
+        const errData = await markRes.json().catch(() => ({}));
+        throw new Error(errData.error || 'Failed to mark greeting as sent.');
+      }
+      onSent({
+        draftSubject: draftData.subject,
+        draftMessage: draftData.message,
+        contactEmail: draftData.recipientEmail,
+        status: 'SENT',
+        sentAt: new Date().toISOString()
+      });
+    } catch (e) {
+      setGeneralError(e.message || 'Failed to mark greeting as sent.');
+    } finally {
+      setIsMarkingSent(false);
+    }
   };
 
   // Direct Send
@@ -2744,16 +2785,40 @@ Wishing you joy and congratulations on your special day! Best regards from our t
             )}
           </div>
 
+          {openedOutlook && (
+            <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-800 flex items-start gap-2">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+              <div>
+                <span className="font-bold">Draft opened in Outlook.</span> Because Outlook is an external app, click <span className="font-bold">Mark as Sent</span> below after sending it in Outlook so CustomerPulse updates your <span className="font-semibold">Greetings sent</span> count and moves it under <span className="font-semibold">Sent</span>.
+              </div>
+            </div>
+          )}
+
           {/* Modal Actions */}
-          <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-gray-100">
-            <button
-              type="button"
-              onClick={handleOpenOutlook}
-              className="px-4 py-2 border border-gray-300 hover:bg-gray-50 text-gray-800 rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5 shadow-sm cursor-pointer"
-            >
-              <ExternalLink className="w-3.5 h-3.5 text-blue-600" />
-              Open in Outlook
-            </button>
+          <div className="flex flex-wrap items-center justify-between gap-2 pt-3 border-t border-gray-100">
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleOpenOutlook}
+                className="px-3.5 py-2 border border-gray-300 hover:bg-gray-50 text-gray-800 rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5 shadow-sm cursor-pointer"
+              >
+                <ExternalLink className="w-3.5 h-3.5 text-blue-600" />
+                Open in Outlook
+              </button>
+              <button
+                type="button"
+                onClick={handleMarkSentInOutlook}
+                disabled={isMarkingSent || isSubmitting}
+                className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5 shadow-sm cursor-pointer disabled:opacity-60 ${openedOutlook
+                  ? 'bg-emerald-600 hover:bg-emerald-700 text-white ring-2 ring-emerald-300'
+                  : 'border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-800'
+                  }`}
+                title="Confirm that you sent this greeting in Outlook so it appears under Sent"
+              >
+                {isMarkingSent ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
+                Mark as Sent
+              </button>
+            </div>
             <div className="flex items-center gap-2">
               <button
                 type="button"
@@ -2770,9 +2835,18 @@ Wishing you joy and congratulations on your special day! Best regards from our t
                     setGeneralError('Please resolve all validation errors before saving.');
                   }
                 }}
-                className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-sm transition-colors cursor-pointer"
+                className="px-4 py-2 border border-gray-300 hover:bg-gray-50 text-gray-700 rounded-xl text-xs font-bold shadow-sm transition-colors cursor-pointer"
               >
                 Save as Draft
+              </button>
+              <button
+                type="button"
+                onClick={handleSendNow}
+                disabled={isSubmitting || isMarkingSent}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-sm transition-colors flex items-center gap-1.5 cursor-pointer disabled:opacity-60"
+              >
+                {isSubmitting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+                Send Now
               </button>
             </div>
           </div>

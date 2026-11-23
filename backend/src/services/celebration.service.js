@@ -25,6 +25,7 @@ import { isInternalCorporateEmail } from './organizerSync.service.js';
 import { getSystemDateString, getSystemTimeString } from '../utils/dateUtils.js';
 import { syncFestivalOccasionsForAccounts } from './festivalCelebration.service.js';
 import { renderTemplate } from './notification/TemplateEngine.js';
+import { triggerQueueProcessing } from './notification/EmailScheduler.js';
 
 // ─── CONSTANTS ────────────────────────────────────────────────────────────────
 
@@ -311,6 +312,41 @@ export async function listCelebrations(filters = {}) {
       urgency: getReminderUrgency(days),
     });
   }
+
+  // Deduplicate uniform celebration records (e.g., duplicate festival rows created by prior concurrent syncs)
+  const STATUS_RANK = {
+    [CELEBRATION_STATUS.SENT]: 5,
+    [CELEBRATION_STATUS.SCHEDULED]: 4,
+    [CELEBRATION_STATUS.DRAFTED]: 3,
+    [CELEBRATION_STATUS.VERIFIED]: 2,
+    [CELEBRATION_STATUS.DETECTED]: 1,
+    [CELEBRATION_STATUS.DISMISSED]: 0,
+    [CELEBRATION_STATUS.REJECTED]: 0,
+    [CELEBRATION_STATUS.EXPIRED]: 0,
+  };
+  const dedupedMap = new Map();
+  for (const e of events) {
+    const normTitle = String(e.eventTitle || '').trim().toLowerCase();
+    const normDate = String(e.eventDate || '').slice(0, 10);
+    const evTypeKey = String(e.eventType || '').toUpperCase();
+    const dedupKey = evTypeKey === EVENT_TYPES.FESTIVAL
+      ? `${e.accountId || ''}::FESTIVAL::${normTitle}::${normDate}`
+      : `${e.accountId || ''}::${evTypeKey}::${e.contactId || ''}::${normTitle}::${normDate}`;
+
+    const existing = dedupedMap.get(dedupKey);
+    if (!existing) {
+      dedupedMap.set(dedupKey, e);
+    } else {
+      const currRank = STATUS_RANK[e.status] ?? 1;
+      const prevRank = STATUS_RANK[existing.status] ?? 1;
+      const currTime = new Date(e.updatedAt || e.sentAt || e.createdAt || 0).getTime();
+      const prevTime = new Date(existing.updatedAt || existing.sentAt || existing.createdAt || 0).getTime();
+      if (currRank > prevRank || (currRank === prevRank && currTime > prevTime)) {
+        dedupedMap.set(dedupKey, e);
+      }
+    }
+  }
+  events = Array.from(dedupedMap.values());
 
   const { accountId, contactId, eventType, status, verificationStatus, sourceType } = filters;
 
@@ -911,33 +947,66 @@ export async function sendCelebrationGreeting(celebrationId, { recipientEmail, s
   if (!subject) throw new Error('subject is required');
   if (!message) throw new Error('message is required');
 
-  // Fetch contact name for queue
-  let contactName = '';
-  try {
-    const cDoc = await db.collection('contacts').doc(event.contactId).get();
-    if (cDoc.exists) contactName = cDoc.data().name || '';
-  } catch (_) { }
+  // Fetch contact name and account name for template personalization
+  let contactName = event.contactName || '';
+  if (!contactName && event.contactId) {
+    try {
+      const cDoc = await db.collection('contacts').doc(event.contactId).get();
+      if (cDoc.exists) contactName = cDoc.data().name || '';
+    } catch (_) { }
+  }
+  let accountName = event.accountName || '';
+  if (!accountName && event.accountId) {
+    try {
+      const aDoc = await db.collection('accounts').doc(event.accountId).get();
+      if (aDoc.exists) accountName = aDoc.data().companyName || aDoc.data().name || '';
+    } catch (_) { }
+  }
 
   const queueId = `celgreet_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
   const now = new Date().toISOString();
-  const normalizedEventType = String(event.eventType || 'custom_greeting').toLowerCase();
+  const rawType = String(event.eventType || 'custom_greeting').toLowerCase();
+  const SUPPORTED_GREETING_TEMPLATES = new Set(['festival', 'birthday', 'work_anniversary', 'promotion', 'achievement', 'welcome', 'farewell', 'company_announcement', 'custom_greeting']);
+  const templateId = SUPPORTED_GREETING_TEMPLATES.has(rawType) ? rawType : 'custom_greeting';
+
+  const cleanFestivalName = String(event.eventTitle || subject || 'Festive')
+    .replace(/^happy\s+/i, '')
+    .trim() || 'Festive';
+  const escapeHtml = (str) => String(str || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/\n/g, '<br>');
+  const formattedMessageHtml = escapeHtml(message);
+
   const bodyVars = {
-    EmployeeName: contactName || 'Valued Partner',
-    GreetingTitle: subject,
-    GreetingMessage: message,
+    EmployeeName: contactName || (accountName ? `${accountName} Team` : 'Valued Partner'),
+    Subject: subject,
+    GreetingTitle: event.eventTitle || subject,
+    GreetingMessage: formattedMessageHtml,
+    FestivalName: cleanFestivalName,
+    FestivalEmoji: EVENT_ICONS[event.eventType] || '&#x1F38A;',
+    FestivalMessage: formattedMessageHtml,
+    Years: event.years || event.milestoneYears || 1,
+    AchievementDescription: formattedMessageHtml,
+    SenderName: user?.name ? `${user.name} · NeST Digital` : 'NeST Digital Team',
+    AccountName: accountName,
   };
-  const rendered = renderTemplate(normalizedEventType, bodyVars);
+  const rendered = renderTemplate(templateId, bodyVars);
 
   const queueItem = {
     queueId,
     recipientEmail,
-    recipientName: contactName || 'Valued Partner',
-    eventType: normalizedEventType,
-    templateId: normalizedEventType,
+    recipientName: bodyVars.EmployeeName,
+    eventType: rawType,
+    templateId,
     subject,
     htmlBody: rendered.html,
     bodyVars,
     status: scheduledFor ? 'scheduled_marker' : 'queued',
+    retryCount: 0,
+    maxRetries: 3,
+    scheduledAt: scheduledFor || now,
     scheduledFor: scheduledFor || null,
     createdAt: now,
     sentByUid: user?.uid || 'system',
@@ -949,6 +1018,11 @@ export async function sendCelebrationGreeting(celebrationId, { recipientEmail, s
   };
 
   await db.collection('emailqueue').doc(queueId).set(queueItem);
+
+  // Trigger immediate SMTP dispatch for non-scheduled greetings (matching all other email functions)
+  if (!scheduledFor) {
+    triggerQueueProcessing().catch(err => console.warn('[CelebrationService] Queue trigger warning:', err.message));
+  }
 
   // Update celebration status
   const newStatus = scheduledFor ? CELEBRATION_STATUS.SCHEDULED : CELEBRATION_STATUS.APPROVED;

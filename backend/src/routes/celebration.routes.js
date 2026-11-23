@@ -116,36 +116,122 @@ router.get('/upcoming', async (req, res) => {
 });
 
 // ─── GET /api/celebrations/sources ───────────────────────────────────────────
-// List available source types and their enabled status with live counts from PostgreSQL
+// Live intelligence source status & deduplicated counts directly from database
 router.get('/sources', async (req, res) => {
-  const { accountId } = req.query;
-  let countsBySource = {};
-
   try {
-    const { getPostgresPool } = await import('../config/postgres.js');
-    const pool = getPostgresPool();
-    if (pool) {
-      const q = accountId
-        ? 'SELECT "sourceType", COUNT(*)::int as count FROM "CelebrationEvents" WHERE "accountId" = $1 AND status != \'DISMISSED\' GROUP BY "sourceType"'
-        : 'SELECT "sourceType", COUNT(*)::int as count FROM "CelebrationEvents" WHERE status != \'DISMISSED\' GROUP BY "sourceType"';
-      const params = accountId ? [accountId] : [];
-      const cRes = await pool.query(q, params);
-      cRes.rows.forEach(r => {
-        countsBySource[r.sourceType] = r.count;
-      });
-    }
-  } catch (e) {
-    console.warn('[Celebrations] Error fetching source counts:', e.message);
-  }
+    const { accountId } = req.query;
+    const { db } = await import('../config/database.js');
 
-  return res.json([
-    { sourceType: SOURCE_TYPES.CUSTOMERPULSE,    name: 'CustomerPulse CRM',             enabled: true, activeCount: countsBySource[SOURCE_TYPES.CUSTOMERPULSE] || 0, description: 'CRM Account & Contact milestones.' },
-    { sourceType: SOURCE_TYPES.PUBLIC_NEWS,      name: 'Public News Monitoring',        enabled: true, activeCount: countsBySource[SOURCE_TYPES.PUBLIC_NEWS] || 0, description: 'Verified business news, awards, and appointments.' },
-    { sourceType: SOURCE_TYPES.OFFICIAL_WEBSITE, name: 'Official Customer Website',     enabled: true, activeCount: countsBySource[SOURCE_TYPES.OFFICIAL_WEBSITE] || 0, description: 'Press releases, company milestones, and certifications.' },
-    { sourceType: SOURCE_TYPES.CRM_EMAIL,        name: 'CRM Email Intelligence',        enabled: true, activeCount: countsBySource[SOURCE_TYPES.CRM_EMAIL] || 0, description: 'Milestones detected from authorized customer interactions.' },
-    { sourceType: SOURCE_TYPES.CUSTOMER_VERIFIED,name: 'Customer-Verified',            enabled: true, activeCount: countsBySource[SOURCE_TYPES.CUSTOMER_VERIFIED] || 0, description: 'Customer-provided and employee-verified occasions.' },
-    { sourceType: SOURCE_TYPES.MANUAL,           name: 'Manual Entry',                  enabled: true, activeCount: countsBySource[SOURCE_TYPES.MANUAL] || 0, description: 'Manually entered celebration events.' },
-  ]);
+    // Use deduplicated celebrations so source counts match the UI 1:1
+    const allEvents = await listCelebrations(accountId ? { accountId } : {});
+    const activeEvents = allEvents.filter(e =>
+      e.status !== 'DISMISSED' && e.status !== 'REJECTED' && e.status !== 'EXPIRED'
+    );
+
+    const countsBySource = {};
+    for (const ev of activeEvents) {
+      const key = ev.sourceType || SOURCE_TYPES.CUSTOMERPULSE;
+      countsBySource[key] = (countsBySource[key] || 0) + 1;
+    }
+
+    // Check real DB records for account, contacts, and email interactions
+    let hasAccountDomain = false;
+    let hasContacts = false;
+    let emailInteractionCount = 0;
+
+    if (accountId) {
+      const [accDoc, contactsSnap, intsSnap] = await Promise.all([
+        db.collection('accounts').doc(accountId).get().catch(() => ({ exists: false })),
+        db.collection('contacts').where('accountId', '==', accountId).get().catch(() => ({ docs: [] })),
+        db.collection('interactions').where('accountId', '==', accountId).get().catch(() => ({ docs: [] })),
+      ]);
+      const acc = accDoc.exists ? accDoc.data() : null;
+      hasAccountDomain = Boolean(acc?.website || (acc?.email && acc.email.includes('@')));
+      hasContacts = contactsSnap.docs.length > 0;
+      emailInteractionCount = intsSnap.docs.filter(d => {
+        const i = d.data();
+        const src = String(i.source || i.channel || '').toLowerCase();
+        return src.includes('mail') || src.includes('outlook');
+      }).length;
+    } else {
+      const [accsSnap, contactsSnap, intsSnap] = await Promise.all([
+        db.collection('accounts').get().catch(() => ({ docs: [] })),
+        db.collection('contacts').get().catch(() => ({ docs: [] })),
+        db.collection('interactions').get().catch(() => ({ docs: [] })),
+      ]);
+      hasAccountDomain = accsSnap.docs.some(d => {
+        const a = d.data();
+        return Boolean(a?.website || (a?.email && a.email.includes('@')));
+      });
+      hasContacts = contactsSnap.docs.length > 0;
+      emailInteractionCount = intsSnap.docs.filter(d => {
+        const i = d.data();
+        const src = String(i.source || i.channel || '').toLowerCase();
+        return src.includes('mail') || src.includes('outlook');
+      }).length;
+    }
+
+    const crmCount = countsBySource[SOURCE_TYPES.CUSTOMERPULSE] || 0;
+    const newsCount = countsBySource[SOURCE_TYPES.PUBLIC_NEWS] || 0;
+    const websiteCount = countsBySource[SOURCE_TYPES.OFFICIAL_WEBSITE] || 0;
+    const emailCount = countsBySource[SOURCE_TYPES.CRM_EMAIL] || 0;
+    const verifiedCount = countsBySource[SOURCE_TYPES.CUSTOMER_VERIFIED] || 0;
+    const manualCount = countsBySource[SOURCE_TYPES.MANUAL] || 0;
+
+    return res.json([
+      {
+        sourceType: SOURCE_TYPES.CUSTOMERPULSE,
+        name: 'CustomerPulse CRM',
+        enabled: crmCount > 0 || hasContacts,
+        statusLabel: crmCount > 0 ? 'Active' : (hasContacts ? 'Ready' : 'No records'),
+        activeCount: crmCount,
+        description: 'CRM Account & Contact milestones.',
+      },
+      {
+        sourceType: SOURCE_TYPES.PUBLIC_NEWS,
+        name: 'Public News Monitoring',
+        enabled: newsCount > 0,
+        statusLabel: newsCount > 0 ? 'Active' : 'No events',
+        activeCount: newsCount,
+        description: 'Verified business news, awards, and appointments.',
+      },
+      {
+        sourceType: SOURCE_TYPES.OFFICIAL_WEBSITE,
+        name: 'Official Customer Website',
+        enabled: websiteCount > 0,
+        statusLabel: websiteCount > 0 ? 'Active' : (hasAccountDomain ? 'Ready' : 'No website'),
+        activeCount: websiteCount,
+        description: 'Press releases, company milestones, and certifications.',
+      },
+      {
+        sourceType: SOURCE_TYPES.CRM_EMAIL,
+        name: 'CRM Email Intelligence',
+        enabled: emailCount > 0 || emailInteractionCount > 0,
+        statusLabel: emailCount > 0 ? 'Active' : (emailInteractionCount > 0 ? 'Monitoring' : 'No emails'),
+        activeCount: emailCount,
+        description: 'Milestones detected from authorized customer email interactions.',
+      },
+      {
+        sourceType: SOURCE_TYPES.CUSTOMER_VERIFIED,
+        name: 'Customer-Verified',
+        enabled: verifiedCount > 0,
+        statusLabel: verifiedCount > 0 ? 'Active' : 'No records',
+        activeCount: verifiedCount,
+        description: 'Customer-provided and employee-verified occasions.',
+      },
+      {
+        sourceType: SOURCE_TYPES.MANUAL,
+        name: 'Manual Entry',
+        enabled: manualCount > 0,
+        statusLabel: manualCount > 0 ? 'Active' : 'Ready',
+        activeCount: manualCount,
+        description: 'Manually entered celebration events.',
+      },
+    ]);
+  } catch (e) {
+    console.warn('[Celebrations] Error fetching live sources:', e.message);
+    return res.status(500).json({ error: 'Failed to load intelligence sources from database.' });
+  }
 });
 
 // ─── GET & PUT /api/celebrations/safeguards ──────────────────────────────────

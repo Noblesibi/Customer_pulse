@@ -690,40 +690,44 @@ const TEMPLATES = {
   // ── Greeting Templates ───────────────────────────────────────────────────
 
   birthday: (v) => ({
-    subject: 'Happy Birthday, ' + v.EmployeeName + '! Warm wishes from ' + COMPANY_NAME,
+    subject: 'Happy Birthday, ' + (v.EmployeeName || 'Valued Partner') + '! Warm wishes from ' + COMPANY_NAME,
     html: baseLayout(
       'linear-gradient(135deg, #db2777 0%, #ec4899 100%)',
       'Happy Birthday!', '&#x1F382;',
-      highlightBox('&#x1F389;&#x1F382;&#x1F389;', 'Wishing you a very Happy Birthday, <strong>' + v.EmployeeName + '</strong>!')
+      highlightBox('&#x1F389;&#x1F382;&#x1F389;', 'Wishing you a very Happy Birthday, <strong>' + (v.EmployeeName || 'Valued Partner') + '</strong>!')
       + '<p class="subtitle">On behalf of the entire <strong>' + COMPANY_NAME + '</strong> family, we wish you a wonderful birthday filled with joy, happiness, and everything you deserve.</p>'
-      + '<div class="card"><p style="font-size:15px;color:#475569;line-height:1.8;text-align:center">Your talent, dedication, and contributions make our team stronger every day.<br>May this special day bring you as much happiness as you bring to those around you.</p></div>'
-      + '<p style="text-align:center;font-size:13px;color:#64748b;margin-top:16px">With warm regards,<br><strong>' + COMPANY_NAME + ' Team</strong></p>'
+      + '<div class="card"><p style="font-size:15px;color:#475569;line-height:1.8;text-align:center">' + (v.GreetingMessage || 'Your talent, dedication, and contributions make our partnership stronger every day.<br>May this special day bring you as much happiness as you bring to those around you.') + '</p></div>'
+      + '<p style="text-align:center;font-size:13px;color:#64748b;margin-top:16px">With warm regards,<br><strong>' + (v.SenderName || COMPANY_NAME + ' Team') + '</strong></p>'
     )
   }),
 
   work_anniversary: (v) => ({
-    subject: v.Years + ' Year' + (v.Years > 1 ? 's' : '') + ' Work Anniversary, ' + v.EmployeeName + '! - ' + COMPANY_NAME,
+    subject: (v.Years || 1) + ' Year' + ((v.Years || 1) > 1 ? 's' : '') + ' Work Anniversary, ' + (v.EmployeeName || 'Valued Partner') + '! - ' + COMPANY_NAME,
     html: baseLayout(
       'linear-gradient(135deg, #d97706 0%, #f59e0b 100%)',
       'Work Anniversary', '&#x1F3C6;',
-      highlightBox('&#x1F31F;', 'Congratulations on <strong>' + v.Years + ' Year' + (v.Years > 1 ? 's' : '') + '</strong> with ' + COMPANY_NAME + '!')
-      + '<p class="subtitle">Thank you, <strong>' + v.EmployeeName + '</strong>, for your continued dedication and valuable contributions to our organization.</p>'
-      + '<div class="card"><p style="font-size:15px;color:#475569;line-height:1.8;text-align:center">Your ' + v.Years + ' year' + (v.Years > 1 ? 's' : '') + ' of service reflect your commitment to excellence and growth.<br>We are proud to have you as part of the ' + COMPANY_NAME + ' family!</p></div>'
-      + '<p style="text-align:center;font-size:13px;color:#64748b;margin-top:16px">With sincere appreciation,<br><strong>' + COMPANY_NAME + ' Leadership Team</strong></p>'
+      highlightBox('&#x1F31F;', 'Congratulations on <strong>' + (v.Years || 1) + ' Year' + ((v.Years || 1) > 1 ? 's' : '') + '</strong> with ' + (v.AccountName || COMPANY_NAME) + '!')
+      + '<p class="subtitle">Thank you, <strong>' + (v.EmployeeName || 'Valued Partner') + '</strong>, for your continued dedication and valuable partnership.</p>'
+      + '<div class="card"><p style="font-size:15px;color:#475569;line-height:1.8;text-align:center">' + (v.GreetingMessage || 'Your ' + (v.Years || 1) + ' year' + ((v.Years || 1) > 1 ? 's' : '') + ' of excellence reflect your commitment to leadership and growth.<br>We are proud to partner with you!') + '</p></div>'
+      + '<p style="text-align:center;font-size:13px;color:#64748b;margin-top:16px">With sincere appreciation,<br><strong>' + (v.SenderName || COMPANY_NAME + ' Leadership Team') + '</strong></p>'
     )
   }),
 
-  festival: (v) => ({
-    subject: (v.FestivalEmoji || '') + ' ' + v.FestivalName + ' Greetings from ' + COMPANY_NAME + '!',
-    html: baseLayout(
-      'linear-gradient(135deg, #7c3aed 0%, #8b5cf6 100%)',
-      v.FestivalName + ' Greetings', v.FestivalEmoji || '&#x1F38A;',
-      highlightBox(v.FestivalEmoji || '&#x1F38A;', 'Happy ' + v.FestivalName + ', <strong>' + v.EmployeeName + '</strong>!')
-      + '<p class="subtitle">' + (v.FestivalMessage || 'Wishing you and your family a joyful and memorable ' + v.FestivalName + ' celebration.') + '</p>'
-      + '<div class="card"><p style="font-size:15px;color:#475569;line-height:1.8;text-align:center">May this festive season bring you peace, prosperity, and happiness.<br>Warm wishes from the entire ' + COMPANY_NAME + ' family!</p></div>'
-      + '<p style="text-align:center;font-size:13px;color:#64748b;margin-top:16px">Warm regards,<br><strong>' + COMPANY_NAME + ' Team</strong></p>'
-    )
-  }),
+  festival: (v) => {
+    const festName = v.FestivalName || 'Festive';
+    const empName = v.EmployeeName || 'Valued Partner';
+    return {
+      subject: (v.FestivalEmoji || '') + ' ' + festName + ' Greetings from ' + COMPANY_NAME + '!',
+      html: baseLayout(
+        'linear-gradient(135deg, #7c3aed 0%, #8b5cf6 100%)',
+        festName + ' Greetings', v.FestivalEmoji || '&#x1F38A;',
+        highlightBox(v.FestivalEmoji || '&#x1F38A;', 'Happy ' + festName + ', <strong>' + empName + '</strong>!')
+        + '<p class="subtitle">Warm festive wishes from the entire <strong>' + COMPANY_NAME + '</strong> family.</p>'
+        + '<div class="card"><p style="font-size:15px;color:#475569;line-height:1.8;text-align:center">' + (v.FestivalMessage || v.GreetingMessage || 'May this festive season bring you peace, prosperity, and happiness.<br>Wishing you and your family a joyful and memorable ' + festName + ' celebration!') + '</p></div>'
+        + '<p style="text-align:center;font-size:13px;color:#64748b;margin-top:16px">Warm regards,<br><strong>' + (v.SenderName || COMPANY_NAME + ' Team') + '</strong></p>'
+      )
+    };
+  },
 
   welcome: (v) => ({
     subject: 'Welcome to ' + COMPANY_NAME + ', ' + v.EmployeeName + '!',

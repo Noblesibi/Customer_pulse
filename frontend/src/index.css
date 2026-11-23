@@ -179,10 +179,34 @@ textarea:focus {
   background-color: #f8fafc !important;
 }
 
+/* Preserve dark nested boxes & borders inside dark tooltips (.bg-slate-900.text-white / .bg-gray-900.text-white) */
+.bg-slate-900.text-white [class*="bg-slate-800"],
+.bg-slate-900.text-white [class*="bg-slate-900/"],
+.bg-slate-900.text-white [class*="bg-slate-950/"],
+.bg-gray-900.text-white [class*="bg-slate-800"],
+.bg-gray-900.text-white [class*="bg-gray-800"] {
+  background-color: rgba(30, 41, 59, 0.92) !important;
+  border-color: rgba(71, 85, 105, 0.6) !important;
+}
+
+.bg-slate-900.text-white [class*="border-slate-700"],
+.bg-slate-900.text-white [class*="border-slate-800"],
+.bg-gray-900.text-white [class*="border-gray-700"],
+.bg-gray-900.text-white [class*="border-slate-700"] {
+  border-color: rgba(71, 85, 105, 0.65) !important;
+}
+
 button[class*="bg-slate-800"]:not(.text-white):hover,
 :not(.fixed)[class*="hover:bg-slate-800"]:hover,
 :not(.fixed)[class*="hover:bg-slate-700"]:hover {
   background-color: #eef2f9 !important;
+}
+
+html,
+body,
+#root {
+  max-width: 100%;
+  overflow-x: clip;
 }
 
 /* Premium Custom Scrollbars */
