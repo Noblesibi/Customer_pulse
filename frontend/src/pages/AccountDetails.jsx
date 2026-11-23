@@ -31,6 +31,8 @@ import {
 } from '../utils/journeyUtils.js';
 import LoadingSpinner from '../components/LoadingSpinner.jsx';
 import { READY_MADE_RISK_RULES, getRiskCategoryId } from '../utils/riskRulesCatalog.js';
+import { goBackToOrigin } from '../utils/navigation.js';
+import { detectAccountOpportunities, getManualOpportunities } from '../utils/opportunityUtils.js';
 export const getStageSuggestion = (currentStage, interactions = []) => {
   if (!interactions || interactions.length === 0) return null;
 
@@ -128,13 +130,7 @@ export default function AccountDetails() {
   const location = useLocation();
 
   const handleBack = () => {
-    if (location.state?.from) {
-      navigate(location.state.from);
-    } else if (window.history.length > 1) {
-      navigate(-1);
-    } else {
-      navigate('/accounts');
-    }
+    goBackToOrigin(navigate, location, '/accounts');
   };
 
   const {
@@ -2295,22 +2291,14 @@ export default function AccountDetails() {
                   return checkDateInWeek(c.dob || c.birthDate || c.birthday) || checkDateInWeek(c.workAnniversary || c.joiningDate);
                 }).length;
 
-                // Calculate real detected opportunities (matching Opportunities tab)
-                let manualOpportunitiesCount = 0;
-                try {
-                  const saved = localStorage.getItem(`manual_opps_${account?.accountId || account?.id || id}`);
-                  if (saved) manualOpportunitiesCount = JSON.parse(saved).length;
-                } catch { }
-
-                const expansionKeywords = ['renew', 'upsell', 'upgrade', 'cross-sell', 'cloud migration', 'security audit', 'artificial intelligence', 'machine learning', 'digital transformation', 'new project', 'new business', 'pilot project', 'proof of concept', 'poc', 'rfp', 'managed service'];
-                const activityOpportunitiesCount = (allActivities || []).filter(a => {
-                  if (Array.isArray(a.businessOpportunities) && a.businessOpportunities.length > 0) return true;
-                  const text = `${a.messageText || ''} ${a.details || ''} ${a.subject || ''} ${a.taskHeader || ''} ${a.title || ''}`.toLowerCase();
-                  return expansionKeywords.some(kw => text.includes(kw));
-                }).length;
-
-                const nbaOpportunitiesCount = (nbas || []).length;
-                const totalOpportunitiesCount = manualOpportunitiesCount + activityOpportunitiesCount + nbaOpportunitiesCount;
+                // Calculate real detected opportunities (exact same single-source logic as Opportunities tab)
+                const manualOpportunitiesCount = getManualOpportunities(account?.accountId || account?.id || id).length;
+                const detectedOpportunitiesList = detectAccountOpportunities({
+                  account,
+                  activities: allActivities,
+                  nbas,
+                });
+                const totalOpportunitiesCount = manualOpportunitiesCount + detectedOpportunitiesList.length;
 
                 return (
                   <>

@@ -9,6 +9,7 @@ import { useStore } from '../store/index.js';
 import { formatDateTime } from '../utils/dateFormat.js';
 import LoadingSpinner from '../components/LoadingSpinner.jsx';
 import MicrosoftAccessGovernancePanel from '../components/MicrosoftAccessGovernancePanel.jsx';
+import { goBackToOrigin } from '../utils/navigation.js';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend
 } from 'recharts';
@@ -89,7 +90,7 @@ const TABS = [
   { id: 'templates', label: 'Automatic Templates', icon: FileText },
   { id: 'settings', label: 'Notification Settings', icon: Settings },
   { id: 'smtp', label: 'SMTP Relay Status', icon: Server },
-  { id: 'm365',       label: 'Microsoft 365 Access', icon: Wifi },
+  { id: 'm365', label: 'Microsoft 365 Access', icon: Wifi },
 ];
 
 export default function NotificationCenter() {
@@ -245,15 +246,7 @@ export default function NotificationCenter() {
           </p>
           <button
             type="button"
-            onClick={() => {
-              if (location.state?.from) {
-                navigate(location.state.from);
-              } else if (window.history.length > 1) {
-                navigate(-1);
-              } else {
-                navigate('/dashboard');
-              }
-            }}
+            onClick={() => goBackToOrigin(navigate, location, '/dashboard')}
             className="px-5 py-2.5 bg-primary text-white rounded-xl text-xs font-bold shadow-md hover:bg-blue-700 transition-all cursor-pointer flex items-center gap-1.5 mx-auto"
           >
             <ChevronLeft className="w-4 h-4 text-white" strokeWidth={2.5} />
@@ -307,6 +300,14 @@ export default function NotificationCenter() {
       <div className="p-6 border-b border-dark-800 bg-dark-900 rounded-t-2xl">
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => goBackToOrigin(navigate, location, '/dashboard')}
+              className="back-btn"
+            >
+              <ChevronLeft className="w-5 h-5" strokeWidth={2.5} />
+              <span>Back</span>
+            </button>
             <div className="w-11 h-11 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center">
               <Bell className="w-6 h-6 text-primary" />
             </div>

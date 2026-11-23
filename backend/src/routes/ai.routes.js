@@ -1,11 +1,35 @@
 import { Router } from 'express';
-import { generateTaskHeader, generateContactReconnectBrief, generateActivityNextSteps, generateSmartHealthAnalysis } from '../services/ai.service.js';
+import { analyzeInteraction, generateTaskHeader, generateContactReconnectBrief, generateActivityNextSteps, generateSmartHealthAnalysis } from '../services/ai.service.js';
 import { db } from '../config/database.js';
 import { authenticateToken, canUserAccessAccount, getPermittedAccountIdsForUser } from '../middleware/auth.middleware.js';
 import { listAiRecommendations, reviewAiRecommendation } from '../services/aiRecommendationReview.service.js';
 
 const router = Router();
 router.use(authenticateToken);
+
+/**
+ * POST /api/ai/sentiment
+ * Analyzes sentiment and generates a concise executive summary for notes/memos.
+ */
+router.post('/sentiment', async (req, res) => {
+  try {
+    const { text } = req.body || {};
+    if (!text || !String(text).trim()) {
+      return res.status(400).json({ error: 'Text is required for sentiment analysis.' });
+    }
+    const analysis = await analyzeInteraction(String(text));
+    return res.json({
+      sentiment: analysis.sentiment || 'Neutral',
+      executiveSummary: analysis.executiveSummary || analysis.summary || '',
+      followUpSignals: analysis.followUpSignals || [],
+      riskSignals: analysis.riskSignals || [],
+      businessOpportunities: analysis.businessOpportunities || [],
+    });
+  } catch (err) {
+    console.error('[AI Route] /sentiment error:', err);
+    return res.status(500).json({ error: 'Failed to analyze sentiment.' });
+  }
+});
 
 /**
  * POST /api/ai/health-insights

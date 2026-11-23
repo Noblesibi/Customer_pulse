@@ -8,6 +8,7 @@ import { useStore } from '../store/index.js';
 import { formatDate, formatTime, formatDateTime } from '../utils/dateFormat.js';
 import TeamMemberSelect from '../components/TeamMemberSelect.jsx';
 import LoadingSpinner from '../components/LoadingSpinner.jsx';
+import { goBackToOrigin } from '../utils/navigation.js';
 
 const formatLoggedDateTime = (dateStr, timeStr, timestampStr) => {
   return formatDateTime(dateStr, timeStr, timestampStr);
@@ -92,10 +93,23 @@ export default function StaffTasks() {
     const rawFrom = originFromRef.current || location.state?.from;
     const targetFrom = cleanFrom(rawFrom);
     const targetTab = originTabRef.current || location.state?.tab || location.state?.fromTab;
-    if (targetFrom) {
-      navigate(targetFrom, targetTab ? { state: { tab: targetTab } } : undefined);
-    } else if (isExternalNavRef.current && window.history.length > 1) {
-      navigate(-1);
+    const wasExternal = isExternalNavRef.current || Boolean(targetFrom);
+    originFromRef.current = null;
+    originTabRef.current = null;
+    isExternalNavRef.current = false;
+    if (wasExternal) {
+      goBackToOrigin(
+        navigate,
+        {
+          ...location,
+          state: {
+            ...(location.state || {}),
+            ...(targetFrom ? { from: targetFrom } : {}),
+            ...(targetTab ? { tab: targetTab } : {}),
+          },
+        },
+        targetFrom || '/staff-tasks'
+      );
     }
   };
 
@@ -180,12 +194,12 @@ export default function StaffTasks() {
       if (match) {
         handleOpenDrawer(match);
         // Clear state to prevent reopening on re-renders, while preserving navigation provenance
-        navigate(location.pathname, { 
-          replace: true, 
-          state: { 
-            from: originFromRef.current, 
-            tab: originTabRef.current 
-          } 
+        navigate(location.pathname, {
+          replace: true,
+          state: {
+            from: originFromRef.current,
+            tab: originTabRef.current
+          }
         });
       }
     }
@@ -684,8 +698,8 @@ export default function StaffTasks() {
           <button
             onClick={() => setActiveTab('all-tasks')}
             className={`px-5 py-3 text-xs font-bold transition-colors border-b-2 cursor-pointer ${activeTab === 'all-tasks'
-                ? 'border-primary text-primary'
-                : 'border-transparent text-slate-500 hover:text-primary'
+              ? 'border-primary text-primary'
+              : 'border-transparent text-slate-500 hover:text-primary'
               }`}
           >
             All Tasks
@@ -694,8 +708,8 @@ export default function StaffTasks() {
         <button
           onClick={() => setActiveTab('created-by-me')}
           className={`px-5 py-3 text-xs font-bold transition-colors border-b-2 cursor-pointer ${activeTab === 'created-by-me'
-              ? 'border-primary text-primary'
-              : 'border-transparent text-slate-500 hover:text-primary'
+            ? 'border-primary text-primary'
+            : 'border-transparent text-slate-500 hover:text-primary'
             }`}
         >
           Tasks Assigned by Me
@@ -703,8 +717,8 @@ export default function StaffTasks() {
         <button
           onClick={() => setActiveTab('assigned-to-me')}
           className={`px-5 py-3 text-xs font-bold transition-colors border-b-2 cursor-pointer ${activeTab === 'assigned-to-me'
-              ? 'border-primary text-primary'
-              : 'border-transparent text-slate-500 hover:text-primary'
+            ? 'border-primary text-primary'
+            : 'border-transparent text-slate-500 hover:text-primary'
             }`}
         >
           Tasks Assigned to Me
@@ -852,8 +866,8 @@ export default function StaffTasks() {
                       <td className="py-2.5 px-4">
                         {task.priority ? (
                           <span className={`text-xs font-bold px-1.5 py-0.5 rounded border ${task.priority === 'High' ? 'bg-rose-500/10 border-rose-500/20 text-rose-600' :
-                              task.priority === 'Medium' ? 'bg-amber-500/10 border-amber-500/20 text-amber-600' :
-                                'bg-slate-400/10 border-slate-400/20 text-slate-500'
+                            task.priority === 'Medium' ? 'bg-amber-500/10 border-amber-500/20 text-amber-600' :
+                              'bg-slate-400/10 border-slate-400/20 text-slate-500'
                             }`}>
                             {task.priority === 'High' ? 'High' : task.priority === 'Medium' ? 'Medium' : 'Low'}
                           </span>
@@ -903,8 +917,8 @@ export default function StaffTasks() {
                             value={displayStatus}
                             onChange={(e) => handleStatusChange(task, e.target.value)}
                             className={`px-2 py-1 rounded-lg border text-xs outline-none w-fit cursor-pointer focus:border-primary/50 ${displayStatus === 'Accept' || displayStatus === 'Accepted' || displayStatus === 'In Progress' ? 'border-amber-500/30 bg-amber-50/80 text-amber-700 font-extrabold' :
-                                displayStatus === 'Forwarded' ? 'border-sky-500/30 bg-sky-50/80 text-sky-700 font-extrabold' :
-                                  'border-slate-300 bg-white text-slate-800 font-bold'
+                              displayStatus === 'Forwarded' ? 'border-sky-500/30 bg-sky-50/80 text-sky-700 font-extrabold' :
+                                'border-slate-300 bg-white text-slate-800 font-bold'
                               }`}
                           >
                             <option value="Task Assigned">Task Assigned</option>
@@ -1074,11 +1088,11 @@ export default function StaffTasks() {
                           <div className="flex items-center justify-between">
                             <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Assigned To</span>
                             <span className={`inline-block px-2.5 py-0.5 rounded-lg border text-[9px] font-black uppercase tracking-wider ${isSelectedTaskOverdue ? 'bg-purple-500/10 border-purple-500/20 text-purple-600' :
-                                (selectedTask.status || '').toLowerCase().includes('complete') ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600' :
-                                  (selectedTask.status || '').toLowerCase().includes('forward') ? 'bg-sky-500/10 border-sky-500/20 text-sky-600' :
-                                    (selectedTask.status || '').toLowerCase().includes('accept') || (selectedTask.status || '').toLowerCase().includes('progress') ? 'bg-amber-500/10 border-amber-500/20 text-amber-600' :
-                                      (selectedTask.status || '').toLowerCase().includes('decline') ? 'bg-rose-500/10 border-rose-500/20 text-rose-600' :
-                                        'bg-slate-400/10 border-slate-400/20 text-slate-500'
+                              (selectedTask.status || '').toLowerCase().includes('complete') ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600' :
+                                (selectedTask.status || '').toLowerCase().includes('forward') ? 'bg-sky-500/10 border-sky-500/20 text-sky-600' :
+                                  (selectedTask.status || '').toLowerCase().includes('accept') || (selectedTask.status || '').toLowerCase().includes('progress') ? 'bg-amber-500/10 border-amber-500/20 text-amber-600' :
+                                    (selectedTask.status || '').toLowerCase().includes('decline') ? 'bg-rose-500/10 border-rose-500/20 text-rose-600' :
+                                      'bg-slate-400/10 border-slate-400/20 text-slate-500'
                               }`}>
                               {isSelectedTaskOverdue ? 'Overdue' :
                                 selectedTask.status === 'Pending' ? 'Task Assigned' :
@@ -1103,8 +1117,8 @@ export default function StaffTasks() {
                         <div className="flex items-center gap-2 mt-1.5 flex-wrap pt-2 border-t border-dark-800">
                           {selectedTask.priority && (
                             <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${selectedTask.priority === 'High' ? 'bg-rose-500/10 border-rose-500/20 text-rose-600' :
-                                selectedTask.priority === 'Medium' ? 'bg-amber-500/10 border-amber-500/20 text-amber-600' :
-                                  'bg-slate-400/10 border-slate-400/20 text-slate-500'
+                              selectedTask.priority === 'Medium' ? 'bg-amber-500/10 border-amber-500/20 text-amber-600' :
+                                'bg-slate-400/10 border-slate-400/20 text-slate-500'
                               }`}>
                               Priority: {selectedTask.priority}
                             </span>
@@ -1132,10 +1146,10 @@ export default function StaffTasks() {
                               {isTaskFinal ? (
                                 <div className="flex items-center gap-2">
                                   <span className={`px-2.5 py-1 rounded-lg border text-xs font-black uppercase tracking-wider ${(selectedTask.status || '').toLowerCase().includes('decline')
-                                      ? 'bg-rose-500/10 border-rose-500/20 text-rose-600'
-                                      : (selectedTask.status || '').toLowerCase().includes('forward')
-                                        ? 'bg-sky-500/10 border-sky-500/20 text-sky-600'
-                                        : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600'
+                                    ? 'bg-rose-500/10 border-rose-500/20 text-rose-600'
+                                    : (selectedTask.status || '').toLowerCase().includes('forward')
+                                      ? 'bg-sky-500/10 border-sky-500/20 text-sky-600'
+                                      : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600'
                                     }`}>
                                     {(selectedTask.status || '').toLowerCase().includes('forward')
                                       ? (selectedTask.forwardedToName ? `Forwarded to @${selectedTask.forwardedToName}` : 'Forwarded')
@@ -1156,8 +1170,8 @@ export default function StaffTasks() {
                                     await handleStatusChange(selectedTask, newStatus);
                                   }}
                                   className={`px-2 py-1 rounded-lg border text-[11px] font-bold outline-none w-fit ${isSelectedTaskOverdue
-                                      ? 'border-slate-300 bg-slate-100 text-slate-500 cursor-not-allowed opacity-80'
-                                      : 'border-slate-300 bg-white text-black cursor-pointer focus:border-primary'
+                                    ? 'border-slate-300 bg-slate-100 text-slate-500 cursor-not-allowed opacity-80'
+                                    : 'border-slate-300 bg-white text-black cursor-pointer focus:border-primary'
                                     }`}
                                 >
                                   {isSelectedTaskOverdue && <option value="Overdue">Overdue</option>}
@@ -1246,8 +1260,8 @@ export default function StaffTasks() {
                             <div
                               key={reply.replyId || idx}
                               className={`p-3.5 rounded-xl border flex flex-col gap-1.5 transition-all ${isMe
-                                  ? 'bg-primary/10 border-primary/20 ml-6 text-right items-end'
-                                  : 'bg-dark-700/60 border-dark-800 mr-6 text-left items-start'
+                                ? 'bg-primary/10 border-primary/20 ml-6 text-right items-end'
+                                : 'bg-dark-700/60 border-dark-800 mr-6 text-left items-start'
                                 }`}
                             >
                               <div className="flex items-center gap-2">

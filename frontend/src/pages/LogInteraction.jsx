@@ -1,28 +1,23 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { 
-  CheckSquare, ArrowLeft, Building2, Users, Calendar, Clock, AtSign, Square, Send, 
+import {
+  CheckSquare, ArrowLeft, Building2, Users, Calendar, Clock, AtSign, Square, Send,
   Mail, Video, Phone, MessageSquare, X, Paperclip, Upload, FileText, Trash2, Loader2, ChevronLeft, Plus
 } from 'lucide-react';
 import { useStore } from '../store/index.js';
 import { getCurrentKolkataDate, getCurrentKolkataTime } from '../utils/dateFormat.js';
 import SearchableSelect from '../components/SearchableSelect.jsx';
 import LoadingSpinner from '../components/LoadingSpinner.jsx';
+import { goBackToOrigin } from '../utils/navigation.js';
 
 export default function LogInteraction() {
   const navigate = useNavigate();
   const location = useLocation();
 
   const handleBack = () => {
-    if (location.state?.from) {
-      navigate(location.state.from);
-    } else if (window.history.length > 1) {
-      navigate(-1);
-    } else {
-      navigate('/interaction-log');
-    }
+    goBackToOrigin(navigate, location, '/interaction-log');
   };
-  const { 
+  const {
     user,
     accounts,
     fetchAccounts,
@@ -134,7 +129,7 @@ export default function LogInteraction() {
       const targetName = location.state?.preselectCompanyName || location.state?.companyName;
       const currentMatched = accounts.some(a => String(a.accountId || a.id) === String(interactionAccountId));
       if (!currentMatched && (targetId || targetName)) {
-        const match = accounts.find(a => 
+        const match = accounts.find(a =>
           (targetId && (String(a.accountId) === String(targetId) || String(a.id) === String(targetId))) ||
           (targetName && (
             a.companyName?.toLowerCase().trim() === targetName.toLowerCase().trim() ||
@@ -155,7 +150,7 @@ export default function LogInteraction() {
       const targetContactId = location.state?.preselectContactId || location.state?.contactId;
       const targetContactName = location.state?.preselectContactName || location.state?.contactName;
       if (targetContactId || targetContactName) {
-        const match = contacts.find(c => 
+        const match = contacts.find(c =>
           (targetContactId && (String(c.contactId) === String(targetContactId) || String(c.id) === String(targetContactId))) ||
           (targetContactName && c.name?.toLowerCase().includes(targetContactName.toLowerCase()))
         );
@@ -187,7 +182,7 @@ export default function LogInteraction() {
   // Auto-select contact for account if none selected yet (only if strictly 1 contact exists)
   useEffect(() => {
     if (interactionAccountId && contacts?.length && !interactionContactId) {
-      const accContacts = contacts.filter(c => 
+      const accContacts = contacts.filter(c =>
         String(c.accountId || c.account_id) === String(interactionAccountId)
       );
       if (accContacts.length === 1) {
@@ -202,7 +197,7 @@ export default function LogInteraction() {
       const targetUid = location.state.preselectUid;
       const targetName = location.state.preselectName;
       if (staffList?.length) {
-        const match = staffList.find(s => 
+        const match = staffList.find(s =>
           (targetUid && String(s.uid) === String(targetUid)) ||
           (targetName && s.name?.toLowerCase().trim() === targetName.toLowerCase().replace(/^@/, '').trim())
         );
@@ -232,7 +227,7 @@ export default function LogInteraction() {
       const accOwnerName = acc?.ownerName || acc?.owner;
       const accOwnerEmail = acc?.ownerEmail;
 
-      const accContacts = (contacts || []).filter(c => 
+      const accContacts = (contacts || []).filter(c =>
         String(c.accountId || c.account_id) === String(interactionAccountId)
       );
 
@@ -276,8 +271,8 @@ export default function LogInteraction() {
 
       let chosen = null;
       if (isCurrentUserAdmin) {
-        let accOwnerCandidate = (accOwnerId || accOwnerName) 
-          ? { ownerId: accOwnerId, ownerName: accOwnerName, ownerEmail: accOwnerEmail } 
+        let accOwnerCandidate = (accOwnerId || accOwnerName)
+          ? { ownerId: accOwnerId, ownerName: accOwnerName, ownerEmail: accOwnerEmail }
           : null;
         if (accOwnerCandidate && !isAdminUser(accOwnerCandidate)) {
           chosen = accOwnerCandidate;
@@ -291,8 +286,8 @@ export default function LogInteraction() {
       } else if (isCurrentUserKeyContactOwner) {
         chosen = (accOwnerId || accOwnerName) ? { ownerId: accOwnerId, ownerName: accOwnerName, ownerEmail: accOwnerEmail } : null;
       } else {
-        let accOwnerCandidate = (accOwnerId || accOwnerName) 
-          ? { ownerId: accOwnerId, ownerName: accOwnerName, ownerEmail: accOwnerEmail } 
+        let accOwnerCandidate = (accOwnerId || accOwnerName)
+          ? { ownerId: accOwnerId, ownerName: accOwnerName, ownerEmail: accOwnerEmail }
           : null;
         if (accOwnerCandidate && !isAdminUser(accOwnerCandidate)) {
           chosen = accOwnerCandidate;
@@ -302,7 +297,7 @@ export default function LogInteraction() {
       }
 
       if (chosen) {
-        const match = staffList.find(s => 
+        const match = staffList.find(s =>
           (chosen.ownerId && String(s.uid) === String(chosen.ownerId)) ||
           (chosen.ownerEmail && s.email && s.email.toLowerCase().trim() === chosen.ownerEmail.toLowerCase().trim()) ||
           (chosen.ownerName && s.name && s.name.toLowerCase().trim() === chosen.ownerName.toLowerCase().trim())
@@ -554,7 +549,7 @@ export default function LogInteraction() {
     <div className="p-6 md:p-8 space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <button 
+        <button
           type="button"
           onClick={handleBack}
           className="back-btn"
@@ -567,7 +562,7 @@ export default function LogInteraction() {
 
       <div className="space-y-6">
         <form onSubmit={handleLogInteraction} className="space-y-6">
-          
+
           {/* Section 1: Channel Type */}
           <div className="space-y-2">
             <label className="text-xs text-slate-500 uppercase font-bold tracking-wider flex items-center gap-1.5">
@@ -582,11 +577,10 @@ export default function LogInteraction() {
                     key={ch.id}
                     type="button"
                     onClick={() => setInteractionSource(ch.id)}
-                    className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold border transition-all duration-150 cursor-pointer ${
-                      isActive
+                    className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold border transition-all duration-150 cursor-pointer ${isActive
                         ? 'bg-primary border-primary text-white shadow-lg shadow-primary/20'
                         : 'bg-dark-900/60 border-slate-800/80 text-slate-300 hover:border-slate-500'
-                    }`}
+                      }`}
                   >
                     <Icon className={`w-3.5 h-3.5 ${isActive ? 'text-white' : ch.color}`} />
                     {ch.label}
@@ -629,8 +623,8 @@ export default function LogInteraction() {
                     setInteractionAccountId(contactObj.accountId);
                   }
                 }}
-                options={(contacts || []).filter(c => 
-                  !interactionAccountId || 
+                options={(contacts || []).filter(c =>
+                  !interactionAccountId ||
                   String(c.accountId || c.account_id) === String(interactionAccountId) ||
                   ((accounts || []).some(a => String(a.accountId || a.id) === String(interactionAccountId) && a.companyName && c.companyName?.toLowerCase().trim() === a.companyName?.toLowerCase().trim()))
                 )}
@@ -791,11 +785,11 @@ export default function LogInteraction() {
                       placeholder="Type @name to search and assign team members..."
                       className="w-full bg-dark-700/50 border border-slate-350 text-xs rounded-xl p-3 focus:outline-none focus:border-primary/50 text-black placeholder-slate-450 font-semibold"
                     />
-                    
+
                     {t.showMentionDropdown && (() => {
                       const query = getMentionSearchQuery(t.mentionSearch);
-                      const filteredStaff = staffList.filter(s => 
-                        s.name.toLowerCase().includes(query.toLowerCase()) || 
+                      const filteredStaff = staffList.filter(s =>
+                        s.name.toLowerCase().includes(query.toLowerCase()) ||
                         s.email.toLowerCase().includes(query.toLowerCase())
                       );
                       if (filteredStaff.length === 0 || !t.mentionSearch.includes('@')) return null;
@@ -808,9 +802,8 @@ export default function LogInteraction() {
                                 key={s.uid}
                                 type="button"
                                 onMouseDown={() => insertMention(taskIdx, s)}
-                                className={`w-full flex items-center justify-between px-3 py-2.5 text-xs text-slate-700 ${
-                                  isSelected ? 'bg-primary/5 text-primary' : ''
-                                }`}
+                                className={`w-full flex items-center justify-between px-3 py-2.5 text-xs text-slate-700 ${isSelected ? 'bg-primary/5 text-primary' : ''
+                                  }`}
                               >
                                 <div className="flex flex-col items-start text-left">
                                   <span className="font-bold text-black">{s.name}</span>

@@ -3,19 +3,14 @@ import { Building2, UserPlus, ArrowRight, ArrowLeft, Plus, X, Briefcase, Chevron
 import { useStore } from '../store/index.js';
 import { useNavigate, useLocation } from 'react-router-dom';
 import LoadingSpinner from '../components/LoadingSpinner.jsx';
+import { goBackToOrigin } from '../utils/navigation.js';
 
 export default function NewAccount() {
   const navigate = useNavigate();
   const location = useLocation();
 
   const handleBack = () => {
-    if (location.state?.from) {
-      navigate(location.state.from);
-    } else if (window.history.length > 1) {
-      navigate(-1);
-    } else {
-      navigate('/accounts');
-    }
+    goBackToOrigin(navigate, location, '/accounts');
   };
   const { addAccount } = useStore();
 

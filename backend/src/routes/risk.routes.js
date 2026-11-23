@@ -577,6 +577,77 @@ router.post('/', async (req, res) => {
 });
 
 /**
+ * POST /api/risks/:id/ai-analyze
+ * Freshly synthesizes AI risk details (whatIsRisk, whyItHappens, howToResolve) for a risk record.
+ */
+router.post('/:id/ai-analyze', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const docRef = db.collection('risks').doc(id);
+    const doc = await docRef.get();
+
+    if (!doc.exists) {
+      return res.status(404).json({ error: 'Risk not found' });
+    }
+
+    const r = doc.data();
+    const accDoc = r.accountId ? await db.collection('accounts').doc(r.accountId).get() : null;
+    const accData = accDoc?.exists ? accDoc.data() : {};
+
+    let latestInteraction = null;
+    if (r.accountId) {
+      const intSnap = await db.collection('interactions').where('accountId', '==', r.accountId).get();
+      const ints = intSnap.docs
+        .map(d => d.data())
+        .sort((a, b) => new Date(b.timestamp || b.date || 0) - new Date(a.timestamp || a.date || 0));
+      latestInteraction = ints[0] || null;
+    }
+
+    const lastDate = latestInteraction ? new Date(latestInteraction.timestamp || latestInteraction.date) : null;
+    const daysSinceLastInteraction = lastDate && !isNaN(lastDate.getTime())
+      ? Math.floor((Date.now() - lastDate.getTime()) / (1000 * 60 * 60 * 24))
+      : null;
+
+    const aiGen = await generateRiskAiDetails({
+      companyName: accData.companyName || 'Account',
+      category: r.category || 'Relationship',
+      severity: r.severity || 'High',
+      conditionType: (r.category || '').toLowerCase().includes('delivery') ? 'overdue_task' : 'silence',
+      taskTitle: r.title || 'Customer action item',
+      daysSinceLastInteraction,
+      lastInteractionDate: lastDate && !isNaN(lastDate.getTime()) ? lastDate.toISOString().slice(0, 10) : null,
+      lastInteractionSubject: latestInteraction?.subject || '',
+      healthScore: accData.healthScore || 59,
+      tier: accData.tier || 'Strategic',
+      ownerName: accData.ownerName || 'Account Lead',
+    });
+
+    const updatedFields = {
+      title: aiGen.title || r.title,
+      description: aiGen.whatIsRisk || aiGen.description || r.description,
+      whatIsRisk: aiGen.whatIsRisk,
+      whyItHappens: aiGen.whyItHappens,
+      howToResolve: aiGen.howToResolve || aiGen.suggestedActions,
+      suggestedActions: aiGen.suggestedActions || aiGen.howToResolve,
+      aiInsight: aiGen.aiInsight,
+      impact: aiGen.impact,
+      confidence: aiGen.confidence,
+    };
+
+    try {
+      await docRef.update(updatedFields);
+    } catch (updErr) {
+      console.warn('Could not persist re-analyzed risk fields:', updErr.message);
+    }
+
+    return res.json({ ...r, ...updatedFields });
+  } catch (error) {
+    console.error('Error re-analyzing risk with AI:', error);
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+/**
  * DELETE /api/risks/:id
  * Delete a risk
  */

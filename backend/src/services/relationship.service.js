@@ -7,20 +7,37 @@ import { db } from '../config/database.js';
 function categorizeContact(contact) {
   const hTag = (contact.hierarchyTag || '').toUpperCase();
   const iTag = (contact.influenceTag || '').toUpperCase();
-  const designation = (contact.designation || '').toLowerCase();
+  const roleText = `${contact.position || ''} ${contact.designation || ''} ${contact.title || ''}`.toLowerCase();
 
-  // Executives
-  if (['CXO', 'VP'].includes(hTag) || iTag === 'DECISION MAKER' || designation.includes('chief') || designation.includes('president') || designation.includes('head')) {
+  // Executives (C-suite, VP, President, Head, Founder, Managing Director, Decision Maker)
+  const isExecutiveTitle =
+    /\b(ceo|cto|cfo|cio|coo|cmo|ciso|cpo|cxo|vp|svp|evp|avp|md|chairman|founder|co-founder|partner)\b/.test(roleText) ||
+    roleText.includes('chief') ||
+    roleText.includes('president') ||
+    roleText.includes('managing director') ||
+    roleText.includes('head of') ||
+    /\bhead\b/.test(roleText);
+
+  if (['CXO', 'VP', 'EXECUTIVE', 'C-LEVEL'].includes(hTag) || iTag === 'DECISION MAKER' || isExecutiveTitle) {
     return 'Executive';
   }
   
   // Business/Operations
-  if (['DIRECTOR', 'MANAGER'].includes(hTag) || iTag === 'CHAMPION' || designation.includes('product') || designation.includes('marketing') || designation.includes('sales') || designation.includes('operations')) {
+  const isBusinessTitle =
+    /\b(director|manager|lead|owner)\b/.test(roleText) ||
+    roleText.includes('product') ||
+    roleText.includes('marketing') ||
+    roleText.includes('sales') ||
+    roleText.includes('operations') ||
+    roleText.includes('business') ||
+    roleText.includes('account');
+
+  if (['DIRECTOR', 'MANAGER'].includes(hTag) || iTag === 'CHAMPION' || isBusinessTitle) {
     return 'Business';
   }
 
   // Technical
-  if (designation.includes('engineer') || designation.includes('developer') || designation.includes('architect') || designation.includes('tech') || designation.includes('it')) {
+  if (roleText.includes('engineer') || roleText.includes('developer') || roleText.includes('architect') || roleText.includes('tech') || /\bit\b/.test(roleText)) {
     return 'Technical';
   }
 
