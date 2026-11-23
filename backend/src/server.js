@@ -76,11 +76,10 @@ const authLimiter = rateLimit({
 });
 
 app.use('/api/', generalLimiter);
-app.use('/api/auth/login', authLimiter);
 app.use('/api/auth/signup', authLimiter);
 
 // ── Secure CORS Configuration ───────────────────────────────
-const allowedOrigins = process.env.ALLOWED_ORIGINS 
+const allowedOrigins = process.env.ALLOWED_ORIGINS
   ? process.env.ALLOWED_ORIGINS.split(',').map(o => o.trim())
   : ['http://localhost:5173', 'http://localhost:3000', 'http://localhost:5000'];
 
@@ -133,13 +132,13 @@ app.get('/api/health', (req, res) => {
     status: 'healthy',
     timestamp: new Date().toISOString(),
     env: {
-      database:  process.env.DB_TYPE    || 'mock',
-      ldap:      ldapEnabled === 'true' ? `enabled (${process.env.LDAP_URL || 'unconfigured'})`
-               : ldapEnabled === 'mock' ? 'mock (simulation mode)'
-               : 'disabled',
-      rbac:      'enabled',
-      ai:        process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY !== 'your_gemini_api_key_here'
-               ? 'Gemini API' : 'Local NLP Fallback'
+      database: process.env.DB_TYPE || 'mock',
+      ldap: ldapEnabled === 'true' ? `enabled (${process.env.LDAP_URL || 'unconfigured'})`
+        : ldapEnabled === 'mock' ? 'mock (simulation mode)'
+          : 'disabled',
+      rbac: 'enabled',
+      ai: process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY !== 'your_gemini_api_key_here'
+        ? 'Gemini API' : 'Local NLP Fallback'
     }
   });
 });

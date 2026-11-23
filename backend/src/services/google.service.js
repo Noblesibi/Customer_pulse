@@ -147,7 +147,16 @@ export async function getGoogleClientForUser(uid) {
         });
       }
     } catch (refreshErr) {
-      console.warn(`[GoogleOAuth] Proactive token refresh failed for user ${uid}:`, refreshErr.message);
+      const msg = String(refreshErr?.message || '');
+      if (msg.includes('invalid_grant')) {
+        await integrationsRef.doc(googleIntegration.id).update({
+          status: 'RECONNECT_REQUIRED',
+          updatedAt: new Date().toISOString()
+        }).catch(() => {});
+        console.warn(`[GoogleOAuth] Refresh token expired/revoked for user ${uid} (invalid_grant). Marked as RECONNECT_REQUIRED.`);
+        throw new Error('Google OAuth token expired (invalid_grant). Please reconnect Google in the UI.');
+      }
+      console.warn(`[GoogleOAuth] Proactive token refresh failed for user ${uid}:`, msg);
     }
   }
 

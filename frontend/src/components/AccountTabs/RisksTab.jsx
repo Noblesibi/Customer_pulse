@@ -970,10 +970,6 @@ export default function RisksTab({ account, onToast, onRiskRulesUpdated, onRiskM
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <div className="flex items-center gap-1.5 px-2.5 py-1 bg-emerald-50 text-emerald-700 rounded-lg text-[11px] font-bold border border-emerald-200/70 shadow-2xs select-none" title="Live background auto-sync active">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-            <span>Live Sync</span>
-          </div>
           <button
             onClick={() => setShowCustomizeRulesModal(true)}
             className="px-3 py-1.5 bg-white border border-slate-200 text-slate-800 rounded-lg text-xs font-semibold shadow-2xs hover:bg-slate-50 transition-colors flex items-center gap-1.5 cursor-pointer"

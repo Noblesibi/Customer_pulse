@@ -292,9 +292,11 @@ router.get('/:id', async (req, res) => {
  */
 router.post('/', (req, res, next) => {
   const isTrueAdmin = req.user.role === 'Admin';
-  const isCeoNazneen = req.user.email?.toLowerCase() === 'nj@gmail.com';
+  const isCeoNazneen =
+    req.user.email?.toLowerCase() === 'nazneen.jehangir@nestgroup.net' ||
+    req.user.userType === 'CEO';
   if (!isTrueAdmin && !isCeoNazneen) {
-    return res.status(403).json({ error: 'Forbidden: Only Admin and CEO Nazneen are allowed to add accounts' });
+    return res.status(403).json({ error: 'Forbidden: Only Admin and CEO are allowed to add accounts' });
   }
   next();
 }, async (req, res) => {
@@ -361,8 +363,10 @@ router.post('/', (req, res, next) => {
 
     const usersSnapForOwner = await db.collection('users').get();
     const allUsersList = usersSnapForOwner.docs.map(d => ({ uid: d.id, ...d.data() }));
-    const adminCorpEmail = (process.env.MICROSOFT_TEST_MAILBOX || 'amina.rashad@nestgroup.net').trim().toLowerCase();
-    const adminCorpUser = allUsersList.find(u => (u.email || '').trim().toLowerCase() === adminCorpEmail);
+    const adminCorpEmail = (process.env.MICROSOFT_TEST_MAILBOX || '').trim().toLowerCase();
+    const adminCorpUser = adminCorpEmail
+      ? allUsersList.find(u => (u.email || '').trim().toLowerCase() === adminCorpEmail)
+      : null;
 
     let finalOwnerId = ownerId || req.user.uid;
     if (finalOwnerId === 'mock-admin-uid' && adminCorpUser) {

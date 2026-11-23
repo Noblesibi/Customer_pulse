@@ -447,7 +447,7 @@ export async function probeLiveGraphTeamsAccess(organizerEmail) {
  * Exchange Online Application RBAC allow reading the specified organizer's mailbox.
  */
 export async function probeLiveGraphOutlookAccess(mailboxEmail) {
-  if (process.env.NODE_ENV === 'test' || microsoftTeamsConfig.mockMode || !microsoftDevConfig.isConfigured) {
+  if (process.env.NODE_ENV === 'test' || microsoftTeamsConfig.mockMode || !microsoftConfig.isConfigured) {
     return { verified: false, skipped: true, reason: 'MOCK_OR_TEST_MODE' };
   }
 
@@ -455,7 +455,7 @@ export async function probeLiveGraphOutlookAccess(mailboxEmail) {
   if (!cleanEmail) return { verified: false, reason: 'MISSING_EMAIL' };
 
   try {
-    const token = await getMicrosoftDevAccessToken();
+    const token = await getMicrosoftAccessToken();
     const claims = verifyGraphTokenClaims(token);
     if (!claims.hasMailRead) {
       return {
@@ -466,7 +466,7 @@ export async function probeLiveGraphOutlookAccess(mailboxEmail) {
       };
     }
 
-    const client = await getTeamsGraphClient();
+    const client = await getGraphClient();
     await client
       .api(`/users/${encodeURIComponent(cleanEmail)}/mailFolders/inbox/messages?$top=1&$select=id`)
       .get();
@@ -480,15 +480,18 @@ export async function probeLiveGraphOutlookAccess(mailboxEmail) {
     };
   } catch (err) {
     const classified = classifyGraphError(err);
+    const errMsg = String(err?.message || classified.message || '');
     return {
       verified: false,
       exchangeRbacVerified: false,
       mailReadGranted: false,
       status: classified.statusCode || 403,
       reason:
-        classified.statusCode === 404
-          ? 'USER_NOT_FOUND_IN_DEV_TENANT'
-          : 'EXCHANGE_RBAC_NOT_GRANTED',
+        errMsg.includes('AADSTS7000112')
+          ? 'CORPORATE_APP_DISABLED_IN_ENTRA_ID'
+          : classified.statusCode === 404
+            ? 'USER_NOT_FOUND_IN_TENANT'
+            : 'EXCHANGE_RBAC_NOT_GRANTED',
       error: classified.message,
     };
   }

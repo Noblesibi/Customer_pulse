@@ -890,7 +890,142 @@ const TEMPLATES = {
         + btn('Open ' + (v.CompanyName || 'account'), accountUrl)
       )
     };
-  }
+  },
+
+  company_anniversary: (v) => ({
+    subject: v.GreetingTitle || `🏢 Happy Company Anniversary${v.CompanyName ? ' — ' + v.CompanyName : ''}!`,
+    html: baseLayout(
+      'linear-gradient(135deg, #1a3a8f 0%, #2563eb 100%)',
+      v.GreetingTitle || 'Company Anniversary', '&#x1F3E2;',
+      '<p class="greeting">Hello ' + (v.EmployeeName || 'Valued Partner') + ',</p>'
+      + '<p class="subtitle">' + (v.GreetingMessage || 'Wishing you and your organization a wonderful company anniversary! We value our continued partnership and look forward to many more years of shared success.') + '</p>'
+      + btn('Open CustomerPulse', DASHBOARD_URL)
+    )
+  }),
+
+  new_role: (v) => ({
+    subject: v.GreetingTitle || '💼 Congratulations on Your New Role!',
+    html: baseLayout(
+      'linear-gradient(135deg, #0f766e 0%, #14b8a6 100%)',
+      v.GreetingTitle || 'Congratulations on Your New Role', '&#x1F4BC;',
+      '<p class="greeting">Hello ' + (v.EmployeeName || 'Valued Partner') + ',</p>'
+      + '<p class="subtitle">' + (v.GreetingMessage || 'Warmest congratulations on stepping into your new role! Wishing you great success and fulfillment in this exciting chapter.') + '</p>'
+      + btn('Open CustomerPulse', DASHBOARD_URL)
+    )
+  }),
+
+  award: (v) => ({
+    subject: v.GreetingTitle || '🥇 Congratulations on Your Award!',
+    html: baseLayout(
+      'linear-gradient(135deg, #b45309 0%, #f59e0b 100%)',
+      v.GreetingTitle || 'Award Recognition', '&#x1F947;',
+      '<p class="greeting">Hello ' + (v.EmployeeName || 'Valued Partner') + ',</p>'
+      + '<p class="subtitle">' + (v.GreetingMessage || 'Heartfelt congratulations on this well-deserved award! Your excellence and leadership continue to inspire everyone around you.') + '</p>'
+      + btn('Open CustomerPulse', DASHBOARD_URL)
+    )
+  }),
+
+  certification: (v) => ({
+    subject: v.GreetingTitle || '🎓 Congratulations on Your Certification!',
+    html: baseLayout(
+      'linear-gradient(135deg, #1d4ed8 0%, #3b82f6 100%)',
+      v.GreetingTitle || 'Certification Achieved', '&#x1F393;',
+      '<p class="greeting">Hello ' + (v.EmployeeName || 'Valued Partner') + ',</p>'
+      + '<p class="subtitle">' + (v.GreetingMessage || 'Congratulations on earning your new certification! Wishing you continued growth and success.') + '</p>'
+      + btn('Open CustomerPulse', DASHBOARD_URL)
+    )
+  }),
+
+  graduation: (v) => ({
+    subject: v.GreetingTitle || '🎓 Warmest Congratulations on Your Graduation!',
+    html: baseLayout(
+      'linear-gradient(135deg, #4338ca 0%, #6366f1 100%)',
+      v.GreetingTitle || 'Graduation Celebration', '&#x1F393;',
+      '<p class="greeting">Hello ' + (v.EmployeeName || 'Valued Partner') + ',</p>'
+      + '<p class="subtitle">' + (v.GreetingMessage || 'Warmest congratulations on this proud graduation milestone! Wishing you every success ahead.') + '</p>'
+      + btn('Open CustomerPulse', DASHBOARD_URL)
+    )
+  }),
+
+  business_milestone: (v) => ({
+    subject: v.GreetingTitle || '📈 Celebrating Your Business Milestone!',
+    html: baseLayout(
+      'linear-gradient(135deg, #15803d 0%, #22c55e 100%)',
+      v.GreetingTitle || 'Business Milestone', '&#x1F4C8;',
+      '<p class="greeting">Hello ' + (v.EmployeeName || 'Valued Partner') + ',</p>'
+      + '<p class="subtitle">' + (v.GreetingMessage || 'Congratulations on reaching this remarkable business milestone! We are proud to be part of your journey.') + '</p>'
+      + btn('Open CustomerPulse', DASHBOARD_URL)
+    )
+  }),
+
+  project_milestone: (v) => ({
+    subject: v.GreetingTitle || '🎯 Celebrating Your Project Milestone!',
+    html: baseLayout(
+      'linear-gradient(135deg, #1a3a8f 0%, #3b82f6 100%)',
+      v.GreetingTitle || 'Project Milestone', '&#x1F3AF;',
+      '<p class="greeting">Hello ' + (v.EmployeeName || 'Valued Partner') + ',</p>'
+      + '<p class="subtitle">' + (v.GreetingMessage || 'Congratulations to you and your team on achieving this important project milestone!') + '</p>'
+      + btn('Open CustomerPulse', DASHBOARD_URL)
+    )
+  }),
+
+  partnership_milestone: (v) => ({
+    subject: v.GreetingTitle || '🤝 Celebrating Our Partnership Milestone!',
+    html: baseLayout(
+      'linear-gradient(135deg, #1a3a8f 0%, #0ea5e9 100%)',
+      v.GreetingTitle || 'Partnership Milestone', '&#x1F91D;',
+      '<p class="greeting">Hello ' + (v.EmployeeName || 'Valued Partner') + ',</p>'
+      + '<p class="subtitle">' + (v.GreetingMessage || 'Thank you for your continued trust and collaboration. We look forward to achieving even greater milestones together!') + '</p>'
+      + btn('Open CustomerPulse', DASHBOARD_URL)
+    )
+  }),
+
+  holiday: (v) => ({
+    subject: v.GreetingTitle || '🌟 Warm Holiday Greetings from NeST Digital!',
+    html: baseLayout(
+      'linear-gradient(135deg, #7c3aed 0%, #a855f7 100%)',
+      v.GreetingTitle || 'Season & Holiday Greetings', '&#x1F31F;',
+      '<p class="greeting">Hello ' + (v.EmployeeName || 'Valued Partner') + ',</p>'
+      + '<p class="subtitle">' + (v.GreetingMessage || 'Wishing you, your team, and your loved ones joy, peace, and prosperity this holiday season!') + '</p>'
+      + btn('Open CustomerPulse', DASHBOARD_URL)
+    )
+  }),
+
+  special_recognition: (v) => ({
+    subject: v.GreetingTitle || '🏅 Warmest Congratulations on Your Special Recognition!',
+    html: baseLayout(
+      'linear-gradient(135deg, #b45309 0%, #eab308 100%)',
+      v.GreetingTitle || 'Special Recognition', '&#x1F3C5;',
+      '<p class="greeting">Hello ' + (v.EmployeeName || 'Valued Partner') + ',</p>'
+      + '<p class="subtitle">' + (v.GreetingMessage || 'Wishing you a wonderful celebration on your special recognition! It is truly a pleasure working with you and your team.') + '</p>'
+      + btn('Open CustomerPulse', DASHBOARD_URL)
+    )
+  }),
+
+  custom_appreciation: (v) => ({
+    subject: v.GreetingTitle || '💌 Thank You & Appreciation from NeST Digital',
+    html: baseLayout(
+      'linear-gradient(135deg, #be185d 0%, #ec4899 100%)',
+      v.GreetingTitle || 'Appreciation Note', '&#x1F48C;',
+      '<p class="greeting">Hello ' + (v.EmployeeName || 'Valued Partner') + ',</p>'
+      + '<p class="subtitle">' + (v.GreetingMessage || 'We sincerely appreciate your partnership and collaboration. Thank you for working with us!') + '</p>'
+      + btn('Open CustomerPulse', DASHBOARD_URL)
+    )
+  }),
+
+  new_accounts_tech_team_access: (v) => ({
+    subject: v.Subject || '[CustomerPulse Action Required] New Account(s) Added — Grant Outlook & Teams Permissions',
+    html: baseLayout(
+      'linear-gradient(135deg, #1a3a8f 0%, #2563eb 100%)',
+      'New Account Access Request', '&#x1F6E1;&#xFE0F;',
+      '<p class="greeting">Hello IT & Technical Team,</p>'
+      + '<p class="subtitle">' + (v.Message || 'New customer account(s) have been onboarded in CustomerPulse. Please grant scoped Outlook (Exchange Online RBAC) and Teams (CustomerPulseDevPolicy) permissions for the identified Account Owners and Key Contact Owners.') + '</p>'
+      + '<div class="card"><div class="card-title">Onboarding Summary</div>'
+      + row('Account', v.CompanyName || 'New Account(s)', 'Uploaded By', v.AssignedBy || 'Admin User')
+      + '</div>'
+      + btn('Review in Notification Center', FRONTEND_URL + '/notification-center')
+    )
+  })
 };
 
 
@@ -931,6 +1066,14 @@ export function listTemplates() {
   return Object.keys(TEMPLATES).map(id => ({
     id,
     name: id.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' '),
-    category: (id.startsWith('task_') || id === 'status_changed') ? 'Task Notification' : 'Greeting'
+    category: (id.includes('task') || id === 'status_changed')
+      ? 'Task Notification'
+      : id.includes('risk')
+        ? 'Risk Alert'
+        : id.includes('interaction')
+          ? 'Interaction'
+          : (id.includes('account_assignment') || id.includes('tech_team_access'))
+            ? 'Account Governance'
+            : 'Greeting'
   }));
 }

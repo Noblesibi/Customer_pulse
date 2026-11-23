@@ -221,7 +221,7 @@ export default function AccountDetails() {
 
   // Permissions
   const isAccountOwner = account && (user?.uid === account.ownerId || (user?.email && user?.email === account.ownerEmail) || (user?.name && user?.name === account.ownerName));
-  const canEditOwners = user?.role === 'Admin' || user?.name?.toLowerCase().startsWith('nazneen') || isAccountOwner;
+  const canEditOwners = user?.role === 'Admin' || user?.userType === 'CEO' || user?.email?.toLowerCase() === 'nazneen.jehangir@nestgroup.net' || isAccountOwner;
   const canEditAccount = ['Admin', 'Sales Manager', 'Executive'].includes(user?.role) || isAccountOwner;
 
   // My Activity embedded panel state
@@ -336,7 +336,7 @@ export default function AccountDetails() {
     try {
       const saved = localStorage.getItem('customer_pulse_risk_rules_global');
       if (saved) return JSON.parse(saved);
-    } catch (e) {}
+    } catch (e) { }
     return null;
   });
 
@@ -349,7 +349,7 @@ export default function AccountDetails() {
       const saved = accountSaved || globalSaved;
       if (saved) setAccountRiskConfig(JSON.parse(saved));
       else setAccountRiskConfig(null);
-    } catch (e) {}
+    } catch (e) { }
   }, [currentAccId]);
 
   useEffect(() => {
@@ -391,7 +391,7 @@ export default function AccountDetails() {
       const matchedRule = READY_MADE_RISK_RULES.find(catalogRule => {
         const catNameLower = (catalogRule.name || catalogRule.label || '').toLowerCase();
         return (catNameLower && (titleLower.includes(catNameLower) || ruleLower.includes(catNameLower))) ||
-               (catalogRule.trigger && descLower.includes(catalogRule.trigger.toLowerCase()));
+          (catalogRule.trigger && descLower.includes(catalogRule.trigger.toLowerCase()));
       });
 
       if (matchedRule) {
@@ -804,37 +804,31 @@ export default function AccountDetails() {
         headers: { 'Authorization': `Bearer ${token}` }
       }).then(res => res.ok ? res.json() : null);
 
-      const nbaPromise = fetch(`/CustomerPulse/api/accounts/${id}/nba`, {
+      // Fire slower / secondary requests in parallel without blocking the initial page render
+      fetch(`/CustomerPulse/api/accounts/${id}/nba`, {
         headers: { 'Authorization': `Bearer ${token}` }
-      }).then(res => res.ok ? res.json() : []);
+      })
+        .then(res => res.ok ? res.json() : [])
+        .then(nbaData => { if (nbaData) setNbas(nbaData); })
+        .catch(() => { });
 
-      const [accountData, nbaData] = await Promise.all([
+      fetchInteractions(id).catch?.(() => { });
+      fetchAccountSummary(id).catch?.(() => { });
+      if (fetchStaffTasks) Promise.resolve(fetchStaffTasks('all-tasks')).catch(() => { });
+      if (!staffList || staffList.length === 0) {
+        Promise.resolve(fetchStaff()).catch(() => { });
+      }
+
+      // Only await fast, essential core account data before hiding the loading spinner
+      const [accountData] = await Promise.all([
         accountPromise,
-        nbaPromise,
         fetchContacts(id),
-        fetchInteractions(id),
         fetchRisks(id),
-        fetchStaff(),
-        fetchAccountSummary(id),
-        fetchStaffTasks ? fetchStaffTasks('all-tasks') : Promise.resolve()
       ]);
 
       if (accountData) {
         setAccount(accountData);
-        let dbHistoryList = Array.isArray(accountData.journeyHistory) ? accountData.journeyHistory : [];
-        if (dbHistoryList.length === 0) {
-          try {
-            const jhRes = await fetch(`/CustomerPulse/api/accounts/${id}/journey`, {
-              headers: { 'Authorization': `Bearer ${token}` }
-            });
-            if (jhRes.ok) {
-              const parsedJh = await jhRes.json();
-              if (Array.isArray(parsedJh)) dbHistoryList = parsedJh;
-            }
-          } catch {
-            // Non-fatal
-          }
-        }
+        const dbHistoryList = Array.isArray(accountData.journeyHistory) ? accountData.journeyHistory : [];
         setJourneyHistory(dbHistoryList);
 
         const latestHist = dbHistoryList.length > 0 ? dbHistoryList[0] : null;
@@ -857,10 +851,20 @@ export default function AccountDetails() {
             (dbTrigger === 'manual' || dbTrigger === 'suggestion') ? dbUpdatedIso : null
           )
         });
-      }
 
-      if (nbaData) {
-        setNbas(nbaData);
+        // If journeyHistory wasn't embedded on the account doc, fetch it in the background
+        if (dbHistoryList.length === 0) {
+          fetch(`/CustomerPulse/api/accounts/${id}/journey`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+          })
+            .then(jhRes => jhRes.ok ? jhRes.json() : null)
+            .then(parsedJh => {
+              if (Array.isArray(parsedJh) && parsedJh.length > 0) {
+                setJourneyHistory(parsedJh);
+              }
+            })
+            .catch(() => { });
+        }
       }
     } catch (err) {
       console.error(err);
@@ -2059,8 +2063,8 @@ export default function AccountDetails() {
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs whitespace-nowrap shrink-0 transition-colors cursor-pointer ${isActive
-                    ? 'bg-[#EBEEF7] text-[#223670] font-bold'
-                    : 'text-slate-700 hover:bg-slate-100 font-semibold'
+                  ? 'bg-[#EBEEF7] text-[#223670] font-bold'
+                  : 'text-slate-700 hover:bg-slate-100 font-semibold'
                   }`}
               >
                 <Icon className={`w-3.5 h-3.5 ${isActive ? 'text-[#223670]' : 'text-slate-500'}`} />
@@ -2233,10 +2237,10 @@ export default function AccountDetails() {
                   criticalRisksCount > 0 ? 'Critical' : highRisksCount > 0 ? 'High' : mediumRisksCount > 0 ? 'Medium' : 'Low'
                 );
                 const effectiveActiveRisksCount = syncedRiskMetrics?.activeCount ?? currentOpenRisks.length;
-                const riskBadgeClass = effectiveActiveRisksCount === 0 
-                  ? 'bg-emerald-100 text-emerald-700' 
-                  : (riskLevelName === 'Critical' || riskLevelName === 'High') 
-                    ? 'bg-red-100 text-red-700' 
+                const riskBadgeClass = effectiveActiveRisksCount === 0
+                  ? 'bg-emerald-100 text-emerald-700'
+                  : (riskLevelName === 'Critical' || riskLevelName === 'High')
+                    ? 'bg-red-100 text-red-700'
                     : 'bg-amber-100 text-amber-800';
 
                 const liveHealth = account?.healthScore ?? 50;
@@ -2762,10 +2766,10 @@ export default function AccountDetails() {
                                     <div className="text-[11px] font-bold text-blue-700 mb-0.5">{c.name} · {c.influenceTag}</div>
                                     <div className="text-[10px] text-slate-600 leading-snug">
                                       {c.influenceTag === 'Decision Maker' ? `Key stakeholder with final sign-off authority on budget, contracts, and renewals for ${account?.companyName || 'the account'}.` :
-                                       c.influenceTag === 'Influencer' ? `Technical stakeholder who shapes architecture standards and vendor evaluations.` :
-                                       c.influenceTag === 'Champion' ? `Internal sponsor advocating for NeST solutions and driving relationship adoption.` :
-                                       c.influenceTag === 'Gatekeeper' ? `Controls communication access and procurement review workflow.` :
-                                       `Secondary stakeholder kept informed on operational progress.`}
+                                        c.influenceTag === 'Influencer' ? `Technical stakeholder who shapes architecture standards and vendor evaluations.` :
+                                          c.influenceTag === 'Champion' ? `Internal sponsor advocating for NeST solutions and driving relationship adoption.` :
+                                            c.influenceTag === 'Gatekeeper' ? `Controls communication access and procurement review workflow.` :
+                                              `Secondary stakeholder kept informed on operational progress.`}
                                     </div>
                                   </div>
                                 </div>
@@ -2779,10 +2783,10 @@ export default function AccountDetails() {
                                     <div className="text-[11px] font-bold text-blue-700 mb-0.5">{c.name} · {c.influenceTag}</div>
                                     <div className="text-[10px] text-slate-600 leading-snug">
                                       {c.influenceTag === 'Decision Maker' ? `Key stakeholder with final sign-off authority on budget, contracts, and renewals for ${account?.companyName || 'the account'}.` :
-                                       c.influenceTag === 'Influencer' ? `Technical stakeholder who shapes architecture standards and vendor evaluations.` :
-                                       c.influenceTag === 'Champion' ? `Internal sponsor advocating for NeST solutions and driving relationship adoption.` :
-                                       c.influenceTag === 'Gatekeeper' ? `Controls communication access and procurement review workflow.` :
-                                       `Secondary stakeholder kept informed on operational progress.`}
+                                        c.influenceTag === 'Influencer' ? `Technical stakeholder who shapes architecture standards and vendor evaluations.` :
+                                          c.influenceTag === 'Champion' ? `Internal sponsor advocating for NeST solutions and driving relationship adoption.` :
+                                            c.influenceTag === 'Gatekeeper' ? `Controls communication access and procurement review workflow.` :
+                                              `Secondary stakeholder kept informed on operational progress.`}
                                     </div>
                                   </div>
                                 </div>
@@ -3058,8 +3062,8 @@ export default function AccountDetails() {
                                             <div className="text-[10px] text-slate-500 font-semibold mt-0.5">{item.detail}</div>
                                           </div>
                                           <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full shrink-0 mt-0.5 border ${item.severity === 'Critical' || item.severity === 'High'
-                                              ? 'bg-rose-50 border-rose-200 text-rose-700'
-                                              : 'bg-amber-50 border-amber-200 text-amber-700'
+                                            ? 'bg-rose-50 border-rose-200 text-rose-700'
+                                            : 'bg-amber-50 border-amber-200 text-amber-700'
                                             }`}>
                                             {item.type}
                                           </span>
@@ -4567,7 +4571,7 @@ export default function AccountDetails() {
                 const store = useStore.getState();
                 if (store.fetchAccounts) store.fetchAccounts(1);
                 if (store.fetchDashboardStats) store.fetchDashboardStats();
-              } catch (e) {}
+              } catch (e) { }
             }}
           />
         </div>

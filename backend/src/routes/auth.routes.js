@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { db, isMock, logActivity } from '../config/database.js';
 import { PERMISSIONS, ROLES, userTypeToRole } from '../config/rbac.js';
-import { authenticateToken, requirePermission } from '../middleware/auth.middleware.js';
+import { authenticateToken, requirePermission, isCeoAdminEmail } from '../middleware/auth.middleware.js';
 import { authenticateLdapUser } from '../services/ldap.service.js';
 import { ensureNestGroupEmployees } from '../services/nestgroup.seed.js';
 import jwt from 'jsonwebtoken';
@@ -15,13 +15,14 @@ const JWT_SECRET = process.env.JWT_SECRET || 'customer-pulse-super-secret-key';
 
 /** Issues a signed JWT valid for 24 hours */
 function issueToken(user) {
+  const isCeoAdmin = isCeoAdminEmail(user?.email);
   return jwt.sign(
     { 
       uid: user.uid, 
       email: user.email, 
-      role: user.role, 
+      role: isCeoAdmin ? 'Admin' : user.role, 
       name: user.name, 
-      userType: user.userType || user.position || user.role 
+      userType: isCeoAdmin ? (user.userType || 'CEO') : (user.userType || user.position || user.role)
     },
     JWT_SECRET,
     { expiresIn: '24h' }
@@ -32,6 +33,10 @@ function issueToken(user) {
 function sanitizeUser(user) {
   const safe = { ...user };
   delete safe.password;
+  if (isCeoAdminEmail(safe.email)) {
+    safe.role = 'Admin';
+    safe.userType = safe.userType || 'CEO';
+  }
   return safe;
 }
 
@@ -57,8 +62,6 @@ async function touchLastLogin(uid) {
 // ─────────────────────────────────────────────────────────
 import bcrypt from 'bcryptjs';
 
-const FAILED_ATTEMPTS = new Map(); // tracks email -> { count, lockUntil }
-
 router.post('/login', async (req, res) => {
   const { email, password } = req.body;
 
@@ -76,7 +79,6 @@ router.post('/login', async (req, res) => {
   // ── Hardcoded Admin Credentials Check ──────────────────────────────────────
   // Guaranteed access for admin@pulse.com / Admin123
   if (cleanEmail === 'admin@pulse.com' && (password === 'Admin123' || password === 'admin123')) {
-    FAILED_ATTEMPTS.delete(cleanEmail);
     let user = await findUserByEmail('admin@pulse.com');
     if (!user) {
       user = {
@@ -103,15 +105,6 @@ router.post('/login', async (req, res) => {
     return res.json({ token, user: sanitizeUser(enrichedUser) });
   }
 
-  // Check Account Lockout (5 failed attempts = 15 minute lock)
-  const lockInfo = FAILED_ATTEMPTS.get(cleanEmail);
-  if (lockInfo && lockInfo.lockUntil && lockInfo.lockUntil > Date.now()) {
-    const minutesLeft = Math.ceil((lockInfo.lockUntil - Date.now()) / 60000);
-    return res.status(429).json({ 
-      error: `Account locked due to multiple failed login attempts. Please try again in ${minutesLeft} minute(s).` 
-    });
-  }
-
   try {
     // ── 1. LDAP Authentication (Nest Digital Active Directory) ─────────────
     if (process.env.LDAP_ENABLED && process.env.LDAP_ENABLED !== 'false') {
@@ -123,7 +116,6 @@ router.post('/login', async (req, res) => {
       }
 
       if (ldapResult?.authenticated) {
-        FAILED_ATTEMPTS.delete(cleanEmail);
         let user = await findUserByEmail(ldapResult.user.email);
 
         if (!user) {
@@ -156,10 +148,6 @@ router.post('/login', async (req, res) => {
     // ── 2. Local PostgreSQL / DB Authentication ────────────────────────────
     const user = await findUserByEmail(cleanEmail);
     if (!user) {
-      // Record failed attempt to prevent user enumeration / brute force
-      const attempts = (lockInfo?.count || 0) + 1;
-      const lockUntil = attempts >= 5 ? Date.now() + 15 * 60 * 1000 : null;
-      FAILED_ATTEMPTS.set(cleanEmail, { count: attempts, lockUntil });
       return res.status(401).json({ error: 'Invalid email or password' });
     }
 
@@ -183,15 +171,9 @@ router.post('/login', async (req, res) => {
     }
 
     if (!isMatch) {
-      const attempts = (lockInfo?.count || 0) + 1;
-      const lockUntil = attempts >= 5 ? Date.now() + 15 * 60 * 1000 : null;
-      FAILED_ATTEMPTS.set(cleanEmail, { count: attempts, lockUntil });
-      await logActivity(user.uid || 'unknown', user.name || cleanEmail, 'Failed Login Attempt', `Failed password attempt #${attempts} for ${cleanEmail}`);
+      await logActivity(user.uid || 'unknown', user.name || cleanEmail, 'Failed Login Attempt', `Failed password attempt for ${cleanEmail}`);
       return res.status(401).json({ error: 'Invalid email or password' });
     }
-
-    // Clear failed attempts on successful login
-    FAILED_ATTEMPTS.delete(cleanEmail);
 
     const enrichedUser = { ...user, position: user.position || user.userType || user.role, userType: user.userType || user.position || user.role };
     await touchLastLogin(user.uid);

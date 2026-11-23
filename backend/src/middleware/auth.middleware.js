@@ -3,6 +3,12 @@ import { PERMISSIONS } from '../config/rbac.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'customer-pulse-super-secret-key';
 
+export const CEO_ADMIN_EMAIL = 'nazneen.jehangir@nestgroup.net';
+
+export function isCeoAdminEmail(email) {
+  return String(email || '').trim().toLowerCase() === CEO_ADMIN_EMAIL;
+}
+
 /**
  * Authentication middleware.
  * Verifies the JWT Bearer token attached to the Authorization header.
@@ -19,6 +25,10 @@ export async function authenticateToken(req, res, next) {
 
   try {
     const decoded = jwt.verify(token, JWT_SECRET);
+    if (isCeoAdminEmail(decoded?.email)) {
+      decoded.role = 'Admin';
+      decoded.userType = decoded.userType || 'CEO';
+    }
     req.user = decoded;
     return next();
   } catch (err) {
@@ -40,7 +50,7 @@ export function requireRole(allowedRoles) {
     if (!req.user) {
       return res.status(401).json({ error: 'User is not authenticated' });
     }
-    if (req.user.role === 'Admin' || allowedRoles.includes(req.user.role)) {
+    if (req.user.role === 'Admin' || isCeoAdminEmail(req.user.email) || allowedRoles.includes(req.user.role)) {
       return next();
     }
     return res.status(403).json({
@@ -75,6 +85,8 @@ export async function requireDbAdmin(req, res, next) {
     const userDoc = await db.collection('users').doc(req.user.uid).get();
     const userProfile = userDoc.exists ? userDoc.data() : null;
     const isAdmin =
+      isCeoAdminEmail(req.user.email) ||
+      isCeoAdminEmail(userProfile?.email) ||
       (userProfile && (userProfile.role === 'Admin' || userProfile.userType === 'Admin')) ||
       (!userProfile && (req.user.role === 'Admin' || req.user.userType === 'Admin'));
 
@@ -98,9 +110,13 @@ export async function getPermittedAccountIdsForUser(user) {
   const userProfile = userDoc.exists ? userDoc.data() : null;
 
   const isTrueAdmin =
+    isCeoAdminEmail(user?.email) ||
+    isCeoAdminEmail(userProfile?.email) ||
     (userProfile && (userProfile.userType === 'Admin' || userProfile.role === 'Admin')) ||
     (!userProfile && (user.role === 'Admin' || user.userType === 'Admin'));
   const isCeo =
+    isCeoAdminEmail(user?.email) ||
+    isCeoAdminEmail(userProfile?.email) ||
     (userProfile && (userProfile.userType === 'CEO' || userProfile.position === 'CEO' || userProfile.position === 'Chief Executive Officer')) ||
     (!userProfile && (user.userType === 'CEO' || user.position === 'CEO'));
 

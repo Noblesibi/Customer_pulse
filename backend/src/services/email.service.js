@@ -311,7 +311,6 @@ function renderAccountCardHtml(acc, idx) {
  */
 export function buildNewAccountsTechTeamEmail({ accounts, uploadedBy, source = 'Bulk Account Upload' }) {
   const targetEmails = Array.from(new Set([
-    'rashadamina149@gmail.com',
     process.env.TECH_TEAM_EMAIL,
     process.env.TECH_HEAD_EMAIL
   ].filter(Boolean)));

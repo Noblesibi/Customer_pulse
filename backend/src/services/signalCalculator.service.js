@@ -83,27 +83,9 @@ export async function computeAccountSignals(accountId) {
   }
   signals['transcript_sentiment'] = recentSentimentScore;
 
-  // 5. Tasks and Commitments
-  const tasksSnapshot = await db.collection('tasks').where('accountId', '==', accountId).get();
-  const allTasks = tasksSnapshot.docs.map(d => d.data());
-
-  let overdueCount = 0;
-  let completedCount = 0;
-
-  allTasks.forEach(task => {
-    if (task.status === 'Completed') {
-      completedCount++;
-    } else if (task.dueDate) {
-      const dueDateObj = new Date(task.dueDate);
-      dueDateObj.setHours(0, 0, 0, 0);
-      if (today.getTime() > dueDateObj.getTime()) {
-        overdueCount++;
-      }
-    }
-  });
-
-  signals['overdue_task_count'] = overdueCount;
-  signals['task_completion_rate'] = allTasks.length > 0 ? normalize(completedCount, 0, allTasks.length) : 100;
+  // 5. Tasks & Associated Tasks are excluded from Risk and Health signal calculations
+  signals['overdue_task_count'] = 0;
+  signals['task_completion_rate'] = 100;
 
   // 6. Contacts and Champions
   const contactsSnapshot = await db.collection('contacts').where('accountId', '==', accountId).get();
