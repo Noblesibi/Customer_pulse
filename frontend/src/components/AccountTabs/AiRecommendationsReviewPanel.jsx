@@ -4,6 +4,7 @@ import {
   FileText, AlertTriangle, CheckSquare, TrendingUp, MessageSquare, ChevronDown, ChevronUp
 } from 'lucide-react';
 import { formatDate } from '../../utils/dateFormat.js';
+import DateInput from '../DateInput.jsx';
 
 const CATEGORY_META = {
   TASK: {
@@ -330,12 +331,13 @@ export default function AiRecommendationsReviewPanel({ accountId, token, onRevie
                 {isDeferring && (
                   <div className="flex flex-wrap items-center gap-2 bg-white p-2.5 rounded-lg border border-purple-200">
                     <span className="text-[11px] font-semibold text-slate-600">Defer until:</span>
-                    <input
-                      type="date"
-                      value={deferDate}
-                      onChange={(e) => setDeferDate(e.target.value)}
-                      className="text-xs border border-slate-200 rounded-md px-2 py-1"
-                    />
+                    <div className="w-40">
+                      <DateInput
+                        value={deferDate}
+                        onChange={setDeferDate}
+                        className="w-full text-xs border border-slate-200 rounded-md px-2 py-1"
+                      />
+                    </div>
                     <button
                       type="button"
                       disabled={isBusy}

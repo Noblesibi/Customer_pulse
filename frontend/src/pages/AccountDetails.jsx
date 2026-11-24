@@ -27,9 +27,11 @@ import { Home, HeartPulse as HeartPulseIcon, TrendingUp, CheckCircle2, ArrowRigh
 import {
   JOURNEY_STAGES,
   getStageSuggestion as computeStageSuggestion,
-  getAutoProgressionStep
+  getAutoProgressionStep,
+  getDynamicJourneyTooltip
 } from '../utils/journeyUtils.js';
 import LoadingSpinner from '../components/LoadingSpinner.jsx';
+import DateInput from '../components/DateInput.jsx';
 import { READY_MADE_RISK_RULES, getRiskCategoryId } from '../utils/riskRulesCatalog.js';
 import { goBackToOrigin } from '../utils/navigation.js';
 import { detectAccountOpportunities, getManualOpportunities } from '../utils/opportunityUtils.js';
@@ -4021,12 +4023,12 @@ export default function AccountDetails() {
                       <label className="block text-xs font-bold text-gray-700">
                         {statusActionDialog.action === 'Complete' ? 'Completion Note / Deliverables' :
                           statusActionDialog.action === 'Decline' ? 'Decline Reason *' :
-                            statusActionDialog.action === 'Forward' ? 'Handover Note / Instructions' :
-                              'Acceptance Note (Optional)'}
+                            statusActionDialog.action === 'Forward' ? 'Handover Note / Instructions *' :
+                              'Acceptance Note *'}
                       </label>
                       <textarea
                         rows={3}
-                        required={statusActionDialog.action === 'Decline'}
+                        required
                         placeholder={
                           statusActionDialog.action === 'Complete' ? 'Details of how the task was resolved...' :
                             statusActionDialog.action === 'Decline' ? 'Explain why you are declining this task...' :
@@ -4154,11 +4156,10 @@ export default function AccountDetails() {
                           <label className="text-xs text-slate-450 uppercase font-bold tracking-wider flex items-center gap-1.5">
                             <Calendar className="w-3 h-3" /> Date
                           </label>
-                          <input
-                            type="date"
+                          <DateInput
                             value={interactionDate}
-                            onChange={(e) => setInteractionDate(e.target.value)}
-                            className="w-full bg-white border border-gray-300 text-xs text-black rounded-xl p-2.5 focus:outline-none focus:border-primary/50 cursor-pointer"
+                            onChange={setInteractionDate}
+                            className="w-full bg-white border border-gray-300 text-xs text-black rounded-xl p-2.5 focus:outline-none focus:border-primary/50"
                           />
                         </div>
                         <div className="space-y-1.5">
@@ -4307,10 +4308,9 @@ export default function AccountDetails() {
                         <div className="grid grid-cols-2 gap-4 mt-3 p-3 bg-slate-900/50 rounded-xl border border-slate-800">
                           <div className="space-y-1.5">
                             <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Due Date</label>
-                            <input
-                              type="date"
+                            <DateInput
                               value={taskDueDate}
-                              onChange={(e) => setTaskDueDate(e.target.value)}
+                              onChange={setTaskDueDate}
                               className="w-full bg-white border border-slate-700 text-xs text-black rounded-xl p-2.5 focus:outline-none focus:border-primary/50"
                             />
                           </div>

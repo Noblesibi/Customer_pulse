@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
+import DateInput from '../DateInput.jsx';
 import {
   ChevronDown,
   ChevronRight,
@@ -2149,10 +2150,9 @@ function AddCelebrationModal({ account, contacts, existingCelebrations, token, o
               Event Date <span className="text-red-500">*</span>
             </label>
             <div className="relative">
-              <input
-                type="date"
+              <DateInput
                 value={formData.eventDate}
-                onChange={e => handleFieldChange('eventDate', e.target.value)}
+                onChange={val => handleFieldChange('eventDate', val)}
                 onBlur={() => handleBlur('eventDate')}
                 className={`w-full border rounded-xl px-3 py-2.5 text-sm focus:outline-none transition-all ${touched.eventDate && errors.eventDate
                   ? 'border-red-500 bg-red-50/20 focus:ring-2 focus:ring-red-400'
@@ -2922,12 +2922,11 @@ function DateCorrectionModal({ celebration, token, onClose, onSuccess }) {
             <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5">
               Accurate Date <span className="text-red-500">*</span>
             </label>
-            <input
-              type="date"
+            <DateInput
               value={date}
-              onChange={e => {
-                setDate(e.target.value);
-                if (touched) setError(validateDate(e.target.value, 'Corrected event date'));
+              onChange={val => {
+                setDate(val);
+                if (touched) setError(validateDate(val, 'Corrected event date'));
               }}
               onBlur={() => {
                 setTouched(true);

@@ -1673,12 +1673,12 @@ export default function UserAccountActivity() {
                 <label className="block text-xs font-bold text-gray-700">
                   {statusActionDialog.action === 'Complete' ? 'Completion Note / Deliverables' :
                    statusActionDialog.action === 'Decline' ? 'Decline Reason *' :
-                   statusActionDialog.action === 'Forward' ? 'Handover Note / Instructions' :
-                   'Acceptance Note (Optional)'}
+                   statusActionDialog.action === 'Forward' ? 'Handover Note / Instructions *' :
+                   'Acceptance Note *'}
                 </label>
                 <textarea
                   rows={3}
-                  required={statusActionDialog.action === 'Decline'}
+                  required
                   placeholder={
                     statusActionDialog.action === 'Complete' ? 'Details of how the task was resolved...' :
                     statusActionDialog.action === 'Decline' ? 'Explain why you are declining this task...' :

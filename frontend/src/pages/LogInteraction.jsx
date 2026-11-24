@@ -8,6 +8,7 @@ import { useStore } from '../store/index.js';
 import { getCurrentKolkataDate, getCurrentKolkataTime } from '../utils/dateFormat.js';
 import SearchableSelect from '../components/SearchableSelect.jsx';
 import LoadingSpinner from '../components/LoadingSpinner.jsx';
+import DateInput from '../components/DateInput.jsx';
 import { goBackToOrigin } from '../utils/navigation.js';
 
 export default function LogInteraction() {
@@ -645,11 +646,10 @@ export default function LogInteraction() {
               <label className="text-xs text-slate-500 uppercase font-bold tracking-wider flex items-center gap-1.5">
                 <Calendar className="w-3 h-3 text-slate-400" /> Date
               </label>
-              <input
-                type="date"
+              <DateInput
                 value={interactionDate}
-                onChange={(e) => setInteractionDate(e.target.value)}
-                className="w-full bg-dark-700/50 border border-slate-350 text-xs rounded-xl p-3 focus:outline-none focus:border-primary/50 cursor-pointer"
+                onChange={setInteractionDate}
+                className="w-full bg-dark-700/50 border border-slate-350 text-xs rounded-xl p-3 focus:outline-none focus:border-primary/50"
               />
             </div>
             <div className="space-y-1.5">
@@ -860,10 +860,9 @@ export default function LogInteraction() {
                       <label className="text-xs text-slate-500 uppercase font-bold tracking-wider">
                         Task Due Date
                       </label>
-                      <input
-                        type="date"
+                      <DateInput
                         value={t.taskDueDate}
-                        onChange={(e) => setTaskField(taskIdx, 'taskDueDate', e.target.value)}
+                        onChange={(val) => setTaskField(taskIdx, 'taskDueDate', val)}
                         className="w-full bg-dark-700/50 border border-slate-350 text-xs rounded-xl p-3 focus:outline-none focus:border-primary/50 text-black"
                       />
                     </div>

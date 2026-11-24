@@ -1,9 +1,10 @@
 import dotenv from 'dotenv';
 dotenv.config();
 
-const FRONTEND_URL = (process.env.FRONTEND_URL || 'http://10.15.0.191/CustomerPulse').replace(/\/$/, '');
-const TASKS_URL = FRONTEND_URL + '/staff-tasks';
-const DASHBOARD_URL = FRONTEND_URL + '/dashboard';
+const FRONTEND_URL = (process.env.FRONTEND_URL || 'https://customerpulse.nestdigital.com/CustomerPulse').replace(/\/$/, '');
+const LOGIN_URL = 'https://customerpulse.nestdigital.com/CustomerPulse/login';
+const TASKS_URL = LOGIN_URL;
+const DASHBOARD_URL = LOGIN_URL;
 const COMPANY_NAME = 'NeST Digital';
 const CRM_NAME = 'CustomerPulse';
 
@@ -211,7 +212,8 @@ function statusBadge(status) {
 }
 
 function btn(label, url) {
-  return '<div class="btn-container" style="text-align:center; margin:24px 0 8px;"><a href="' + url + '" class="btn" style="display:inline-block; background-color:#1a3a8f; color:#ffffff !important; text-decoration:none; padding:13px 28px; border-radius:10px; font-size:14px; font-weight:800; letter-spacing:0.3px;">' + label + '</a></div>';
+  const targetUrl = (!url || String(url).includes('/CustomerPulse')) ? LOGIN_URL : url;
+  return '<div class="btn-container" style="text-align:center; margin:24px 0 8px;"><a href="' + targetUrl + '" class="btn" style="display:inline-block; background-color:#1a3a8f; color:#ffffff !important; text-decoration:none; padding:13px 28px; border-radius:10px; font-size:14px; font-weight:800; letter-spacing:0.3px;">' + label + '</a></div>';
 }
 
 function row(label1, val1, label2, val2) {

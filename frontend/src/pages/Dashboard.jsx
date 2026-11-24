@@ -2050,8 +2050,8 @@ export default function Dashboard() {
                 />
               </div>
               <div>
-                <label style={FL}>Forwarding Note / Reason</label>
-                <textarea value={forwardReason} onChange={e => setForwardReason(e.target.value)} style={{ ...FI, minHeight: 90 }} placeholder="E.g., Forwarding as you are leading the deployment module." />
+                <label style={FL}>Forwarding Note / Reason *</label>
+                <textarea value={forwardReason} onChange={e => setForwardReason(e.target.value)} style={{ ...FI, minHeight: 90 }} placeholder="E.g., Forwarding as you are leading the deployment module." required />
               </div>
               <div>
                 <label style={FL}>Attachments (Optional)</label>
@@ -2078,7 +2078,7 @@ export default function Dashboard() {
               <div style={{ width: 44, height: 44, borderRadius: 12, background: 'linear-gradient(135deg,#fef3c7,#fde68a)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginRight: 14, flexShrink: 0 }}><ThumbsUp size={20} color="#d97706" /></div>
               <div>
                 <h3 style={{ fontSize: 15, fontWeight: 800, color: '#0f172a', margin: '0 0 2px' }}>Accept Task</h3>
-                <p style={{ fontSize: 12, color: '#64748b', fontWeight: 500, margin: 0 }}>Confirm acceptance and optionally add a note</p>
+                <p style={{ fontSize: 12, color: '#64748b', fontWeight: 500, margin: 0 }}>Confirm acceptance and provide a note</p>
               </div>
             </div>
             <form onSubmit={async (e) => {
@@ -2096,8 +2096,8 @@ export default function Dashboard() {
               setAcceptModalState({ isOpen: false, task: null }); setAcceptNote('');
             }} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
               <div>
-                <label style={FL}>Acceptance Note (Optional)</label>
-                <textarea value={acceptNote} onChange={e => setAcceptNote(e.target.value)} style={{ ...FI, minHeight: 100 }} placeholder="E.g., I will begin working on this task immediately." />
+                <label style={FL}>Acceptance Note *</label>
+                <textarea value={acceptNote} onChange={e => setAcceptNote(e.target.value)} style={{ ...FI, minHeight: 100 }} placeholder="E.g., I will begin working on this task immediately." required />
               </div>
               <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
                 <button type="submit" style={SB('linear-gradient(135deg,#d97706,#f59e0b)')}>Accept Task</button>
