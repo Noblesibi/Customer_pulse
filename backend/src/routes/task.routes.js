@@ -152,8 +152,8 @@ router.post('/', async (req, res) => {
     const assignedByName = req.user.name || req.user.email || 'User';
     const assignedToName = assignee?.name || assignee?.email || req.body.assignedToName || 'Staff Member';
 
-    let cleanTitle = title;
-    if (cleanTitle === 'Task Assignment' || cleanTitle === description.trim().slice(0, 50)) {
+    let cleanTitle = (title || '').trim();
+    if (!cleanTitle || cleanTitle === 'Task Assignment' || cleanTitle === description.trim().slice(0, 50)) {
       try {
         const generated = await generateTaskHeader(description);
         if (generated && generated !== 'Task Assignment') {
@@ -162,6 +162,9 @@ router.post('/', async (req, res) => {
       } catch (e) {
         console.error('Error generating task title:', e);
       }
+    }
+    if (!cleanTitle) {
+      cleanTitle = 'Task Assignment';
     }
 
     const getKolkataDateString = (d = new Date()) => {
