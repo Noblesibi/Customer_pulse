@@ -813,7 +813,7 @@ export async function generateGreetingDraft(celebrationId, contextOverrides = {}
     const apiKey = process.env.GEMINI_API_KEY;
     if (apiKey && apiKey.trim() !== '' && apiKey !== 'your_gemini_api_key_here') {
       const genAI = new GoogleGenerativeAI(apiKey);
-      const model = genAI.getGenerativeModel({ model: 'gemini-3.1-flash-lite' });
+      const model = genAI.getGenerativeModel({ model: process.env.GEMINI_MODEL || 'gemini-2.5-flash' });
 
       const prompt = `
 You are a professional CRM assistant for NeST Digital, a technology services company.

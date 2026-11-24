@@ -271,7 +271,8 @@ router.post('/', async (req, res) => {
         } catch (accErr) { }
       }
 
-      const eventName = accountId ? 'associated_task_assigned' : 'staff_task_assigned';
+      const isAssociatedTask = Boolean(req.body.interactionId || req.body.relatedInteractionId);
+      const eventName = isAssociatedTask ? 'associated_task_assigned' : 'staff_task_assigned';
       await NotificationEngine.publishEvent(eventName, {
         TaskTitle: cleanTitle,
         TaskDescription: description,
@@ -280,7 +281,7 @@ router.post('/', async (req, res) => {
         AssignedBy: assignedByName,
         AssignedTo: assignedToName,
         CompanyName: resolvedCompanyName,
-        InAppMessage: `${assignedByName} assigned you a ${accountId ? 'associated' : 'staff'} task: "${cleanTitle}"`
+        InAppMessage: `${assignedByName} assigned you a ${isAssociatedTask ? 'associated' : 'staff'} task: "${cleanTitle}"`
       }, [assignedToUid], { relatedTaskId: taskId, relatedAccountId: accountId });
     } catch (engineErr) {
       console.error('[TaskRoutes] NotificationEngine publishEvent error:', engineErr.message);
@@ -631,7 +632,7 @@ router.put('/:id/status', async (req, res) => {
       });
 
       // Email notification for status change (distinguish staff vs associated tasks)
-      const isAssociatedTask = Boolean(task.accountId || task.contactId || task.companyName);
+      const isAssociatedTask = Boolean(task.interactionId || task.relatedInteractionId);
       let emailEvent = 'status_changed';
       if (displayStatus === 'Completed') {
         emailEvent = isAssociatedTask ? 'associated_task_completed' : 'staff_task_completed';
@@ -724,7 +725,7 @@ router.post('/:id/reply', async (req, res) => {
     const replyRecipient = req.user.uid === task.assignedToUid ? task.assignedByUid : task.assignedToUid;
     if (replyRecipient) {
       try {
-        const isAssociatedTask = Boolean(task.accountId || task.contactId);
+        const isAssociatedTask = Boolean(task.interactionId || task.relatedInteractionId);
         await NotificationEngine.publishEvent(
           isAssociatedTask ? 'associated_task_comment' : 'staff_task_comment',
           {
