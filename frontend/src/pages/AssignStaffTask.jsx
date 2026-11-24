@@ -4,6 +4,7 @@ import { ChevronLeft, ShieldAlert, Check, CheckSquare, Building2, Users, Search,
 import { useStore } from '../store/index.js';
 import SearchableSelect from '../components/SearchableSelect.jsx';
 import LoadingSpinner from '../components/LoadingSpinner.jsx';
+import DateInput from '../components/DateInput.jsx';
 import { goBackToOrigin } from '../utils/navigation.js';
 
 export default function AssignStaffTask() {
@@ -116,8 +117,21 @@ export default function AssignStaffTask() {
     }
   }, [contacts, contactId, accountId]);
 
+  // Track whether the user manually edited/cleared/selected the assignee so auto-assignment never fights backspace or manual changes
+  const userEditedAssigneeRef = useRef(false);
+  const lastAutoAssignedAccountRef = useRef(null);
+
+  // Reset manual override only when switching to a different account
+  useEffect(() => {
+    if (accountId !== lastAutoAssignedAccountRef.current) {
+      lastAutoAssignedAccountRef.current = accountId;
+      userEditedAssigneeRef.current = false;
+    }
+  }, [accountId]);
+
   // Staff member auto-assignment: Account Owner vs Key Contact Owner logic
   useEffect(() => {
+    if (userEditedAssigneeRef.current) return;
     if (staffList?.length && !assignedTo) {
       // 1. Try preselect from state first if explicitly provided
       const targetUid = location.state?.preselectUid;
@@ -250,7 +264,7 @@ export default function AssignStaffTask() {
         }
       }
     }
-  }, [staffList, assignedTo, location.state, accountId, accounts, contacts, user]);
+  }, [staffList, location.state, accountId, accounts, contacts, user]);
 
   useEffect(() => {
     if (accountId) {
@@ -273,6 +287,7 @@ export default function AssignStaffTask() {
   }, []);
 
   const selectStaff = (staff) => {
+    userEditedAssigneeRef.current = true;
     setAssignedTo(staff.uid);
     setAssignedToSearch(staff.name);
     setShowStaffDropdown(false);
@@ -280,6 +295,7 @@ export default function AssignStaffTask() {
 
   const handleClearStaff = (e) => {
     e.stopPropagation();
+    userEditedAssigneeRef.current = true;
     setAssignedTo('');
     setAssignedToSearch('');
     setShowStaffDropdown(true);
@@ -627,6 +643,7 @@ export default function AssignStaffTask() {
                 onFocus={() => setShowStaffDropdown(true)}
                 onChange={(e) => {
                   const val = e.target.value;
+                  userEditedAssigneeRef.current = true;
                   setAssignedToSearch(val);
                   setShowStaffDropdown(true);
                   const clean = val.replace(/^@/, '').trim().toLowerCase();
@@ -741,11 +758,10 @@ export default function AssignStaffTask() {
 
             <div className="space-y-2">
               <label className="text-slate-500 block uppercase tracking-wider text-[10px]">Due Date</label>
-              <input
-                type="date"
+              <DateInput
                 max="2100-12-31"
                 value={dueDate}
-                onChange={(e) => setDueDate(e.target.value)}
+                onChange={setDueDate}
                 className="w-full bg-white border border-slate-300 rounded-xl px-4 py-3 text-slate-800 focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/10 text-xs font-semibold"
               />
             </div>

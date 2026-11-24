@@ -39,6 +39,7 @@ import { formatDate, formatTime, formatDateTime, getCurrentKolkataDate, getCurre
 
 import BulkUploadModal from '../components/BulkUploadModal.jsx';
 import LoadingSpinner from '../components/LoadingSpinner.jsx';
+import DateInput from '../components/DateInput.jsx';
 import { getAccountHealthConfig } from '../utils/healthUtils.js';
 
 export default function Accounts() {
@@ -1183,11 +1184,10 @@ export default function Accounts() {
                     <label className="text-xs text-slate-400 uppercase font-bold tracking-wider flex items-center gap-1.5">
                       <Calendar className="w-3 h-3" /> Date
                     </label>
-                    <input
-                      type="date"
+                    <DateInput
                       value={interactionDate}
-                      onChange={(e) => setInteractionDate(e.target.value)}
-                      className="w-full bg-dark-900/60 border border-slate-700 text-xs text-white rounded-xl p-2.5 focus:outline-none focus:border-primary/50 cursor-pointer"
+                      onChange={setInteractionDate}
+                      className="w-full bg-dark-900/60 border border-slate-700 text-xs text-white rounded-xl p-2.5 focus:outline-none focus:border-primary/50"
                     />
                   </div>
                   <div className="space-y-1.5">
@@ -1352,11 +1352,10 @@ export default function Accounts() {
                       <label className="text-xs text-slate-400 uppercase font-bold tracking-wider">
                         Task Due Date
                       </label>
-                      <input
-                        type="date"
+                      <DateInput
                         value={taskDueDate}
-                        onChange={(e) => setTaskDueDate(e.target.value)}
-                        className="w-full bg-dark-900/60 border border-slate-700 text-xs text-white rounded-xl p-2.5 focus:outline-none focus:border-primary/50 cursor-pointer"
+                        onChange={setTaskDueDate}
+                        className="w-full bg-dark-900/60 border border-slate-700 text-xs text-white rounded-xl p-2.5 focus:outline-none focus:border-primary/50"
                       />
                     </div>
                     <div className="space-y-1.5">

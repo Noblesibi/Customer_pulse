@@ -6,6 +6,7 @@ import {
   ExternalLink, Info, X, Loader2, AlertTriangle, Lock
 } from 'lucide-react';
 import { formatDate } from '../../utils/dateFormat.js';
+import DateInput from '../DateInput.jsx';
 
 export default function StakeholdersTab({
   account,
@@ -1266,11 +1267,10 @@ export default function StakeholdersTab({
                   <div>
                     <label className="block text-xs font-bold text-gray-700 mb-1.5">Due Date <span className="text-red-500">*</span></label>
                     <div className="relative">
-                      <input
-                        type="date"
+                      <DateInput
                         min={new Date().toISOString().split('T')[0]}
                         value={dueDate}
-                        onChange={(e) => setDueDate(e.target.value)}
+                        onChange={setDueDate}
                         className="w-full bg-white border border-gray-300 rounded-lg pl-3 pr-3 py-2 text-sm text-gray-900 focus:outline-none focus:border-blue-900 focus:ring-1 focus:ring-blue-900"
                       />
                     </div>

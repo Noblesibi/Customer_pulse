@@ -1374,12 +1374,13 @@ export default function InteractionLog() {
               className="space-y-4 text-xs font-semibold"
             >
               <div className="space-y-1.5">
-                <label className="block text-xs font-bold text-black">Acceptance Note (Optional)</label>
+                <label className="block text-xs font-bold text-black">Acceptance Note <span className="text-rose-600">*</span></label>
                 <textarea
                   value={acceptNote}
                   onChange={(e) => setAcceptNote(e.target.value)}
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs text-black focus:outline-none focus:border-amber-550/50 min-h-[100px]"
                   placeholder="E.g., I will begin working on this task immediately."
+                  required
                 />
               </div>
               <div className="flex justify-end pt-2">
@@ -1518,12 +1519,13 @@ export default function InteractionLog() {
                 />
               </div>
               <div className="space-y-1.5">
-                <label className="block text-xs font-bold text-black">Forwarding Note / Reason</label>
+                <label className="block text-xs font-bold text-black">Forwarding Note / Reason <span className="text-rose-600">*</span></label>
                 <textarea
                   value={forwardReason}
                   onChange={(e) => setForwardReason(e.target.value)}
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs text-black outline-none focus:border-blue-500/50 min-h-[100px]"
                   placeholder="E.g., Forwarding to you as you are leading the deployment module."
+                  required
                 />
               </div>
               <div className="space-y-1.5">

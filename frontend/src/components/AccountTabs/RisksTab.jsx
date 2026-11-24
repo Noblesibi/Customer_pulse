@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useStore } from '../../store/index.js';
+import DateInput from '../DateInput.jsx';
 import {
   Search,
   CheckCircle2,
@@ -1835,10 +1836,9 @@ export default function RisksTab({ account, onToast, onRiskRulesUpdated, onRiskM
                 </div>
                 <div>
                   <label className="block text-sm font-bold text-gray-700 mb-1">Resolution Deadline (Optional)</label>
-                  <input
-                    type="date"
+                  <DateInput
                     value={newRisk.dueDate}
-                    onChange={e => setNewRisk({ ...newRisk, dueDate: e.target.value })}
+                    onChange={val => setNewRisk({ ...newRisk, dueDate: val })}
                     className="w-full px-3 py-2 border border-gray-200 rounded-lg outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 bg-white text-sm"
                   />
                 </div>
