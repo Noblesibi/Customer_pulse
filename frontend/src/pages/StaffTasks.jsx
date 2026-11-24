@@ -968,7 +968,7 @@ export default function StaffTasks() {
                             }
 
                             return (
-                              <span className={`inline-block px-2.5 py-1 rounded-lg border text-xs font-black uppercase tracking-wider w-fit ${badgeClass}`}>
+                              <span className={`inline-flex items-center justify-center whitespace-nowrap px-3 py-1 rounded-lg border text-[11px] font-black uppercase tracking-wider ${badgeClass}`}>
                                 {badgeText}
                               </span>
                             );
