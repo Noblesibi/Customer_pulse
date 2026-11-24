@@ -380,7 +380,8 @@ export default function LogInteraction() {
       }
     });
 
-    const derivedSubject = subject.trim() || interactionText.trim().split('\n')[0].slice(0, 50) || 'Interaction Note';
+    // Leave subject empty when blank so backend Gemini AI generates a concise title from interactionText
+    const derivedSubject = subject.trim();
     const res = await addInteraction({
       accountId: targetAccountId,
       contactId: targetContactId,
