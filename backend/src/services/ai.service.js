@@ -1,10 +1,37 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import dotenv from 'dotenv';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
-dotenv.config({ override: process.env.NODE_ENV !== 'test' });
+const __aiDir = path.dirname(fileURLToPath(import.meta.url));
+const backendEnvPath = path.resolve(__aiDir, '../../.env');
+dotenv.config({ path: backendEnvPath, override: process.env.NODE_ENV !== 'test' });
 
-const apiKey = process.env.GEMINI_API_KEY;
 let genAI = null;
+
+function getGenAI() {
+  if (process.env.AI_FORCE_LOCAL === 'true' || process.env.NODE_ENV === 'test') {
+    return null;
+  }
+  if (genAI) return genAI;
+  const key = (process.env.GEMINI_API_KEY || '').trim();
+  if (key && key !== 'your_gemini_api_key_here') {
+    try {
+      genAI = new GoogleGenerativeAI(key);
+      console.log('🤖 Gemini AI API client initialized successfully.');
+    } catch (error) {
+      console.error('Failed to initialize Gemini AI client:', error.message);
+    }
+  }
+  return genAI;
+}
+
+// Eagerly initialize on boot so startup logs reflect status immediately
+if (process.env.AI_FORCE_LOCAL === 'true' || process.env.NODE_ENV === 'test') {
+  console.log('ℹ️ AI_FORCE_LOCAL/test mode active — using local NLP engine (skipping Gemini API calls).');
+} else if (!getGenAI()) {
+  console.log('⚠️ GEMINI_API_KEY is unset or using default placeholder. Running with local NLP analyzer fallback.');
+}
 
 let quotaExceededUntil = 0;
 
@@ -22,19 +49,6 @@ function handleAiError(err) {
   return false;
 }
 
-if (process.env.AI_FORCE_LOCAL === 'true' || process.env.NODE_ENV === 'test') {
-  console.log('ℹ️ AI_FORCE_LOCAL/test mode active — using local NLP engine (skipping Gemini API calls).');
-} else if (apiKey && apiKey.trim() !== '' && apiKey !== 'your_gemini_api_key_here') {
-  try {
-    genAI = new GoogleGenerativeAI(apiKey);
-    console.log('🤖 Gemini AI API client initialized successfully.');
-  } catch (error) {
-    console.error('Failed to initialize Gemini AI client:', error.message);
-  }
-} else {
-  console.log('⚠️ GEMINI_API_KEY is unset or using default placeholder. Running with local NLP analyzer fallback.');
-}
-
 const GEMINI_MODEL_CANDIDATES = [
   ...(process.env.GEMINI_MODEL ? [process.env.GEMINI_MODEL.trim()] : []),
   'gemini-2.5-flash',
@@ -45,7 +59,8 @@ const GEMINI_MODEL_CANDIDATES = [
 let cachedWorkingGeminiModel = null;
 
 async function generateWithGemini(prompt) {
-  if (!genAI || isQuotaExceeded()) return null;
+  const client = getGenAI();
+  if (!client || isQuotaExceeded()) return null;
   const modelsToTry = cachedWorkingGeminiModel
     ? [cachedWorkingGeminiModel, ...GEMINI_MODEL_CANDIDATES.filter(m => m !== cachedWorkingGeminiModel)]
     : GEMINI_MODEL_CANDIDATES;
@@ -53,7 +68,7 @@ async function generateWithGemini(prompt) {
   let lastErr = null;
   for (const modelName of modelsToTry) {
     try {
-      const model = genAI.getGenerativeModel({ model: modelName });
+      const model = client.getGenerativeModel({ model: modelName });
       const result = await model.generateContent(prompt);
       const response = await result.response;
       const text = response.text()?.trim();
@@ -289,9 +304,15 @@ function fallbackTaskHeader(text) {
   if (!text) return 'Task Assignment';
   const sentence = String(text).trim().split(/[.!?\n]/)[0].replace(/\s+/g, ' ').trim();
   if (!sentence) return 'Task Assignment';
+  const trailingStopWords = new Set(['with', 'for', 'of', 'to', 'in', 'on', 'at', 'by', 'from', 'about', 'and', 'or', 'the', 'a', 'an', 'as', 'into', 'than', 'that', 'this']);
   const words = sentence.split(' ').slice(0, 6);
-  const title = words.join(' ');
-  return title.charAt(0).toUpperCase() + title.slice(1);
+  while (words.length > 2 && trailingStopWords.has(words[words.length - 1].toLowerCase().replace(/[^a-z]/g, ''))) {
+    words.pop();
+  }
+  const smallWords = new Set(['a', 'an', 'and', 'as', 'at', 'by', 'for', 'in', 'of', 'on', 'or', 'the', 'to', 'with']);
+  return words
+    .map((w, idx) => (idx === 0 || !smallWords.has(w.toLowerCase())) ? (w.charAt(0).toUpperCase() + w.slice(1)) : w.toLowerCase())
+    .join(' ');
 }
 
 /**
@@ -303,7 +324,7 @@ export async function generateTaskHeader(text) {
     return 'Task Assignment';
   }
 
-  if (!genAI || isQuotaExceeded()) {
+  if (!getGenAI() || isQuotaExceeded()) {
     return fallbackTaskHeader(safeText);
   }
 

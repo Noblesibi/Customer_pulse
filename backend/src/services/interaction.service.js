@@ -61,8 +61,9 @@ export async function createInteraction(data, user) {
     })
   );
 
-  let cleanSubject = subject || '';
-  if (!cleanSubject || cleanSubject === 'Interaction Note' || cleanSubject.split(/\s+/).length > 4 || cleanSubject.length > 30) {
+  let cleanSubject = (subject || '').trim();
+  const rawFirstLine = String(messageText || '').trim().split('\n')[0].slice(0, 50).trim();
+  if (!cleanSubject || cleanSubject === 'Interaction Note' || cleanSubject === rawFirstLine || cleanSubject === String(messageText || '').trim()) {
     try {
       const generated = await generateTaskHeader(messageText);
       if (generated && generated !== 'Task Assignment') {
@@ -71,6 +72,9 @@ export async function createInteraction(data, user) {
     } catch (e) {
       console.error('Error generating clean subject:', e);
     }
+  }
+  if (!cleanSubject) {
+    cleanSubject = 'Interaction Note';
   }
 
   const getKolkataDateString = (d = new Date()) => {
