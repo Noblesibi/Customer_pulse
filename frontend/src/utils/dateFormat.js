@@ -232,16 +232,7 @@ export const formatDateTime = (dateStr, timeStr, timestampStr) => {
     return formatDateTime(d, t, ts);
   }
 
-  // 1. If timestampStr (or dateStr) has a UTC ISO timestamp (with 'Z' or offset), convert it using getSystemParts which uses Asia/Kolkata timezone
-  const isoUtcCandidate = [timestampStr, dateStr].find(
-    s => typeof s === 'string' && (s.endsWith('Z') || /[+-]\d{2}:?\d{2}$/.test(s))
-  );
-  if (isoUtcCandidate) {
-    const parts = getSystemParts(isoUtcCandidate);
-    if (parts?.combined) return parts.combined;
-  }
-
-  // 2. Prioritize explicit dateStr and timeStr (system/mail logged date & time)
+  // 1. Prioritize explicit dateStr and timeStr (stored in Asia/Kolkata by backend)
   if (dateStr && timeStr && typeof dateStr === 'string' && typeof timeStr === 'string' && dateStr !== '—' && timeStr.trim()) {
     const dateFormatted = formatDate(dateStr);
     const timeFormatted = formatTime(timeStr);
@@ -249,6 +240,15 @@ export const formatDateTime = (dateStr, timeStr, timestampStr) => {
       return `${dateFormatted}, ${timeFormatted}`;
     }
     if (dateFormatted !== '—') return dateFormatted;
+  }
+
+  // 2. If timestampStr (or dateStr) has a UTC ISO timestamp (with 'Z' or offset), convert it using getSystemParts which uses Asia/Kolkata timezone
+  const isoUtcCandidate = [timestampStr, dateStr].find(
+    s => typeof s === 'string' && (s.endsWith('Z') || /[+-]\d{2}:?\d{2}$/.test(s))
+  );
+  if (isoUtcCandidate) {
+    const parts = getSystemParts(isoUtcCandidate);
+    if (parts?.combined) return parts.combined;
   }
 
   // 2. Check if dateStr is a date string without T (e.g. YYYY-MM-DD)

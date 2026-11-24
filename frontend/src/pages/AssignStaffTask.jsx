@@ -448,16 +448,8 @@ export default function AssignStaffTask() {
       }
     }
 
-    let defaultTitle = 'Task Assignment';
-    if (selectedAccountObj?.companyName && selectedContactObj?.name) {
-      defaultTitle = `${selectedAccountObj.companyName} - ${selectedContactObj.name}`;
-    } else if (selectedAccountObj?.companyName) {
-      defaultTitle = selectedAccountObj.companyName;
-    } else if (selectedContactObj?.name) {
-      defaultTitle = selectedContactObj.name;
-    }
-
-    const generatedTitle = title.trim() || defaultTitle;
+    // Leave title empty when user did not type one so backend Gemini AI generates it from description
+    const generatedTitle = title.trim();
 
     setSubmitting(true);
     const selectedStaffObj = (staffList || []).find(s => s.uid === targetAssigneeUid);
