@@ -78,26 +78,20 @@ export default function InteractionsTab({ account, allActivities = [] }) {
   const currentAccId = account?.accountId || account?.id;
   const processedInteractions = allActivities
     .filter(a => {
-      if (a.itemType === 'task') return false;
+      // Exclude tasks, Teams tracking, and internal task/associated-task system notification emails
+      if (a.itemType === 'task' || a.itemType === 'teams_tracking' || a.itemType === 'mail_tracking') return false;
+      if (a.source === 'System Email' && a.itemType !== 'greeting') return false;
       const aAcc = a.accountId || a.account_id;
       if (aAcc && currentAccId && aAcc !== currentAccId) return false;
       return true;
     })
     .map(a => {
-    let type = 'Activity';
-    if (a.itemType === 'interaction') {
-      const hasAssociatedTask = Array.isArray(a.actionMentions) && a.actionMentions.length > 0;
-      if (a.source === 'Teams' || a.source === 'Teams Meeting' || String(a.source || '').toLowerCase().includes('teams')) type = 'Teams Meeting';
-      else if (a.source === 'Outlook Mail' || a.source === 'Email') type = 'Outlook Mail';
-      else type = hasAssociatedTask ? 'Log Interaction with Task' : 'Log Interaction';
-    } else if (a.itemType === 'task') {
-      type = 'Task';
-    } else if (a.itemType === 'teams_tracking') {
-      type = 'Teams Meeting';
-    } else if (a.itemType === 'mail_tracking') {
-      type = 'Outlook Mail';
-    } else if (a.itemType === 'greeting') {
+    let type = 'Log Interaction';
+    if (a.itemType === 'greeting') {
       type = 'Greeting';
+    } else {
+      const hasAssociatedTask = Array.isArray(a.actionMentions) && a.actionMentions.length > 0;
+      type = hasAssociatedTask ? 'Log Interaction with Task' : 'Log Interaction';
     }
 
     let rawTitle = a.title || a.subject || a.taskHeader || a.name || 'Logged Activity';
@@ -181,7 +175,7 @@ export default function InteractionsTab({ account, allActivities = [] }) {
       date: formatDate(a.date || a.startDateTime || a.timestamp || a.createdAt),
       participants: uniqueParticipants,
       summary,
-      status: status || (a.transcriptStatus === 'AVAILABLE' ? 'Transcript Ready' : ''),
+      status: status || '',
       keyDecisions: Array.isArray(a.keyDecisions) ? a.keyDecisions : [],
       actionItems: Array.isArray(a.actionItems) ? a.actionItems : [],
       searchableText
@@ -220,13 +214,10 @@ export default function InteractionsTab({ account, allActivities = [] }) {
     return d >= thirtyDaysAgo;
   }).length;
 
-  // Channel breakdown counts
+  // Channel breakdown counts (customer interactions & greetings only)
   const channelColors = {
     'Log Interaction': { bar: 'bg-indigo-900', label: 'Log Interaction' },
     'Log Interaction with Task': { bar: 'bg-blue-600', label: 'Interaction + Task' },
-    'Outlook Mail': { bar: 'bg-sky-500', label: 'Outlook Mail' },
-    'Teams Meeting': { bar: 'bg-purple-500', label: 'Teams Meeting' },
-    'Task': { bar: 'bg-amber-500', label: 'Tasks' },
     'Greeting': { bar: 'bg-rose-400', label: 'Greetings' },
   };
   const channelCounts = {};
@@ -292,7 +283,7 @@ export default function InteractionsTab({ account, allActivities = [] }) {
             {isTypeDropdownOpen && (
               <div className="absolute right-0 mt-2 w-48 bg-white border border-gray-200 rounded-lg shadow-lg z-50">
                 <div className="py-1">
-                  {['All Types', 'Log Interaction', 'Log Interaction with Task', 'Outlook Mail', 'Teams Meeting', 'Greeting'].map(type => (
+                  {['All Types', 'Log Interaction', 'Log Interaction with Task', 'Greeting'].map(type => (
                     <button
                       key={type}
                       onClick={() => { setSelectedType(type); setIsTypeDropdownOpen(false); }}

@@ -49,7 +49,7 @@ export default function Login() {
 
       {/* ── Auth card ── */}
       <div style={styles.card}>
-        <h2 style={styles.cardTitle}>Sign In to Dashboard</h2>
+        <h2 style={styles.cardTitle}>Sign In</h2>
 
         {/* Error banner */}
         {displayError && (
@@ -172,7 +172,7 @@ const styles = {
     boxShadow: '0 4px 24px rgba(0,0,0,0.07)',
   },
   cardTitle: {
-    fontSize: '18px',
+    fontSize: '26px',
     fontWeight: '700',
     color: '#1e293b',
     textAlign: 'center',

@@ -22,16 +22,11 @@ import integrationRouter from './routes/integration.routes.js';
 import userAccountActivityRouter from './routes/user-account-activity.routes.js';
 import celebrationRouter from './routes/celebration.routes.js';
 import scoringAdminRouter from './routes/scoringAdmin.routes.js';
-// Webhook imports
-import { handleOutlookWebhook, handleTeamsWebhook } from './controllers/webhook.controller.js';
-
 // Sync scheduler import
 import { startSyncScheduler } from './services/userSync.service.js';
 import { startCelebrationSyncCron } from './services/celebration.service.js';
 import { startEmailScheduler } from './services/notification/EmailScheduler.js';
-import { startEmailTrackingScheduler } from './services/emailTracking.service.js';
 import { startCustomerIntelligenceScheduler } from './services/customerIntelligenceScheduler.service.js';
-import { startTeamsSyncScheduler } from './services/teamsSync.service.js';
 import emailEngineRouter from './routes/email-engine.routes.js';
 
 import helmet from 'helmet';
@@ -103,10 +98,6 @@ app.use(morgan('dev'));
 // Static Uploads Folder
 app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
 
-// Webhook Endpoints (Mounted before authenticateToken since Microsoft Graph bypasses jwt auth)
-app.post('/api/webhooks/outlook', handleOutlookWebhook);
-app.post('/api/webhooks/teams', handleTeamsWebhook);
-
 // REST API Routes
 app.use('/api/auth', authRouter);
 app.use('/api/accounts', accountRouter);
@@ -170,10 +161,7 @@ async function startServer() {
       startSyncScheduler();
       startCelebrationSyncCron();
       startEmailScheduler();
-      startEmailTrackingScheduler();
       startCustomerIntelligenceScheduler();
-      // Start the Teams meeting & transcript sync scheduler (runs only if MICROSOFT_TEAMS_SOURCE_ENABLED=true)
-      startTeamsSyncScheduler();
     });
   } catch (err) {
     console.error('Failed to initialize database. Backend startup aborted:', err);

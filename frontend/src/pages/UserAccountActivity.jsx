@@ -212,36 +212,6 @@ export default function UserAccountActivity() {
     );
   }
 
-  const handleMicrosoftSync = async () => {
-    setSyncing(true);
-    setToastMessage('Starting Microsoft 365 Sync...');
-    try {
-      const res = await fetch('/CustomerPulse/api/integrations/microsoft/sync', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-      const data = await res.json();
-      if (res.ok) {
-        setToastMessage(`Sync Complete! Added: ${data.syncRecord.results.synced}, Skipped: ${data.syncRecord.results.duplicatesSkipped} (Duplicates), ${data.syncRecord.results.internalSkipped} (Internal), ${data.syncRecord.results.unmatchedSkipped} (Unmatched)`);
-        
-        // Refresh the page data after syncing
-        setTimeout(() => {
-          window.location.reload();
-        }, 1500);
-      } else {
-        setToastMessage(`Sync failed: ${data.error || 'Unknown error'}`);
-      }
-    } catch (err) {
-      console.error(err);
-      setToastMessage('An error occurred during sync.');
-    } finally {
-      setSyncing(false);
-      setTimeout(() => setToastMessage(null), 8000);
-    }
-  };
-
   const checkIsOverdue = (dueDate, status) => {
     if (!dueDate) return false;
     const currentStatus = (status || '').toLowerCase();
@@ -1224,7 +1194,7 @@ export default function UserAccountActivity() {
                 {/* Details & Transcript */}
                 <div className="space-y-2">
                   <h3 className="text-xs font-extrabold uppercase tracking-widest text-gray-500 flex items-center gap-2">
-                    <FileText className="w-4 h-4 text-primary" /> Details & Transcript
+                    <FileText className="w-4 h-4 text-primary" /> Interaction Details
                   </h3>
                   <div className="bg-gray-50 p-4 rounded-xl border border-gray-200 text-sm text-gray-700 font-medium leading-relaxed whitespace-pre-wrap">
                     {isTask ? selectedActivity.description : selectedActivity.messageText}
