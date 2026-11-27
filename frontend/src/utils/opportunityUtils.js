@@ -168,13 +168,23 @@ export function detectAccountOpportunities({ account, activities = [], nbas = []
   });
 
   // 3. Recommended Actions & Opportunities from AI NBA (Strictly high-value business expansion only)
+  const NON_OPPORTUNITY_NBA_TYPES = new Set([
+    'Relationship Engagement',
+    'Risk Mitigation',
+    'Urgent Follow-Up',
+    'Health Recovery',
+    'Health Improvement',
+    'Staff Task Overdue',
+    'Staff Task Follow-Up',
+    'Associated Task Overdue',
+    'Associated Task Follow-Up',
+    'Celebration Greeting',
+    'Sentiment Recovery',
+    'Interaction Follow-Up',
+    'Engagement Outreach',
+  ]);
   (nbas || []).forEach((nba, nIdx) => {
-    if (
-      !nba.suggestedAction ||
-      nba.type === 'Relationship Engagement' ||
-      nba.type === 'Risk Mitigation' ||
-      nba.type === 'Urgent Follow-Up'
-    ) {
+    if (!nba.suggestedAction || NON_OPPORTUNITY_NBA_TYPES.has(nba.type)) {
       return;
     }
 

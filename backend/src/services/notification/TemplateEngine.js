@@ -1031,6 +1031,25 @@ const TEMPLATES = {
       + '</div>'
       + btn('Review in Notification Center', FRONTEND_URL + '/notification-center')
     )
+  }),
+
+  ai_service_alert: (v) => ({
+    subject: '[CustomerPulse AI Alert] ' + (v.AlertTitle || 'Gemini AI Fallback Triggered'),
+    html: baseLayout(
+      'linear-gradient(135deg, #b91c1c 0%, #dc2626 100%)',
+      'Gemini AI Service Alert', '&#x26A0;&#xFE0F;',
+      '<p class="greeting">Hello ' + (v.EmployeeName || 'Administrator') + ',</p>'
+      + '<p class="subtitle">CustomerPulse detected that <strong>Gemini AI</strong> is currently unavailable or hit a rate limit and automatically switched to the <strong>local fallback engine</strong>.</p>'
+      + '<div class="card">'
+      + '<div class="card-title">AI Incident Details</div>'
+      + row('Status', '<span class="badge" style="display:inline-block;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:800;text-transform:uppercase;background-color:#fee2e2;color:#b91c1c !important;">' + (v.AlertStatus || 'Fallback Active') + '</span>', 'Triggered By', v.FeatureName || 'AI Service')
+      + row('Reason', v.ReasonType || 'Rate Limit / API Error', 'Model Attempted', v.ModelName || 'gemini-2.5-flash')
+      + row('Detected At (IST)', v.DetectedAt || formatKolkataDateTime(), 'Backoff Window', v.BackoffWindow || '15 minutes')
+      + '</div>'
+      + (v.ErrorDetails ? noteBox('<strong>Error Details:</strong><br>' + v.ErrorDetails) : '')
+      + noteBox('<strong>Recommended Action:</strong> Check <code>GEMINI_API_KEY</code> and quota in Google AI Studio / Google Cloud Console. Upgrade to a Pay-As-You-Go key if free-tier 429 limits are being exceeded.')
+      + btn('Open CustomerPulse', LOGIN_URL)
+    )
   })
 };
 
@@ -1080,6 +1099,8 @@ export function listTemplates() {
           ? 'Interaction'
           : (id.includes('account_assignment') || id.includes('tech_team_access'))
             ? 'Account Governance'
-            : 'Greeting'
+            : id.includes('ai_service')
+              ? 'System Alert'
+              : 'Greeting'
   }));
 }

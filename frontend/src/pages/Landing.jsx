@@ -189,14 +189,14 @@ export default function Landing() {
             </p>
           </div>
 
-          {/* Microsoft Graph Integration */}
+          {/* Automated Notifications & Greetings */}
           <div className="glass p-6 rounded-2xl border border-slate-800/80 hover:border-slate-700 transition-colors space-y-4">
             <div className="bg-purple-500/10 border border-purple-500/20 text-purple-400 p-3 rounded-xl w-12 h-12 flex items-center justify-center">
               <Terminal className="w-6 h-6" />
             </div>
-            <h3 className="text-sm font-bold text-white uppercase tracking-wider">Graph Webhook Pipeline</h3>
+            <h3 className="text-sm font-bold text-white uppercase tracking-wider">Automated Email &amp; Greetings</h3>
             <p className="text-xs text-slate-400 leading-relaxed">
-              Production ready ingestion points for Outlook and Teams messages to feed, verify, and recalculate customer statuses automatically.
+              Built-in email notification engine for staff task assignments, status updates, risk alerts, and personalized customer greetings.
             </p>
           </div>
         </div>

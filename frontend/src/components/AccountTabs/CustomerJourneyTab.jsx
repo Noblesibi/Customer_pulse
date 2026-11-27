@@ -149,28 +149,22 @@ export default function CustomerJourneyTab({
       return 'Greeting Emails';
     }
 
-    // 2. Microsoft Teams (Teams Meeting & Teams Chat)
-    if (item.itemType === 'teams_tracking' || src.includes('teams')) {
-      return 'Teams';
-    }
-
-    // 3. Phone Calls & Face-to-Face Meetings
-    if (src === 'phone' || src.includes('phone') || src.includes('call') || src.includes('face') || src.includes('in-person')) {
+    // 2. Phone Calls & Meetings
+    if (src === 'phone' || src.includes('phone') || src.includes('call') || src.includes('meeting') || src.includes('teams') || src.includes('face') || src.includes('in-person')) {
       return 'Calls & Meetings';
     }
 
-    // 4. Customer Emails (Outlook Mail / Synced Emails)
+    // 3. Logged Emails
     if (item.itemType === 'mail_tracking' || src === 'outlook mail' || src === 'email' || src.includes('mail')) {
       return 'Emails';
     }
 
-    // 5. General Logged Customer Interactions
+    // 4. General Logged Customer Interactions
     return 'Interaction Logs';
   };
 
   const getInteractionIcon = (category = '', title = '', channel = '') => {
     if (category === 'Greeting Emails') return <PartyPopper className="w-4 h-4 text-rose-500" />;
-    if (category === 'Teams') return <Video className="w-4 h-4 text-indigo-600" />;
     if (category === 'Emails') return <Mail className="w-4 h-4 text-sky-600" />;
     if (category === 'Calls & Meetings') {
       const lower = (title + ' ' + channel).toLowerCase();
@@ -633,7 +627,13 @@ export default function CustomerJourneyTab({
                     {stageSignals.map((i, idx) => {
                       const signalTitle = i.subject || i.title || i.taskHeader || stripHtmlText(i.messageText || i.task || '');
                       const signalDate = i.timestamp || i.date || i.dueDate ? formatDate(i.timestamp || i.date || i.dueDate) : '';
-                      const signalSource = i.source || i.channel || (i.itemType === 'task' ? 'Task' : '');
+                      const rawSignalSource = String(i.source || i.channel || (i.itemType === 'task' ? 'Task' : '')).trim();
+                      const lowerSignalSource = rawSignalSource.toLowerCase();
+                      const signalSource = lowerSignalSource.includes('teams')
+                        ? 'Meeting'
+                        : lowerSignalSource.includes('outlook')
+                          ? 'Interaction'
+                          : rawSignalSource;
                       return (
                         <div key={i.interactionId || i.taskId || idx} className="flex items-start justify-between gap-3 text-sm text-gray-700 font-medium bg-slate-50 p-2.5 rounded-lg border border-slate-100">
                           <div className="flex items-start gap-2 min-w-0">
@@ -692,9 +692,8 @@ export default function CustomerJourneyTab({
                         { value: 'All', label: 'All Types' },
                         { value: 'Interaction Logs', label: 'Interaction Logs' },
                         { value: 'Emails', label: 'Emails' },
-                        { value: 'Teams', label: 'Teams' },
                         { value: 'Greeting Emails', label: 'Greeting Emails' },
-                        { value: 'Calls & Meetings', label: 'Phone & Face-to-Face' }
+                        { value: 'Calls & Meetings', label: 'Calls & Meetings' }
                       ].map(opt => (
                         <button
                           key={opt.value}

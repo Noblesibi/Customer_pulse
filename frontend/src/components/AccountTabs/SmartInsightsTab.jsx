@@ -1269,32 +1269,6 @@ export default function SmartInsightsTab({
             </p>
             <div className="flex flex-wrap gap-2 pt-1">
               <span
-                className={`px-3 py-1 text-xs font-bold rounded-full border flex items-center gap-1 cursor-help transition-all shadow-2xs ${dataCoverageMetrics.hasOutlook
-                  ? 'bg-[#ECFDF5] text-[#15803D] border-[#BBF7D0]'
-                  : 'bg-slate-50 text-slate-500 border-slate-200'
-                  }`}
-                title={dataCoverageMetrics.hasOutlook
-                  ? `Active: ${dataCoverageMetrics.outlookCount} email(s) synchronized via Microsoft 365 Outlook webhook.`
-                  : 'Inactive: No emails ingested via Microsoft 365 / Outlook webhook for this account yet. (Interactions have been logged manually or via direct CRM entries).'}
-              >
-                Outlook {dataCoverageMetrics.outlookCount > 0 && `(${dataCoverageMetrics.outlookCount})`}{' '}
-                {dataCoverageMetrics.hasOutlook ? <Check className="w-3 h-3 text-emerald-600" /> : <span className="text-[10px] text-slate-400 font-normal">Inactive</span>}
-              </span>
-
-              <span
-                className={`px-3 py-1 text-xs font-bold rounded-full border flex items-center gap-1 cursor-help transition-all shadow-2xs ${dataCoverageMetrics.hasTeams
-                  ? 'bg-[#ECFDF5] text-[#15803D] border-[#BBF7D0]'
-                  : 'bg-slate-50 text-slate-500 border-slate-200'
-                  }`}
-                title={dataCoverageMetrics.hasTeams
-                  ? `Active: ${dataCoverageMetrics.teamsCount} Teams meeting(s) synchronized.`
-                  : 'Inactive: No Microsoft Teams meetings synchronized for this account yet.'}
-              >
-                Teams {dataCoverageMetrics.teamsCount > 0 && `(${dataCoverageMetrics.teamsCount})`}{' '}
-                {dataCoverageMetrics.hasTeams ? <Check className="w-3 h-3 text-emerald-600" /> : <span className="text-[10px] text-slate-400 font-normal">Inactive</span>}
-              </span>
-
-              <span
                 onClick={onNavigateToInteractions ? onNavigateToInteractions : undefined}
                 className={`px-3 py-1 text-xs font-bold rounded-full border flex items-center gap-1 cursor-pointer transition-all shadow-2xs ${dataCoverageMetrics.hasManual
                   ? 'bg-[#ECFDF5] text-[#15803D] border-[#BBF7D0] hover:bg-emerald-100/80'

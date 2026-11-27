@@ -19,8 +19,6 @@ import TasksTab from '../components/AccountTabs/TasksTab.jsx';
 import GreetingsTab from '../components/AccountTabs/GreetingsTab.jsx';
 import NotesTab from '../components/AccountTabs/NotesTab.jsx';
 import AccountHealthTab from '../components/AccountTabs/AccountHealthTab.jsx';
-import OutlookMailTab from '../components/AccountTabs/OutlookMailTab.jsx';
-import TeamsMeetingsTab from '../components/AccountTabs/TeamsMeetingsTab.jsx';
 import ScoreTrendGraph from '../components/ScoreTrendGraph.jsx';
 import { getAccountHealthConfig } from '../utils/healthUtils.js';
 import { Home, HeartPulse as HeartPulseIcon, TrendingUp, CheckCircle2, ArrowRight } from 'lucide-react';
@@ -1032,7 +1030,7 @@ export default function AccountDetails() {
     if (!token || !id || !uid) return;
     if (!isBackgroundFetch) setActivityLoading(true);
     try {
-      const [intRes, tasksRes, otherRes, teamsRes] = await Promise.all([
+      const [intRes, tasksRes, otherRes] = await Promise.all([
         fetch(`/CustomerPulse/api/user-account/${id}/${uid}/interactions`, {
           headers: { 'Authorization': `Bearer ${token}` }
         }),
@@ -1041,74 +1039,24 @@ export default function AccountDetails() {
         }),
         fetch(`/CustomerPulse/api/user-account/${id}/${uid}/other-activities`, {
           headers: { 'Authorization': `Bearer ${token}` }
-        }),
-        fetch(`/CustomerPulse/api/accounts/${id}/teams-meetings`, {
-          headers: { 'Authorization': `Bearer ${token}` }
         })
       ]);
 
       let interactionsData = [];
       let tasks = [];
       let otherActivities = [];
-      let syncedTeams = [];
 
       if (intRes.ok) interactionsData = await intRes.json();
       if (tasksRes.ok) tasks = await tasksRes.json();
       if (otherRes.ok) otherActivities = await otherRes.json();
-      if (teamsRes.ok) {
-        const tmData = await teamsRes.json();
-        syncedTeams = Array.isArray(tmData.meetings) ? tmData.meetings : [];
-        setTeamsMeetings(syncedTeams);
-      }
-
-      const teamsByInteractionId = new Map();
-      syncedTeams.forEach(tm => {
-        if (tm.interactionId) teamsByInteractionId.set(tm.interactionId, tm);
-      });
 
       const greetingEventTypes = ['birthday', 'work_anniversary', 'company_anniversary', 'festival', 'welcome', 'farewell', 'promotion', 'achievement', 'custom_greeting'];
       const mappedInteractions = interactionsData
         .filter(i => i.source !== 'System Email')
-        .map(i => {
-          const linkedTeams = teamsByInteractionId.get(i.interactionId);
-          if (linkedTeams) {
-            return {
-              ...i,
-              itemType: 'teams_tracking',
-              isOther: false,
-              aiSummary: linkedTeams.aiSummary,
-              keyTopics: linkedTeams.keyTopics || [],
-              keyDecisions: linkedTeams.keyDecisions || [],
-              actionItems: linkedTeams.actionItems || [],
-              transcriptStatus: linkedTeams.transcriptStatus,
-              parsedDialogue: linkedTeams.parsedDialogue || [],
-              speakers: linkedTeams.speakers || [],
-              externalAttendees: linkedTeams.externalAttendees || [],
-              internalAttendees: linkedTeams.internalAttendees || [],
-              organizerEmail: linkedTeams.organizerEmail,
-              durationSeconds: linkedTeams.durationSeconds || 0,
-            };
-          }
-          return { ...i, itemType: 'interaction', isOther: false };
-        });
-
-      const linkedInteractionIds = new Set(mappedInteractions.map(i => i.interactionId).filter(Boolean));
-      const standaloneTeams = syncedTeams
-        .filter(tm => !tm.interactionId || !linkedInteractionIds.has(tm.interactionId))
-        .map(tm => ({
-          ...tm,
-          id: tm.meetingId || tm.id,
-          source: 'Teams Meeting',
-          itemType: 'teams_tracking',
-          isOther: false,
-          timestamp: tm.startDateTime || tm.createdAt,
-          date: tm.startDateTime ? String(tm.startDateTime).split('T')[0] : '',
-          messageText: tm.aiSummary || tm.rawTranscript || '',
-        }));
+        .map(i => ({ ...i, itemType: 'interaction', isOther: false }));
 
       const userActivities = [
         ...mappedInteractions,
-        ...standaloneTeams,
         ...interactionsData
           .filter(i => i.source === 'System Email')
           .map(i => ({ ...i, itemType: greetingEventTypes.includes(i.eventType) ? 'greeting' : 'mail_tracking', isOther: false })),
@@ -1225,21 +1173,6 @@ export default function AccountDetails() {
   // Continuous Live Auto-Sync: automatically keeps interactions and activities up to date
   useEffect(() => {
     if (!token || !id) return;
-
-    // Trigger initial silent background sync with Microsoft 365
-    fetch('/CustomerPulse/api/integrations/microsoft/sync', {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${token}` }
-    })
-      .then(res => res.json())
-      .then(data => {
-        if (data?.syncRecord?.results?.synced > 0) {
-          if (activityUid) loadActivityData(activityUid, true);
-          fetchInteractions(id);
-          if (fetchStaffTasks) fetchStaffTasks('all-tasks');
-        }
-      })
-      .catch(err => console.debug('Initial silent auto-sync note:', err));
 
     // Load real database health factors for the account
     if (fetchHealthExplanation) {
@@ -1979,7 +1912,6 @@ export default function AccountDetails() {
     { id: 'CustomerJourney', label: 'Customer Journey', icon: MapIcon },
     { id: 'Opportunities', label: 'Opportunities', icon: Target },
     { id: 'Interactions', label: 'Interactions', icon: MessageSquare },
-    { id: 'TeamsMeetings', label: 'Teams Meetings', icon: Video },
     { id: 'Tasks', label: 'Tasks', icon: CheckSquare },
     { id: 'Greetings', label: 'Celebrations', icon: PartyPopper },
   ];
@@ -3546,7 +3478,7 @@ export default function AccountDetails() {
                       {/* Details & Transcript */}
                       <div className="space-y-2">
                         <h3 className="text-xs font-extrabold uppercase tracking-widest text-gray-500 flex items-center gap-2">
-                          <FileText className="w-4 h-4 text-primary" /> Details & Transcript
+                          <FileText className="w-4 h-4 text-primary" /> Interaction Details
                         </h3>
                         <div className="bg-gray-50 p-4 rounded-xl border border-gray-200 text-sm text-gray-700 font-medium leading-relaxed whitespace-pre-wrap">
                           {isTask ? selectedActivityItem.description : stripHtml(selectedActivityItem.messageText)}
@@ -4524,9 +4456,6 @@ export default function AccountDetails() {
         </div>
         <div className={`absolute inset-0 p-3 sm:p-5 md:p-6 ${activeTab !== 'Interactions' ? 'hidden' : 'block'}`}>
           <InteractionsTab account={account} allActivities={allActivities} />
-        </div>
-        <div className={`absolute inset-0 p-3 sm:p-5 md:p-6 ${activeTab !== 'TeamsMeetings' ? 'hidden' : 'block'}`}>
-          <TeamsMeetingsTab account={account} meetings={teamsMeetings} />
         </div>
         <div className={`absolute inset-0 p-3 sm:p-5 md:p-6 ${activeTab !== 'Tasks' ? 'hidden' : 'block'}`}>
           <TasksTab account={account} allActivities={allActivities} />

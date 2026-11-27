@@ -221,33 +221,6 @@ export default function InteractionLog() {
     fetchActivityLogs();
   };
 
-  const handleMicrosoftSync = async () => {
-    setSyncing(true);
-    setToastMessage('Starting Microsoft 365 Sync...');
-    try {
-      const token = useStore.getState().token;
-      const res = await fetch('/CustomerPulse/api/integrations/microsoft/sync', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-      const data = await res.json();
-      if (res.ok) {
-        setToastMessage(`Sync Complete! Added: ${data.syncRecord.results.synced}, Skipped: ${data.syncRecord.results.duplicatesSkipped} (Duplicates), ${data.syncRecord.results.internalSkipped} (Internal), ${data.syncRecord.results.unmatchedSkipped} (Unmatched)`);
-        fetchInteractions();
-      } else {
-        setToastMessage(`Sync failed: ${data.error || 'Unknown error'}`);
-      }
-    } catch (err) {
-      console.error(err);
-      setToastMessage('An error occurred during sync.');
-    } finally {
-      setSyncing(false);
-      setTimeout(() => setToastMessage(null), 8000);
-    }
-  };
-
   const handleCloseDetails = () => {
     if (location.state?.from) {
       goBackToOrigin(navigate, location, '/interaction-log');

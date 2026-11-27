@@ -8,7 +8,6 @@ import {
 import { useStore } from '../store/index.js';
 import { formatDateTime } from '../utils/dateFormat.js';
 import LoadingSpinner from '../components/LoadingSpinner.jsx';
-import MicrosoftAccessGovernancePanel from '../components/MicrosoftAccessGovernancePanel.jsx';
 import { goBackToOrigin } from '../utils/navigation.js';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend
@@ -90,7 +89,7 @@ const TABS = [
   { id: 'templates', label: 'Automatic Templates', icon: FileText },
   { id: 'settings', label: 'Notification Settings', icon: Settings },
   { id: 'smtp', label: 'SMTP Relay Status', icon: Server },
-  { id: 'm365', label: 'Microsoft 365 Access', icon: Wifi },
+
 ];
 
 export default function NotificationCenter() {
@@ -809,10 +808,6 @@ export default function NotificationCenter() {
               )}
             </div>
           </div>
-        )}
-
-        {activeTab === 'm365' && (
-          <MicrosoftAccessGovernancePanel token={token} />
         )}
 
       </div>

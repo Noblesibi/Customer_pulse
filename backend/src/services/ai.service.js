@@ -35,15 +35,105 @@ if (process.env.AI_FORCE_LOCAL === 'true' || process.env.NODE_ENV === 'test') {
 
 let quotaExceededUntil = 0;
 
+const AI_ALERT_COOLDOWN_MS = 30 * 60 * 1000; // Max 1 alert email per reason every 30 minutes
+const lastAiAlertSentByReason = new Map();
+
+function escapeAlertHtml(str) {
+  return String(str || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+/**
+ * Sends a branded alert email when Gemini AI fails, hits 429 quota, or falls back to local NLP.
+ * Respects a 30-minute cooldown per reasonType to prevent email flooding.
+ */
+export async function notifyAiFallbackAlert({
+  reasonType = 'API Error / Fallback',
+  featureName = 'Gemini AI Service',
+  errorMessage = '',
+  modelName = 'gemini-2.5-flash',
+} = {}) {
+  if (process.env.NODE_ENV === 'test' || process.env.AI_FORCE_LOCAL === 'true') {
+    return false;
+  }
+
+  const recipientEmail = (process.env.AI_ALERT_EMAIL || 'aminarashad595@gmail.com').trim();
+  if (!recipientEmail) return false;
+
+  const nowMs = Date.now();
+  const lastSent = lastAiAlertSentByReason.get(reasonType) || 0;
+  if (nowMs - lastSent < AI_ALERT_COOLDOWN_MS) {
+    return false;
+  }
+  lastAiAlertSentByReason.set(reasonType, nowMs);
+
+  try {
+    const [{ db }, { renderTemplate }, { triggerQueueProcessing }] = await Promise.all([
+      import('../config/database.js'),
+      import('./notification/TemplateEngine.js'),
+      import('./notification/EmailScheduler.js'),
+    ]);
+
+    const nowIso = new Date().toISOString();
+    const isQuota = String(reasonType).toLowerCase().includes('429') || String(reasonType).toLowerCase().includes('quota');
+    const vars = {
+      EmployeeName: 'Amina Rashad',
+      AlertTitle: isQuota ? 'Gemini AI Rate Limit (429) — Local Fallback Active' : 'Gemini AI Unavailable — Local Fallback Active',
+      AlertStatus: isQuota ? '429 Rate Limited' : 'Fallback Active',
+      FeatureName: featureName,
+      ReasonType: reasonType,
+      ModelName: modelName,
+      DetectedAt: nowIso,
+      BackoffWindow: isQuota ? '15 minutes' : 'Immediate fallback',
+      ErrorDetails: escapeAlertHtml(errorMessage || 'Gemini AI request failed and switched to local NLP fallback.'),
+    };
+
+    const rendered = renderTemplate('ai_service_alert', vars);
+    const queueId = `aialert_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+    await db.collection('emailqueue').doc(queueId).set({
+      queueId,
+      recipientEmail,
+      recipientName: 'Amina Rashad',
+      eventType: 'ai_service_alert',
+      templateId: 'ai_service_alert',
+      subject: rendered.subject,
+      htmlBody: rendered.html,
+      bodyVars: vars,
+      status: 'queued',
+      retryCount: 0,
+      maxRetries: 3,
+      scheduledAt: nowIso,
+      createdAt: nowIso,
+      sentByUid: 'system',
+      sentByName: 'CustomerPulse AI Monitor',
+    });
+
+    triggerQueueProcessing().catch(err => console.warn('[AI Alert] Queue trigger warning:', err.message));
+    console.warn(`📧 [AI Alert] Queued Gemini fallback alert email (${reasonType}) to ${recipientEmail}`);
+    return true;
+  } catch (err) {
+    console.error('[AI Alert] Failed to queue Gemini fallback notification:', err.message);
+    return false;
+  }
+}
+
 function isQuotaExceeded() {
   return Date.now() < quotaExceededUntil;
 }
 
-function handleAiError(err) {
+function handleAiError(err, featureName = 'Gemini AI Service', modelName = 'gemini-2.5-flash') {
   const msg = (err?.message || '').toLowerCase();
   if (msg.includes('429') || msg.includes('quota') || msg.includes('too many requests') || err?.status === 429) {
     quotaExceededUntil = Date.now() + 15 * 60 * 1000; // back off for 15 minutes
-    console.warn('⚠️ Gemini API free-tier quota exceeded. Instantly falling back to Smart NLP engine (0ms latency).');
+    console.warn('⚠️ Gemini API quota/rate limit (429) exceeded. Falling back to local engine and notifying admin.');
+    notifyAiFallbackAlert({
+      reasonType: '429 Rate Limit / Quota Exceeded',
+      featureName,
+      errorMessage: err?.message || 'HTTP 429 Too Many Requests / Quota Exceeded',
+      modelName,
+    }).catch(() => {});
     return true; // quota error
   }
   return false;
@@ -58,15 +148,26 @@ const GEMINI_MODEL_CANDIDATES = [
 ];
 let cachedWorkingGeminiModel = null;
 
-async function generateWithGemini(prompt) {
+async function generateWithGemini(prompt, featureName = 'Gemini AI Service') {
   const client = getGenAI();
-  if (!client || isQuotaExceeded()) return null;
+  if (!client) {
+    notifyAiFallbackAlert({
+      reasonType: 'Missing or Unconfigured GEMINI_API_KEY',
+      featureName,
+      errorMessage: 'GEMINI_API_KEY is missing or set to placeholder in backend/.env.',
+      modelName: GEMINI_MODEL_CANDIDATES[0] || 'gemini-2.5-flash',
+    }).catch(() => {});
+    return null;
+  }
+  if (isQuotaExceeded()) return null;
   const modelsToTry = cachedWorkingGeminiModel
     ? [cachedWorkingGeminiModel, ...GEMINI_MODEL_CANDIDATES.filter(m => m !== cachedWorkingGeminiModel)]
     : GEMINI_MODEL_CANDIDATES;
 
   let lastErr = null;
+  let lastModel = modelsToTry[0] || 'gemini-2.5-flash';
   for (const modelName of modelsToTry) {
+    lastModel = modelName;
     try {
       const model = client.getGenerativeModel({ model: modelName });
       const result = await model.generateContent(prompt);
@@ -78,7 +179,7 @@ async function generateWithGemini(prompt) {
       }
     } catch (err) {
       lastErr = err;
-      if (handleAiError(err)) {
+      if (handleAiError(err, featureName, modelName)) {
         throw err;
       }
       const msg = (err?.message || '').toLowerCase();
@@ -86,10 +187,24 @@ async function generateWithGemini(prompt) {
         if (cachedWorkingGeminiModel === modelName) cachedWorkingGeminiModel = null;
         continue;
       }
+      notifyAiFallbackAlert({
+        reasonType: 'Gemini API Failure (Fallback Triggered)',
+        featureName,
+        errorMessage: err?.message || 'Unexpected Gemini API error',
+        modelName,
+      }).catch(() => {});
       throw err;
     }
   }
-  if (lastErr) throw lastErr;
+  if (lastErr) {
+    notifyAiFallbackAlert({
+      reasonType: 'All Gemini Models Unavailable (Fallback Triggered)',
+      featureName,
+      errorMessage: lastErr?.message || 'All candidate Gemini models failed.',
+      modelName: lastModel,
+    }).catch(() => {});
+    throw lastErr;
+  }
   return null;
 }
 
@@ -659,12 +774,9 @@ Return strictly a valid JSON object:
 }
 `.trim();
 
-    const candidateModels = ['gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-3.5-flash', 'gemini-3.1-flash-lite', 'gemini-1.5-pro'];
-    for (const modelName of candidateModels) {
-      try {
-        const model = genAI.getGenerativeModel({ model: modelName });
-        const result = await model.generateContent(prompt);
-        let responseText = result.response.text().trim();
+    try {
+      let responseText = await generateWithGemini(prompt);
+      if (responseText) {
         if (responseText.startsWith('```')) {
           responseText = responseText.replace(/^```(?:json)?\s*/i, '').replace(/```$/, '').trim();
         }
@@ -678,9 +790,9 @@ Return strictly a valid JSON object:
             source: 'gemini-ai'
           };
         }
-      } catch (err) {
-        console.warn('Gemini model ' + modelName + ' failed for activity next steps:', err.message);
       }
+    } catch (err) {
+      console.warn('Gemini failed for activity next steps:', err.message);
     }
   }
 
@@ -762,12 +874,9 @@ Return strictly a valid JSON object:
 }
 `.trim();
 
-    const candidateModels = ['gemini-3.5-flash', 'gemini-3.1-flash-lite', 'gemini-3.5-flash-lite'];
-    for (const modelName of candidateModels) {
-      try {
-        const model = genAI.getGenerativeModel({ model: modelName });
-        const result = await model.generateContent(prompt);
-        let responseText = result.response.text().trim();
+    try {
+      let responseText = await generateWithGemini(prompt);
+      if (responseText) {
         if (responseText.startsWith('```')) {
           responseText = responseText.replace(/^```(?:json)?\s*/i, '').replace(/```$/, '').trim();
         }
@@ -787,9 +896,9 @@ Return strictly a valid JSON object:
             source: 'gemini-ai'
           };
         }
-      } catch (err) {
-        // proceed to fallback
       }
+    } catch (err) {
+      // proceed to fallback
     }
   }
 
@@ -924,11 +1033,12 @@ export async function generateRiskAiDetails({
   );
 
   // 1. Try Google Gemini Generative AI across modern supported models if key exists
-  if (genAI && !isQuotaExceeded()) {
-    const candidateModels = ['gemini-2.5-flash', 'gemini-flash-latest', 'gemini-3.5-flash', 'gemini-3.1-flash-lite', 'gemini-pro-latest'];
+  const activeGenAI = getGenAI();
+  if (activeGenAI && !isQuotaExceeded()) {
+    const candidateModels = GEMINI_MODEL_CANDIDATES;
     for (const modelName of candidateModels) {
       try {
-        const model = genAI.getGenerativeModel({ model: modelName });
+        const model = activeGenAI.getGenerativeModel({ model: modelName });
         const prompt = `You are CustomerPulse AI, an executive B2B Customer Success intelligence system.
 Analyze this high-priority account and provide a distinct, highly professional 3-part risk breakdown.
 
@@ -1246,12 +1356,9 @@ Respond strictly with valid JSON (no markdown fences):
 }
 `.trim();
 
-  const candidateModels = ['gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-3.5-flash'];
-  for (const modelName of candidateModels) {
-    try {
-      const model = genAI.getGenerativeModel({ model: modelName });
-      const result = await model.generateContent(prompt);
-      let responseText = result.response.text().trim();
+  try {
+    let responseText = await generateWithGemini(prompt);
+    if (responseText) {
       if (responseText.startsWith('```')) {
         responseText = responseText.replace(/^```(?:json)?\s*/i, '').replace(/```$/, '').trim();
       }
@@ -1273,10 +1380,10 @@ Respond strictly with valid JSON (no markdown fences):
           source: 'gemini-ai'
         };
       }
-    } catch (err) {
-      handleAiError(err);
-      console.warn(`Gemini model ${modelName} failed for Teams meeting summary:`, err.message);
     }
+  } catch (err) {
+    handleAiError(err);
+    console.warn('Gemini failed for meeting summary:', err.message);
   }
 
   return localTeamsMeetingSummary({ subject, transcriptText: cleanTranscript, durationSeconds });
